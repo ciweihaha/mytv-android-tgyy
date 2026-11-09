@@ -114,6 +114,7 @@ class LeanbackVideoPlayerState(
     fun release() {
         onReadyListeners.clear()
         onErrorListeners.clear()
+        onCutoffListeners.clear()
         instance.release()
     }
 }

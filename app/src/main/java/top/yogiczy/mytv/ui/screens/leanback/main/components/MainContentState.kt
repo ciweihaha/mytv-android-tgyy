@@ -78,16 +78,25 @@ class LeanbackMainContentState(
             }
 
             // 记忆可播放的域名
-            SP.iptvPlayableHostList += getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            if (_currentIptv.urlList.isNotEmpty()) {
+                SP.iptvPlayableHostList += getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            }
         }
 
         videoPlayerState.onError {
-            if (_currentIptvUrlIdx < _currentIptv.urlList.size - 1) {
-                changeCurrentIptv(_currentIptv, _currentIptvUrlIdx + 1)
+            // 先记下失败的下标：changeCurrentIptv 切线路后下标已变，
+            // 原先直接按新下标删域名记忆，删掉的是刚切过去那条还没
+            // 失败的线路；切线路时内部已删过失败那条，这里再删一次
+            // 同一值（Set 去重，无害），末条失败时则由这里删
+            val failedUrlIdx = _currentIptvUrlIdx
+            if (failedUrlIdx < _currentIptv.urlList.size - 1) {
+                changeCurrentIptv(_currentIptv, failedUrlIdx + 1)
             }
 
             // 从记忆中删除不可播放的域名
-            SP.iptvPlayableHostList -= getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            if (_currentIptv.urlList.isNotEmpty()) {
+                SP.iptvPlayableHostList -= getUrlHost(_currentIptv.urlList[failedUrlIdx])
+            }
         }
 
         videoPlayerState.onCutoff {
