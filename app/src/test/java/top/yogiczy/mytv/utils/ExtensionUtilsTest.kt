@@ -54,6 +54,13 @@ class CompareVersionTest {
     }
 
     @Test
+    fun `build metadata is ignored`() {
+        assertEquals(0, "1.4.4+build.5".compareVersion("1.4.4"))
+        assertEquals(0, "1.4.4-rc.1+build.5".compareVersion("1.4.4-rc.1+build.6"))
+        assertEquals(0, "1.4.4-rc.1+build.5".compareVersion("1.4.4-rc.1"))
+    }
+
+    @Test
     fun `surrounding whitespace is ignored`() {
         // 尾部空白不处理时最后一段 toIntOrNull 得 null 记 0，"1.4.4 " 会被算成 1.4.0
         assertEquals(0, "1.4.4 ".compareVersion("1.4.4"))

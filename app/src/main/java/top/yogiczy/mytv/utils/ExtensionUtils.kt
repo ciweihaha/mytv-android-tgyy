@@ -32,7 +32,10 @@ fun String.compareVersion(version2: String): Int {
         // 先 trim 两端空白，否则尾部空白会让最后一段 toIntOrNull 得
         // null 记 0，"1.4.4 " 就被算成 1.4.0
         val stripped = version.trim().trimStart { !it.isDigit() }
-        val mainParts = stripped.split("-", limit = 2)
+        // 构建元数据（+ 之后的部分）不参与比较：按 semver 应忽略；不去
+        // 的话 "1.4.4-rc.1+build.5" 会比 "1.4.4-rc.1" 大，两个同版本
+        // 构建会被误判成有更新
+        val mainParts = stripped.substringBefore('+').split("-", limit = 2)
         // 非数字段（如误入的 "v1"）记 0 而不是抛 NumberFormatException
         // 导致整个更新检查失败
         val versionNumbers = mainParts[0].split(".").map { it.toIntOrNull() ?: 0 }
