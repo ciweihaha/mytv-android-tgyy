@@ -42,6 +42,17 @@ jobs:
         run: chmod +x ./gradlew && ./gradlew assembleDebug
         timeout-minutes: 30
 
+      # Round 8: release builds run R8 (minifyEnabled + shrinkResources) but
+      # debug builds do not, so proguard-rules.pro was never exercised. Build
+      # release too, signed with a throwaway CI keystore, to validate the R8
+      # rules on every push. The APK is verification-only and is NOT uploaded
+      # (a per-run random key could never update an installed app).
+      - name: 构建release APK（验证R8）
+        run: |
+          keytool -genkeypair -keystore /tmp/release.keystore -storepass android -alias release -keypass android -dname "CN=CI,O=CI,C=CN" -keyalg RSA -keysize 2048 -validity 1
+          KEYSTORE=/tmp/release.keystore KEYSTORE_PASSWORD=android KEY_ALIAS=release KEY_PASSWORD=android ./gradlew assembleRelease
+        timeout-minutes: 30
+
       - name: 上传debug APK
         uses: actions/upload-artifact@v4
         with:
