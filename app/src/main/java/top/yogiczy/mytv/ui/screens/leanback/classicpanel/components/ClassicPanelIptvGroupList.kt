@@ -29,9 +29,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.items
-import androidx.tv.foundation.lazy.list.rememberTvLazyListState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.IptvGroup
@@ -56,7 +56,7 @@ fun LeanbackClassicPanelIptvGroupList(
     val focusRequester = remember { FocusRequester() }
     var focusedIptvGroup by remember { mutableStateOf(initialIptvGroup) }
 
-    val listState = rememberTvLazyListState(max(0, iptvGroupList.indexOf(initialIptvGroup) - 2))
+    val listState = rememberLazyListState(max(0, iptvGroupList.indexOf(initialIptvGroup) - 2))
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }
@@ -64,7 +64,7 @@ fun LeanbackClassicPanelIptvGroupList(
             .collect { _ -> onUserAction() }
     }
 
-    TvLazyColumn(
+    LazyColumn(
         state = listState,
         contentPadding = PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
