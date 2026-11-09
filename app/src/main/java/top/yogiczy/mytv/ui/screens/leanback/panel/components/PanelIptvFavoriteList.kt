@@ -100,7 +100,9 @@ fun LeanbackPanelIptvFavoriteList(
                 bottom = childPadding.bottom,
             ),
         ) {
-            itemsIndexed(iptvList) { index, iptv ->
+            // 按频道对象设 key：取消收藏让列表缩短时，焦点与记住的状态
+            // 跟着频道走；同名频道可能来自不同分组，不能只用 channelName
+            itemsIndexed(iptvList, key = { _, iptv -> iptv }) { index, iptv ->
                 LeanbackPanelIptvItem(
                     modifier = if (index < favoriteListSize) {
                         Modifier.handleLeanbackKeyEvents(onUp = { onClose() })
@@ -143,11 +145,16 @@ fun LeanbackPanelIptvFavoriteList(
         modifier = Modifier
             .handleLeanbackKeyEvents(
                 onLeft = {
-                    currentShowEpgIptv = iptvList[max(0, iptvList.indexOf(currentShowEpgIptv) - 1)]
+                    // 列表为空时下标越界：对话框打开后列表理论上不会变空，但守卫一下
+                    if (iptvList.isNotEmpty()) {
+                        currentShowEpgIptv = iptvList[max(0, iptvList.indexOf(currentShowEpgIptv) - 1)]
+                    }
                 },
                 onRight = {
-                    currentShowEpgIptv =
-                        iptvList[min(iptvList.size - 1, iptvList.indexOf(currentShowEpgIptv) + 1)]
+                    if (iptvList.isNotEmpty()) {
+                        currentShowEpgIptv =
+                            iptvList[min(iptvList.size - 1, iptvList.indexOf(currentShowEpgIptv) + 1)]
+                    }
                 },
             ),
         onUserAction = onUserAction,

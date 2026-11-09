@@ -61,7 +61,9 @@ fun LeanbackPanelIptvGroupList(
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(bottom = childPadding.bottom),
     ) {
-        itemsIndexed(iptvGroupList) { index, iptvGroup ->
+        // 按分组名设 key：分组名是 groupBy 的键，天然唯一；列表变化时
+        // 各分组行的状态跟着分组走
+        itemsIndexed(iptvGroupList, key = { _, iptvGroup -> iptvGroup.name }) { index, iptvGroup ->
             Row(
                 modifier = Modifier.padding(start = childPadding.start),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
