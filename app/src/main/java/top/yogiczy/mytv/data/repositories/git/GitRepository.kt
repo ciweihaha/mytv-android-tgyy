@@ -20,7 +20,8 @@ class GitRepository : Loggable() {
                     throw Exception("获取最新发行版失败: $code")
                 }
 
-                val parser = GitReleaseParser.instances.first { it.isSupport(url) }
+                val parser = GitReleaseParser.selectParser(url)
+                    ?: throw IllegalArgumentException("不支持的更新源，仅支持 GitHub / Gitee：$url")
                 return@with parser.parse(
                     body?.string() ?: throw Exception("获取最新发行版失败: 响应体为空")
                 )

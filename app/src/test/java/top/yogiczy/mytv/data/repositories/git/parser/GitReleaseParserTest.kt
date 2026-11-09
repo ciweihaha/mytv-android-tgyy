@@ -3,6 +3,7 @@ package top.yogiczy.mytv.data.repositories.git.parser
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -235,5 +236,32 @@ class GiteeGitReleaseParserTest {
         val result = parser.parse(data)
 
         assertEquals("", result.description)
+    }
+}
+
+class GitReleaseParserSelectTest {
+    @Test
+    fun `selects github parser for github urls`() {
+        assertTrue(
+            GitReleaseParser.selectParser(
+                "https://api.github.com/repos/yaoxieyoulei/mytv-android/releases/latest"
+            ) is GithubGitReleaseParser
+        )
+    }
+
+    @Test
+    fun `selects gitee parser for gitee urls`() {
+        assertTrue(
+            GitReleaseParser.selectParser(
+                "https://gitee.com/api/v5/repos/yaoxieyoulei/mytv-android/releases/latest"
+            ) is GiteeGitReleaseParser
+        )
+    }
+
+    @Test
+    fun `returns null for unsupported update source`() {
+        assertNull(
+            GitReleaseParser.selectParser("https://example.com/releases/latest")
+        )
     }
 }
