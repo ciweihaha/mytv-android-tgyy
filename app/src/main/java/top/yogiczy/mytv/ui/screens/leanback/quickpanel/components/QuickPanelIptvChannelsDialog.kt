@@ -78,7 +78,9 @@ fun LeanbackQuickPanelIptvChannelsDialog(
                     contentPadding = PaddingValues(vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    itemsIndexed(iptv.urlList) { index, url ->
+                    // 按"下标+地址"设 key：列表变化时测速结果与焦点跟着地址走，
+                    // 而不是错位到同一位置的新地址上；纯下标做 key 等于没 key
+                    itemsIndexed(iptv.urlList, key = { index, url -> "$index:$url" }) { index, url ->
                         val focusRequester = remember { FocusRequester() }
 
                         LaunchedEffect(Unit) {
@@ -191,17 +193,21 @@ private fun rememberIptvUrlDelay(url: String): Long {
     var elapsedTime by remember { mutableLongStateOf(0) }
     var hasError by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    // 按 url 设 key：同一位置换了地址要重新测速，而不是沿用旧地址的延迟
+    LaunchedEffect(url) {
         withContext(Dispatchers.IO) {
-            val client = OkHttpClient()
-            val request = Request.Builder().url(url).build()
-
             elapsedTime = measureTimeMillis {
                 try {
+                    val client = OkHttpClient()
+                    val request = Request.Builder().url(url).build()
                     client.newCall(request).execute().use { response ->
                         if (!response.isSuccessful) throw IOException("Unexpected code $response")
                     }
-                } catch (_: IOException) {
+                } catch (_: Exception) {
+                    // 测速失败（超时、非法 URL、rtmp 等不支持的协议……）：
+                    // 只隐藏延迟标签，不要把异常抛到组合作用域导致闪退；
+                    // 原先只 catch IOException，Request.Builder 在非法
+                    // URL 上抛的 IllegalArgumentException 会直接崩应用
                     hasError = true
                 }
             }
