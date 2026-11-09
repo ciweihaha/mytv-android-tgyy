@@ -38,6 +38,25 @@ class GithubGitReleaseParserTest {
         )
         assertEquals("## 更新内容\n- 修复已知问题", result.description)
     }
+
+    @Test
+    fun `tag without v prefix is kept as-is`() = runBlocking {
+        val data = """
+            {
+              "tag_name": "1.4.5",
+              "body": "",
+              "assets": [
+                {
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/1.4.5/mytv-1.4.5.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals("1.4.5", result.version)
+    }
 }
 
 class GiteeGitReleaseParserTest {
