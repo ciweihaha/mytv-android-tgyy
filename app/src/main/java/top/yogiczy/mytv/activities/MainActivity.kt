@@ -15,9 +15,10 @@ class MainActivity : ComponentActivity() {
             SP.AppDeviceDisplayType.PAD -> PadActivity::class.java
         }
 
-        // TODO 切换时变化生硬
+        // 跳板 Activity：直接起真正的界面，不要转场动画，否则启动时先
+        // 闪一下再滑入，看着生硬
         startActivity(Intent(this, activityClass).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         })
 
         finish()
