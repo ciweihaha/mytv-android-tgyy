@@ -73,6 +73,17 @@ class LeanbackMedia3VideoPlayer(
     private var updatePositionJob: Job? = null
 
     /**
+     * 直播位置落后重试计数：BEHIND_LIVE_WINDOW 原先无条件 seek + prepare
+     * 死循环——过期不再更新的 HLS 列表会永远缓冲在同一条线路上，既不
+     * 显示错误也不切下一条线路；超过上限就上报错误走正常换线流程
+     */
+    private var behindLiveWindowRetries = 0
+
+    companion object {
+        const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 3
+    }
+
+    /**
      * 数据源工厂缓存：原先每次 prepare（每次切台）都新建 SSLContext +
      * OkHttpClient + DefaultDataSource.Factory；按（加载超时，UA）缓存，
      * 设置改了才重建，切台直接复用
@@ -156,10 +167,18 @@ class LeanbackMedia3VideoPlayer(
         }
 
         override fun onPlayerError(ex: Media3PlaybackException) {
-            // 如果是直播加载位置错误，尝试重新播放
+            // 如果是直播加载位置错误，先重试几次；一直落后说明该线路的
+            // 列表已过期不再更新，继续重试只是无限缓冲，交给上层换线
             if (ex.errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                videoPlayer.seekToDefaultPosition()
-                videoPlayer.prepare()
+                if (++behindLiveWindowRetries > MAX_BEHIND_LIVE_WINDOW_RETRIES) {
+                    behindLiveWindowRetries = 0
+                    triggerError(
+                        PlaybackException(ex.errorCodeName, ex.errorCode)
+                    )
+                } else {
+                    videoPlayer.seekToDefaultPosition()
+                    videoPlayer.prepare()
+                }
             }
             // 当解析容器不支持时，尝试使用其他解析容器
             else if (ex.errorCode == Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
@@ -187,6 +206,8 @@ class LeanbackMedia3VideoPlayer(
                 triggerError(null)
                 triggerBuffering(true)
             } else if (playbackState == Player.STATE_READY) {
+                // 播起来了：位置落后计数清零，下次再落后重新数
+                behindLiveWindowRetries = 0
                 triggerReady()
 
                 updatePositionJob?.cancel()
@@ -279,6 +300,7 @@ class LeanbackMedia3VideoPlayer(
     @UnstableApi
     override fun prepare(url: String) {
         contentTypeAttempts.clear()
+        behindLiveWindowRetries = 0
         prepare(Uri.parse(url))
     }
 
