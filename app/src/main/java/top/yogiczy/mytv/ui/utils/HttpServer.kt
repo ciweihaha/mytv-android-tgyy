@@ -24,6 +24,7 @@ import top.yogiczy.mytv.utils.Loggable
 import top.yogiczy.mytv.utils.Logger
 import java.io.File
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.SocketException
 
@@ -38,6 +39,16 @@ internal fun generateAccessCode(): String =
 
 internal fun isAuthorizedAccessCode(provided: String?, expected: String): Boolean =
     !provided.isNullOrBlank() && provided == expected
+
+/**
+ * 从本机地址里选一个局域网地址：优先内网地址（10/8、172.16/12、
+ * 192.168/16），否则取第一个非回环 IPv4；都没有返回 null。
+ * 网卡枚举顺序不确定，直接取第一个可能拿到 VPN/移动数据的公网 IP，
+ * 设置页与失败屏的二维码就指到了局域网内访问不到的地址。
+ */
+internal fun pickLanAddress(addresses: List<InetAddress>): InetAddress? =
+    addresses.firstOrNull { it is Inet4Address && !it.isLoopbackAddress && it.isSiteLocalAddress }
+        ?: addresses.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
 
 object HttpServer : Loggable() {
     private const val SERVER_PORT = 10481
@@ -304,22 +315,15 @@ object HttpServer : Loggable() {
     private fun getLocalIpAddress(): String {
         val defaultIp = "0.0.0.0"
 
-        try {
-            val en = NetworkInterface.getNetworkInterfaces()
-            while (en.hasMoreElements()) {
-                val intf = en.nextElement()
-                val enumIpAddr = intf.inetAddresses
-                while (enumIpAddr.hasMoreElements()) {
-                    val inetAddress = enumIpAddr.nextElement()
-                    if (!inetAddress.isLoopbackAddress && inetAddress is Inet4Address) {
-                        return inetAddress.hostAddress ?: defaultIp
-                    }
-                }
-            }
-            return defaultIp
+        return try {
+            val addresses = NetworkInterface.getNetworkInterfaces()
+                ?.asSequence().orEmpty()
+                .flatMap { it.inetAddresses.asSequence() }
+                .toList()
+            pickLanAddress(addresses)?.hostAddress ?: defaultIp
         } catch (ex: SocketException) {
             log.e("IP Address: ${ex.message}", ex)
-            return defaultIp
+            defaultIp
         }
     }
 }
