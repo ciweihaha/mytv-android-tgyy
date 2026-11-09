@@ -57,6 +57,16 @@ private object TrustAllCertsManager : X509TrustManager {
     override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
 }
 
+/**
+ * Media3 的 Format 用 NO_VALUE（-1）表示未知：直接进 Metadata 会在调试
+ * 信息里显示成 "-1.0" 帧率、"-1" 声道数、"-1 Hz" 采样率、"-1x-1" 分辨
+ * 率。归一到 Metadata 的默认值 0（0 即未知，与未收到元数据时一致）。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun Int.noValueToZero(): Int = if (this == Format.NO_VALUE) 0 else this
+
+internal fun Float.noValueToZero(): Float = if (this == Format.NO_VALUE.toFloat()) 0f else this
+
 @OptIn(UnstableApi::class)
 class LeanbackMedia3VideoPlayer(
     private val context: Context,
@@ -234,12 +244,12 @@ class LeanbackMedia3VideoPlayer(
         ) {
             metadata = metadata.copy(
                 videoMimeType = format.sampleMimeType ?: "",
-                videoWidth = format.width,
-                videoHeight = format.height,
+                videoWidth = format.width.noValueToZero(),
+                videoHeight = format.height.noValueToZero(),
                 videoColor = format.colorInfo?.toLogString() ?: "",
                 // TODO 帧率、比特率目前是从tag中获取，有的返回空，后续需要实时计算
-                videoFrameRate = format.frameRate,
-                videoBitrate = format.bitrate,
+                videoFrameRate = format.frameRate.noValueToZero(),
+                videoBitrate = format.bitrate.noValueToZero(),
             )
             triggerMetadata(metadata)
         }
@@ -261,8 +271,8 @@ class LeanbackMedia3VideoPlayer(
         ) {
             metadata = metadata.copy(
                 audioMimeType = format.sampleMimeType ?: "",
-                audioChannels = format.channelCount,
-                audioSampleRate = format.sampleRate,
+                audioChannels = format.channelCount.noValueToZero(),
+                audioSampleRate = format.sampleRate.noValueToZero(),
             )
             triggerMetadata(metadata)
         }
