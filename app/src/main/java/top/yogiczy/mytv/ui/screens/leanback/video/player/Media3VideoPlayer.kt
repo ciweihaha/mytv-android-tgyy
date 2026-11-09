@@ -73,6 +73,24 @@ class LeanbackMedia3VideoPlayer(
     private var updatePositionJob: Job? = null
 
     /**
+     * 数据源工厂缓存：原先每次 prepare（每次切台）都新建 SSLContext +
+     * OkHttpClient + DefaultDataSource.Factory；按（加载超时，UA）缓存，
+     * 设置改了才重建，切台直接复用
+     */
+    private var cachedDataSourceFactory: DataSource.Factory? = null
+    private var cachedDataSourceFactoryKey: Pair<Long, String>? = null
+
+    private fun getDataSourceFactory(): DataSource.Factory {
+        val key = SP.videoPlayerLoadTimeout to SP.videoPlayerUserAgent
+        if (cachedDataSourceFactory == null || cachedDataSourceFactoryKey != key) {
+            cachedDataSourceFactoryKey = key
+            cachedDataSourceFactory =
+                DefaultDataSource.Factory(context, createHttpDataSourceFactory())
+        }
+        return cachedDataSourceFactory!!
+    }
+
+    /**
      * 播放器专用的 HTTP 数据源工厂：用独立的 OkHttp 客户端拉流，证书校验只对播放流量放行。
      * 超时、User-Agent 与原 DefaultHttpDataSource 配置保持一致；
      * OkHttp 默认跟随重定向（含跨协议），与原 setAllowCrossProtocolRedirects(true) 等效。
@@ -95,8 +113,7 @@ class LeanbackMedia3VideoPlayer(
 
     @OptIn(UnstableApi::class)
     private fun prepare(uri: Uri, contentType: Int? = null) {
-        val dataSourceFactory =
-            DefaultDataSource.Factory(context, createHttpDataSourceFactory())
+        val dataSourceFactory = getDataSourceFactory()
 
         val mediaItem = MediaItem.fromUri(uri)
 
