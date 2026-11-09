@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.compose.foundation.lazy.LazyColumn
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.SP
@@ -18,7 +18,7 @@ import top.yogiczy.mytv.utils.humanizeMs
 fun LeanbackSettingsCategoryHttp(
     modifier: Modifier = Modifier,
 ) {
-    TvLazyColumn(
+    LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(vertical = 10.dp),

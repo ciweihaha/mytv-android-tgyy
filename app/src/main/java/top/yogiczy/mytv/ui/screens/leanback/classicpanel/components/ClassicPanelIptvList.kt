@@ -33,9 +33,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.TvLazyListState
-import androidx.tv.foundation.lazy.list.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.EpgList
@@ -87,7 +87,7 @@ fun LeanbackClassicPanelIptvList(
     }
 
     val listState = remember(iptvGroupProvider()) {
-        TvLazyListState(
+        LazyListState(
             if (hasFocused) 0
             else max(0, iptvList.indexOf(initialIptv) - 2)
         )
@@ -99,7 +99,7 @@ fun LeanbackClassicPanelIptvList(
             .collect { _ -> onUserAction() }
     }
 
-    TvLazyColumn(
+    LazyColumn(
         state = listState,
         contentPadding = PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),

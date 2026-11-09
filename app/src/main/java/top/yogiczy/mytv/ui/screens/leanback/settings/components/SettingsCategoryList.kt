@@ -22,8 +22,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.itemsIndexed
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsCategories
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
@@ -37,7 +37,7 @@ fun LeanbackSettingsCategoryList(
 ) {
     var hasFocused = rememberSaveable { false }
 
-    TvLazyColumn(
+    LazyColumn(
         contentPadding = PaddingValues(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = modifier.focusRestorer()

@@ -18,9 +18,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.itemsIndexed
-import androidx.tv.foundation.lazy.list.rememberTvLazyListState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.Iptv
@@ -46,7 +46,7 @@ fun LeanbackPanelIptvGroupList(
     val iptvGroupList = iptvGroupListProvider()
 
     val listState =
-        rememberTvLazyListState(max(0, iptvGroupList.iptvGroupIdx(currentIptvProvider())))
+        rememberLazyListState(max(0, iptvGroupList.iptvGroupIdx(currentIptvProvider())))
     val childPadding = rememberLeanbackChildPadding()
 
     LaunchedEffect(listState) {
@@ -55,7 +55,7 @@ fun LeanbackPanelIptvGroupList(
             .collect { _ -> onUserAction() }
     }
 
-    TvLazyColumn(
+    LazyColumn(
         modifier = modifier,
         state = listState,
         verticalArrangement = Arrangement.spacedBy(14.dp),

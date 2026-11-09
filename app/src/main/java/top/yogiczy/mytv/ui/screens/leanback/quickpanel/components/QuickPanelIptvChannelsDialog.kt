@@ -27,9 +27,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
-import androidx.tv.foundation.lazy.list.itemsIndexed
-import androidx.tv.foundation.lazy.list.rememberTvLazyListState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
@@ -65,7 +65,7 @@ fun LeanbackQuickPanelIptvChannelsDialog(
             text = {
                 var hasFocused by remember { mutableStateOf(false) }
 
-                val listState = rememberTvLazyListState(max(0, iptvUrlIdx - 2))
+                val listState = rememberLazyListState(max(0, iptvUrlIdx - 2))
 
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.isScrollInProgress }
@@ -73,7 +73,7 @@ fun LeanbackQuickPanelIptvChannelsDialog(
                         .collect { _ -> onUserAction() }
                 }
 
-                TvLazyColumn(
+                LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
