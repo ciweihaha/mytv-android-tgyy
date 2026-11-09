@@ -21,6 +21,22 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
+ * 容错解码节目单缓存：缓存文件是 file.writeText 直接写入（非原子），
+ * 进程在写入中途被杀会留下截断的 JSON；旧版本缓存的结构也可能与当前
+ * Epg 对不上。解不开时返回 null，让调用方走刷新或给空节目单，而不
+ * 是抛错——否则一次坏缓存会让节目单在缓存过期（隔天）前一直加载失败。
+ * 顶层函数与 EpgRepository 对象无关，方便单元测试直接调用。
+ */
+internal fun decodeEpgListOrNull(json: String?): EpgList? {
+    if (json.isNullOrBlank()) return null
+    return try {
+        EpgList(Json.decodeFromString<List<Epg>>(json))
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
  * 节目单获取
  */
 class EpgRepository : FileCacheRepository("epg.json") {
@@ -154,10 +170,15 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 // 多天，凌晨时段的节目多半在里面）：有缓存就返回缓存，
                 // 别直接给空——原先每天 0 点到阈值（默认 2 点）之间完全
                 // 没有节目信息
-                log.d("未到时间点，不刷新节目单，沿用缓存")
                 val cachedJson = getCachedData()
-                return@withContext if (cachedJson.isNullOrBlank()) EpgList()
-                else EpgList(Json.decodeFromString<List<Epg>>(cachedJson))
+                if (cachedJson.isNullOrBlank()) return@withContext EpgList()
+                val cached = decodeEpgListOrNull(cachedJson)
+                if (cached != null) {
+                    log.d("未到时间点，不刷新节目单，沿用缓存")
+                    return@withContext cached
+                }
+                // 缓存损坏或与当前结构对不上：不等时间点，直接走下面的刷新
+                log.w("节目单缓存无法解析，跳过等待直接刷新")
             }
 
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -169,7 +190,12 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 Json.encodeToString(parseFromXml(xmlString, filteredChannels).value)
             }
 
-            EpgList(Json.decodeFromString<List<Epg>>(xmlJson))
+            // 刷新刚成功时编解码必然能 round-trip；解不开说明拿到的是
+            // getOrRefresh 刷新失败时顶上的旧坏缓存：给空节目单，别抛错
+            decodeEpgListOrNull(xmlJson) ?: run {
+                log.e("节目单数据无法解析，返回空节目单")
+                EpgList()
+            }
         } catch (ex: Exception) {
             log.e("获取节目单失败", ex)
             throw Exception(ex)
