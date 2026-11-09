@@ -24,9 +24,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.tv.foundation.lazy.list.TvLazyColumn
+import androidx.tv.foundation.lazy.list.TvLazyListState
+import androidx.tv.foundation.lazy.list.items
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.Epg
@@ -62,7 +62,7 @@ fun LeanbackPanelIptvEpgDialog(
                 val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
                 var hasFocused by remember(iptv) { mutableStateOf(false) }
 
-                val listState = LazyListState(
+                val listState = TvLazyListState(
                     max(0, epg.programmes.indexOfFirst { it.isLive() } - 2))
 
                 LaunchedEffect(listState) {
@@ -71,7 +71,7 @@ fun LeanbackPanelIptvEpgDialog(
                         .collect { _ -> onUserAction() }
                 }
 
-                LazyColumn(
+                TvLazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {

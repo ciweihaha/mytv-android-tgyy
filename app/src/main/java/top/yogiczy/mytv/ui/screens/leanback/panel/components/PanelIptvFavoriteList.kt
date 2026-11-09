@@ -24,10 +24,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.tv.foundation.lazy.grid.TvGridCells
+import androidx.tv.foundation.lazy.grid.TvLazyVerticalGrid
+import androidx.tv.foundation.lazy.grid.itemsIndexed
+import androidx.tv.foundation.lazy.grid.rememberTvLazyGridState
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.Epg
 import top.yogiczy.mytv.data.entities.Epg.Companion.currentProgrammes
@@ -57,7 +57,7 @@ fun LeanbackPanelIptvFavoriteList(
 
     var key by remember { mutableIntStateOf(0) }
     val iptvList = remember(key) { iptvListProvider() }
-    val listState = rememberLazyGridState(max(0, iptvList.indexOf(currentIptvProvider())))
+    val listState = rememberTvLazyGridState(max(0, iptvList.indexOf(currentIptvProvider())))
 
     var hasFocused by rememberSaveable { mutableStateOf(false) }
 
@@ -88,9 +88,9 @@ fun LeanbackPanelIptvFavoriteList(
             }
         }
 
-        LazyVerticalGrid(
+        TvLazyVerticalGrid(
             state = listState,
-            columns = GridCells.Fixed(favoriteListSize),
+            columns = TvGridCells.Fixed(favoriteListSize),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(

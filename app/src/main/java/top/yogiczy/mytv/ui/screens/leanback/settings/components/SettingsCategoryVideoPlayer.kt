@@ -9,7 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.tv.foundation.lazy.list.TvLazyColumn
 import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.SP
@@ -21,7 +21,7 @@ fun LeanbackSettingsCategoryVideoPlayer(
     modifier: Modifier = Modifier,
     settingsViewModel: LeanbackSettingsViewModel = viewModel(),
 ) {
-    LazyColumn(
+    TvLazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(vertical = 10.dp),

@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.tv.foundation.lazy.list.TvLazyColumn
 import androidx.tv.material3.Icon
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
@@ -28,7 +28,7 @@ fun LeanbackSettingsCategoryAbout(
     modifier: Modifier = Modifier,
     packageInfo: PackageInfo = rememberPackageInfo(),
 ) {
-    LazyColumn(
+    TvLazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(vertical = 10.dp),
