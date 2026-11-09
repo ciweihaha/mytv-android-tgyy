@@ -85,4 +85,22 @@ class TvboxIptvParserTest {
         assertEquals("CCTV-1", result[0].iptvList[0].name)
         assertEquals("央视", result[1].name)
     }
+
+    @Test
+    fun `empty url segments are dropped`() = runBlocking {
+        val data = """
+            央视,#genre#
+            CCTV-1,http://example.com/cctv1.m3u8#
+            CCTV-2,
+            CCTV-5,http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
 }

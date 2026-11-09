@@ -8,7 +8,9 @@ import top.yogiczy.mytv.data.entities.IptvList
 class M3uIptvParser : IptvParser {
 
     override fun isSupport(url: String, data: String): Boolean {
-        return data.startsWith("#EXTM3U")
+        // 部分编辑器（Windows 记事本等）保存的 M3U 带 UTF-8 BOM，或首行有
+        // 空行：先去掉 BOM 与前导空白再判断，否则有效源会被判成不支持格式
+        return data.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("#EXTM3U")
     }
 
     override suspend fun parse(data: String): IptvGroupList {
@@ -19,8 +21,8 @@ class M3uIptvParser : IptvParser {
             if (!line.startsWith("#EXTINF")) return@forEachIndexed
 
             val name = line.split(",").last()
-            val channelName = Regex("tvg-name=\"(.+?)\"").find(line)?.groupValues?.get(1) ?: name
-            val groupName = Regex("group-title=\"(.+?)\"").find(line)?.groupValues?.get(1) ?: "其他"
+            val channelName = TVG_NAME_REGEX.find(line)?.groupValues?.get(1) ?: name
+            val groupName = GROUP_TITLE_REGEX.find(line)?.groupValues?.get(1) ?: "其他"
 
             // 最后一行是 #EXTINF 且后面没有 URL 行时跳过（否则 lines[index + 1] 越界崩溃）
             val url = lines.getOrNull(index + 1)?.trim().orEmpty()
@@ -56,4 +58,10 @@ class M3uIptvParser : IptvParser {
         val groupName: String,
         val url: String,
     )
+
+    companion object {
+        // 正则只编译一次：原先每条 #EXTINF 行都 new 两个 Regex，大源很浪费
+        private val TVG_NAME_REGEX = Regex("tvg-name=\"(.+?)\"")
+        private val GROUP_TITLE_REGEX = Regex("group-title=\"(.+?)\"")
+    }
 }

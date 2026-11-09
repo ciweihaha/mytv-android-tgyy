@@ -87,6 +87,25 @@ class M3uIptvParserTest {
     }
 
     @Test
+    fun `isSupport accepts BOM-prefixed and leading-blank-line playlists`() {
+        assertTrue(parser.isSupport("https://example.com/list.m3u", "\uFEFF#EXTM3U\n#EXTINF:-1,CCTV-1"))
+        assertTrue(parser.isSupport("https://example.com/list.m3u", "\n\n#EXTM3U\n#EXTINF:-1,CCTV-1"))
+        assertTrue(parser.isSupport("https://example.com/list.m3u", "\uFEFF\n#EXTM3U\n#EXTINF:-1,CCTV-1"))
+        assertFalse(parser.isSupport("https://example.com/list.m3u", "\uFEFF央视,#genre#\nCCTV-1,http://example.com/1"))
+    }
+
+    @Test
+    fun `parses BOM-prefixed playlist normally`() = runBlocking {
+        val data = "\uFEFF#EXTM3U\n#EXTINF:-1 tvg-name=\"CCTV-1\" group-title=\"央视\",CCTV-1\nhttp://example.com/cctv1.m3u8\n"
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+    }
+
+    @Test
     fun `trailing EXTINF without url line does not crash and is skipped`() = runBlocking {
         val data = """
             #EXTM3U

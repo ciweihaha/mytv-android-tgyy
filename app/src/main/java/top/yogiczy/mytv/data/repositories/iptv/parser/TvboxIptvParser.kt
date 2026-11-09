@@ -25,12 +25,17 @@ class TvboxIptvParser : IptvParser {
                 val res = line.replace("，", ",").split(",")
                 if (res.size < 2) return@forEach
 
-                iptvList.addAll(res[1].split("#").map { url ->
+                // 空地址段直接丢弃：`CCTV-1,` 或 `CCTV-1,http://a#` 这种行
+                // 原先会把空字符串塞进 urlList，播放时白白走一次错误重试
+                val urls = res[1].split("#").map { it.trim() }.filter { it.isNotEmpty() }
+                if (urls.isEmpty()) return@forEach
+
+                iptvList.addAll(urls.map { url ->
                     IptvResponseItem(
                         name = res[0].trim(),
                         channelName = res[0].trim(),
                         groupName = groupName?.trim() ?: "其他",
-                        url = url.trim(),
+                        url = url,
                     )
                 })
             }
