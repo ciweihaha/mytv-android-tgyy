@@ -76,7 +76,13 @@ class EpgRepository : FileCacheRepository("epg.json") {
                             if (innerEvent == XmlPullParser.START_TAG &&
                                 parser.name == "display-name" && channelName == null
                             ) {
-                                channelName = parser.nextText()
+                                // 含子元素的 display-name 会让 nextText() 抛错：
+                                // 只跳过这个频道，别拖垮整个节目单
+                                channelName = try {
+                                    parser.nextText()
+                                } catch (_: Exception) {
+                                    null
+                                }
                             }
                             innerEvent = parser.next()
                         }
@@ -103,7 +109,13 @@ class EpgRepository : FileCacheRepository("epg.json") {
                             if (innerEvent == XmlPullParser.START_TAG &&
                                 parser.name == "title" && title == null
                             ) {
-                                title = parser.nextText()
+                                // 含子元素的 title 会让 nextText() 抛错：
+                                // 只跳过这条节目，别拖垮整个节目单
+                                title = try {
+                                    parser.nextText()
+                                } catch (_: Exception) {
+                                    null
+                                }
                             }
                             innerEvent = parser.next()
                         }
