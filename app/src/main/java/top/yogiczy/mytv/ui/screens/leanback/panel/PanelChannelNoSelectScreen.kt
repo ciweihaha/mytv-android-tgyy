@@ -65,7 +65,8 @@ class LeanbackPanelChannelNoSelectState(
 
     @OptIn(FlowPreview::class)
     suspend fun observe() {
-        channel.consumeAsFlow().debounce { (4 - it.length) * 1000L }.collect {
+        // 输入超过 4 位时 (4 - length) 为负：debounce 不接受负超时，钳到 0 立即确认
+        channel.consumeAsFlow().debounce { maxOf(0L, (4 - it.length) * 1000L) }.collect {
             onChannelNoConfirm(it)
             _channelNo = ""
         }

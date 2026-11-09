@@ -146,7 +146,10 @@ private fun LeanbackClassicPanelScreenContent(
             if (iptvFavoriteListVisibleProvider())
                 LeanbackClassicPanelScreenFavoriteIptvGroup
             else
-                iptvGroupList[max(0, iptvGroupList.iptvGroupIdx(currentIptvProvider()))]
+                // 空源（0 个分组）时直接取 [0] 会越界崩溃
+                iptvGroupList.getOrElse(max(0, iptvGroupList.iptvGroupIdx(currentIptvProvider()))) {
+                    IptvGroup()
+                }
         )
     }
 
