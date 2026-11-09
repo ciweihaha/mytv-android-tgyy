@@ -16,6 +16,14 @@ import androidx.compose.ui.unit.dp
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 
+/**
+ * 0（或空串）即未知：第 76 轮把 Media3 的 NO_VALUE（-1）归一成了
+ * 0，直接显示会把“未知”读成实测的 0（“帧率: 0.0”“比特率: 0 kbps”）
+ */
+private fun Float.orUnknown(): String = if (this == 0f) "未知" else toString()
+private fun Int.orUnknown(): String = if (this == 0) "未知" else toString()
+private fun String.orUnknown(): String = if (isBlank()) "未知" else this
+
 @Composable
 fun LeanbackVideoPlayerMetadata(
     modifier: Modifier = Modifier,
@@ -37,22 +45,37 @@ fun LeanbackVideoPlayerMetadata(
             Column {
                 Text("视频", style = MaterialTheme.typography.bodyMedium)
                 Column(modifier = Modifier.padding(start = 10.dp)) {
-                    Text("编码: ${metadata.videoMimeType}")
-                    Text("解码器: ${metadata.videoDecoder}")
-                    Text("分辨率: ${metadata.videoWidth}x${metadata.videoHeight}")
-                    Text("色彩: ${metadata.videoColor}")
-                    Text("帧率: ${metadata.videoFrameRate}")
-                    Text("比特率: ${metadata.videoBitrate / 1024} kbps")
+                    Text("编码: ${metadata.videoMimeType.orUnknown()}")
+                    Text("解码器: ${metadata.videoDecoder.orUnknown()}")
+                    Text(
+                        "分辨率: ${
+                            if (metadata.videoWidth == 0 || metadata.videoHeight == 0) "未知"
+                            else "${metadata.videoWidth}x${metadata.videoHeight}"
+                        }"
+                    )
+                    Text("色彩: ${metadata.videoColor.orUnknown()}")
+                    Text("帧率: ${metadata.videoFrameRate.orUnknown()}")
+                    Text(
+                        "比特率: ${
+                            if (metadata.videoBitrate == 0) "未知"
+                            else "${metadata.videoBitrate / 1024} kbps"
+                        }"
+                    )
                 }
             }
 
             Column {
                 Text("音频", style = MaterialTheme.typography.bodyMedium)
                 Column(modifier = Modifier.padding(start = 10.dp)) {
-                    Text("编码: ${metadata.audioMimeType}")
-                    Text("解码器: ${metadata.audioDecoder}")
-                    Text("声道数: ${metadata.audioChannels}")
-                    Text("采样率: ${metadata.audioSampleRate} Hz")
+                    Text("编码: ${metadata.audioMimeType.orUnknown()}")
+                    Text("解码器: ${metadata.audioDecoder.orUnknown()}")
+                    Text("声道数: ${metadata.audioChannels.orUnknown()}")
+                    Text(
+                        "采样率: ${
+                            if (metadata.audioSampleRate == 0) "未知"
+                            else "${metadata.audioSampleRate} Hz"
+                        }"
+                    )
                 }
             }
         }
