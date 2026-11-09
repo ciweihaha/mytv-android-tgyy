@@ -66,7 +66,10 @@ fun LeanbackMainContent(
                 SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> 16f / 9f
                 SP.VideoPlayerAspectRatio.FOUR_THREE -> 4f / 3f
                 SP.VideoPlayerAspectRatio.AUTO -> {
-                    configuration.screenHeightDp.toFloat() / configuration.screenWidthDp.toFloat()
+                    // 宽高比是 宽/高：原先写反成了 高/宽，选"自动拉伸"后画面会被
+                    // 压成竖条（16:9 的电视上是 0.5625 而不是 1.78）；与快捷面板
+                    // 的自动拉伸（宽/高）保持一致
+                    configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat()
                 }
             }
         }
