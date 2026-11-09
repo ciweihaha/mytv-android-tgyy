@@ -82,11 +82,14 @@ private fun rememberNetSpeed(): Long {
             delay(1000)
             val nowTotalRxBytes = TrafficStats.getTotalRxBytes()
             val nowTimeStamp = System.currentTimeMillis()
-            val speed = (nowTotalRxBytes - lastTotalRxBytes) / (nowTimeStamp - lastTimeStamp) * 1000
+            // 系统时间被往回调时两时刻可能相同甚至倒挂：除零会崩溃，
+            // 负数会算出负网速——只在时间正常前进时更新
+            val elapsed = nowTimeStamp - lastTimeStamp
+            if (elapsed > 0) {
+                netSpeed = (nowTotalRxBytes - lastTotalRxBytes) / elapsed * 1000
+            }
             lastTimeStamp = nowTimeStamp
             lastTotalRxBytes = nowTotalRxBytes
-
-            netSpeed = speed
         }
     }
 

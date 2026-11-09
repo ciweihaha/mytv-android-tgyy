@@ -68,11 +68,14 @@ fun LeanbackPanelIptvInfo(
                         )
                     }
 
-                    // ipv4、iptv6标识
-                    Text(
-                        text = if (iptv.urlList[iptvUrlIdx].isIPv6()) "IPV6" else "IPV4",
-                        modifier = textModifier,
-                    )
+                    // ipv4、iptv6标识：无播放地址的提示条目没有 urlList[0]，
+                    // 直接下标取会越界崩溃（换台到这类频道时临时面板/频道面板都会渲染这里）
+                    if (iptv.urlList.isNotEmpty()) {
+                        Text(
+                            text = if (iptv.urlList[iptvUrlIdx].isIPv6()) "IPV6" else "IPV4",
+                            modifier = textModifier,
+                        )
+                    }
                 }
             }
         }
