@@ -63,10 +63,22 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 XmlPullParser.START_TAG -> {
                     if (parser.name == "channel") {
                         val channelId = parser.getAttributeValue(null, "id")
-                        parser.nextTag()
-                        val channelName = parser.nextText()
+                        // 逐个扫子元素取第一个 display-name：自闭合 / 无
+                        // display-name 的 channel 直接跳过，而不是让
+                        // nextText() 抛错拖垮整个节目单
+                        var channelName: String? = null
+                        var innerEvent = parser.next()
+                        while (innerEvent != XmlPullParser.END_DOCUMENT) {
+                            if (innerEvent == XmlPullParser.END_TAG && parser.name == "channel") break
+                            if (innerEvent == XmlPullParser.START_TAG &&
+                                parser.name == "display-name" && channelName == null
+                            ) {
+                                channelName = parser.nextText()
+                            }
+                            innerEvent = parser.next()
+                        }
 
-                        if (channelId != null &&
+                        if (channelId != null && channelName != null &&
                             (filteredChannels.isEmpty() || filteredChannels.contains(channelName))
                         ) {
                             channelNames[channelId] = channelName
@@ -78,16 +90,30 @@ class EpgRepository : FileCacheRepository("epg.json") {
                         val channelId = parser.getAttributeValue(null, "channel")
                         val startTime = parser.getAttributeValue(null, "start")
                         val stopTime = parser.getAttributeValue(null, "stop")
-                        parser.nextTag()
-                        val title = parser.nextText()
+                        // 只取 <title> 子元素的文本：原先取"第一个子元素文本
+                        // 当标题"，<desc> 在前时会把简介当标题；自闭合
+                        // programme 则直接抛错拖垮整个节目单
+                        var title: String? = null
+                        var innerEvent = parser.next()
+                        while (innerEvent != XmlPullParser.END_DOCUMENT) {
+                            if (innerEvent == XmlPullParser.END_TAG && parser.name == "programme") break
+                            if (innerEvent == XmlPullParser.START_TAG &&
+                                parser.name == "title" && title == null
+                            ) {
+                                title = parser.nextText()
+                            }
+                            innerEvent = parser.next()
+                        }
 
-                        channelProgrammes[channelId]?.add(
-                            EpgProgramme(
-                                startAt = parseTime(startTime),
-                                endAt = parseTime(stopTime),
-                                title = title,
+                        if (title != null) {
+                            channelProgrammes[channelId]?.add(
+                                EpgProgramme(
+                                    startAt = parseTime(startTime),
+                                    endAt = parseTime(stopTime),
+                                    title = title,
+                                )
                             )
-                        )
+                        }
                     }
                 }
             }
