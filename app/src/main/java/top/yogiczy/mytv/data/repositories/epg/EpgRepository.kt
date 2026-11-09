@@ -38,7 +38,24 @@ class EpgRepository : FileCacheRepository("epg.json") {
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
         parser.setInput(StringReader(xmlString))
 
-        val epgMap = mutableMapOf<String, Epg>()
+        // 一个 SimpleDateFormat 实例复用于全部节目（原先每个节目都新建一个，
+        // 构造开销不小）；解析在单协程内顺序执行，无线程安全问题
+        val timeFormat = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.getDefault())
+
+        fun parseTime(time: String?): Long {
+            if (time == null || time.length < 14) return 0
+            return try {
+                timeFormat.parse(time)?.time ?: 0
+            } catch (_: Exception) {
+                // 单条时间格式异常时记 0，而不是让整个节目单解析失败
+                0
+            }
+        }
+
+        // 频道名与节目列表分开累积：原先每次追加节目都用 `programmes + listOf(...)`
+        // 复制整个列表，是 O(n²)；大节目单（多频道×多天）下很慢
+        val channelNames = mutableMapOf<String, String>()
+        val channelProgrammes = mutableMapOf<String, MutableList<EpgProgramme>>()
 
         var eventType = parser.eventType
         while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -49,8 +66,13 @@ class EpgRepository : FileCacheRepository("epg.json") {
                         parser.nextTag()
                         val channelName = parser.nextText()
 
-                        if (filteredChannels.isEmpty() || filteredChannels.contains(channelName)) {
-                            epgMap[channelId] = Epg(channelName, EpgProgrammeList())
+                        if (channelId != null &&
+                            (filteredChannels.isEmpty() || filteredChannels.contains(channelName))
+                        ) {
+                            channelNames[channelId] = channelName
+                            // 与原先 `epgMap[id] = Epg(...)` 的语义一致：重复的 channel
+                            // 标签会重置该频道的节目列表
+                            channelProgrammes[channelId] = mutableListOf()
                         }
                     } else if (parser.name == "programme") {
                         val channelId = parser.getAttributeValue(null, "channel")
@@ -59,35 +81,25 @@ class EpgRepository : FileCacheRepository("epg.json") {
                         parser.nextTag()
                         val title = parser.nextText()
 
-                        fun parseTime(time: String): Long {
-                            if (time.length < 14) return 0
-
-                            return SimpleDateFormat("yyyyMMddHHmmss Z", Locale.getDefault()).parse(
-                                time
-                            )?.time ?: 0
-                        }
-
-                        if (epgMap.containsKey(channelId)) {
-                            epgMap[channelId] = epgMap[channelId]!!.copy(
-                                programmes = EpgProgrammeList(
-                                    epgMap[channelId]!!.programmes + listOf(
-                                        EpgProgramme(
-                                            startAt = parseTime(startTime),
-                                            endAt = parseTime(stopTime),
-                                            title = title,
-                                        )
-                                    )
-                                )
+                        channelProgrammes[channelId]?.add(
+                            EpgProgramme(
+                                startAt = parseTime(startTime),
+                                endAt = parseTime(stopTime),
+                                title = title,
                             )
-                        }
+                        )
                     }
                 }
             }
             eventType = parser.next()
         }
 
-        log.i("解析节目单完成，共${epgMap.size}个频道")
-        return@withContext EpgList(epgMap.values.toList())
+        val epgList = EpgList(channelNames.map { (channelId, channelName) ->
+            Epg(channelName, EpgProgrammeList(channelProgrammes[channelId] ?: emptyList()))
+        })
+
+        log.i("解析节目单完成，共${epgList.size}个频道")
+        return@withContext epgList
     }
 
     suspend fun getEpgList(
