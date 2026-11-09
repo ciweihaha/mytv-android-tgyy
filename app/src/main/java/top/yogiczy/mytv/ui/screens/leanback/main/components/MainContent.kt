@@ -305,9 +305,12 @@ fun LeanbackMainContent(
                 onClearCache = {
                     settingsViewModel.iptvPlayableHostList = emptySet()
                     coroutineScope.launch {
-                        AppGlobal.cacheDir.deleteRecursively()
+                        // 只清目录内容，不删目录本身：AppGlobal.cacheDir 是
+                        // 启动时取到的 File 引用，目录删了之后再写缓存会抛
+                        // 错、只能重启恢复；留着目录，下次刷新直接重新拉取
+                        AppGlobal.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
                     }
-                    LeanbackToastState.I.showToast("缓存已清除，请重启应用")
+                    LeanbackToastState.I.showToast("缓存已清除")
                 },
                 onMoreSettings = { mainContentState.isSettingsVisible = true },
                 onClose = { mainContentState.isQuickPanelVisible = false },
