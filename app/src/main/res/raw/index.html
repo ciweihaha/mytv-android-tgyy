@@ -29,6 +29,7 @@
                     <van-cell-group inset title="通知">
                         <van-cell title="修改之前请先关闭应用的设置界面，否则会有冲突"></van-cell>
                         <van-cell title="以下设置修改后即时生效，无需重启应用"></van-cell>
+                        <van-cell title="修改设置与上传安装包需要输入电视设置页“更多”里显示的访问码"></van-cell>
                     </van-cell-group>
 
                     <van-cell-group inset title="直播源">
@@ -132,7 +133,25 @@
         const baseUrl = ""
 
         async function requestApi(url, config) {
-            const resp = await fetch(`${baseUrl}${url}`, config)
+            const send = (token) => fetch(`${baseUrl}${url}`, {
+                ...config,
+                headers: { 'X-Auth-Token': token, ...(config && config.headers) },
+            })
+            const token = localStorage.getItem('mytv_access_code') || ''
+            const resp = await send(token)
+            if (resp.status === 401) {
+                // 访问码不对或应用重启后已更换：重新输入后重试一次
+                const code = prompt('请输入电视设置页“更多”里显示的网页端访问码')
+                if (!code) {
+                    throw new Error('请求失败：401')
+                }
+                localStorage.setItem('mytv_access_code', code)
+                const retry = await send(code)
+                if (retry.status !== 200) {
+                    throw new Error(`请求失败：${retry.status}`)
+                }
+                return retry
+            }
             if (resp.status !== 200) {
                 throw new Error(`请求失败：${resp.status}`)
             }

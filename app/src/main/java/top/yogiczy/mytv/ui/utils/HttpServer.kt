@@ -27,8 +27,26 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.SocketException
 
+/**
+ * 局域网访问码：6 位数字，进程每次启动重新生成，显示在设置页"更多"里。
+ * 网页端修改设置与上传安装包时，必须在请求头 X-Auth-Token 里带上它，
+ * 否则返回 401。只读接口（查看设置、日志）不设限。
+ * 顶层函数与 HttpServer 对象无关，方便单元测试直接调用。
+ */
+internal fun generateAccessCode(): String =
+    (1..6).joinToString("") { (0..9).random().toString() }
+
+internal fun isAuthorizedAccessCode(provided: String?, expected: String): Boolean =
+    !provided.isNullOrBlank() && provided == expected
+
 object HttpServer : Loggable() {
     private const val SERVER_PORT = 10481
+
+    /**
+     * 本次启动的网页端访问码（6 位数字）：设置页"更多"里显示；网页端
+     * 修改设置与上传安装包时在请求头 X-Auth-Token 里带上它。应用重启后更换。
+     */
+    val accessCode: String by lazy { generateAccessCode() }
 
     private val uploadedApkFile = File(AppGlobal.cacheDir, "uploaded_apk.apk").apply {
         deleteOnExit()
@@ -149,6 +167,12 @@ object HttpServer : Loggable() {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
+        // 写接口必须带访问码：局域网内任何设备否则都能悄悄改掉直播源
+        if (!isAuthorizedAccessCode(request.headers["X-Auth-Token"], accessCode)) {
+            wrapResponse(response).code(401).send("unauthorized")
+            return
+        }
+
         val body = request.getBody<JSONObjectBody>()
         if (body == null) {
             wrapResponse(response).code(400).send("invalid json body")
@@ -210,6 +234,12 @@ object HttpServer : Loggable() {
         response: AsyncHttpServerResponse,
         context: Context,
     ) {
+        // 上传接口同样必须带访问码；安装本身仍要电视上手动确认
+        if (!isAuthorizedAccessCode(request.headers["X-Auth-Token"], accessCode)) {
+            wrapResponse(response).code(401).send("unauthorized")
+            return
+        }
+
         val body = request.getBody<MultipartFormDataBody>()
         // 非 multipart 请求没有 body：原先直接空指针
         if (body == null) {

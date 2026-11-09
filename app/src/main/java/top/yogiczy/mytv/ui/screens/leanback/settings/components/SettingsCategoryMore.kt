@@ -25,6 +25,7 @@ import top.yogiczy.mytv.ui.utils.HttpServer
 fun LeanbackSettingsCategoryMore(
     modifier: Modifier = Modifier,
     serverUrl: String = HttpServer.serverUrl,
+    accessCode: String = HttpServer.accessCode,
 ) {
     LazyColumn(
         modifier = modifier,
@@ -35,6 +36,14 @@ fun LeanbackSettingsCategoryMore(
             LeanbackSettingsCategoryListItem(
                 headlineContent = "设置页面",
                 trailingContent = serverUrl,
+            )
+        }
+
+        item {
+            LeanbackSettingsCategoryListItem(
+                headlineContent = "网页端访问码",
+                supportingContent = "修改设置与上传安装包时需要输入，应用重启后更换",
+                trailingContent = accessCode,
             )
         }
 
@@ -69,6 +78,7 @@ private fun LeanbackSettingsMorePreview() {
     LeanbackTheme {
         LeanbackSettingsCategoryMore(
             serverUrl = "http://127.0.0.1:10481",
+            accessCode = "123456",
         )
     }
 }
