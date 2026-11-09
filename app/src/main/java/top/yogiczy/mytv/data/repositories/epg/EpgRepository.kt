@@ -56,6 +56,9 @@ class EpgRepository : FileCacheRepository("epg.json") {
         // 复制整个列表，是 O(n²)；大节目单（多频道×多天）下很慢
         val channelNames = mutableMapOf<String, String>()
         val channelProgrammes = mutableMapOf<String, MutableList<EpgProgramme>>()
+        // 过滤列表转 Set 再查：源频道上千时，List.contains 每个 channel
+        // 都线性扫一遍，解析一次就是频道数×过滤数次字符串比较
+        val filteredChannelSet = filteredChannels.toSet()
 
         var eventType = parser.eventType
         while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -79,7 +82,7 @@ class EpgRepository : FileCacheRepository("epg.json") {
                         }
 
                         if (channelId != null && channelName != null &&
-                            (filteredChannels.isEmpty() || filteredChannels.contains(channelName))
+                            (filteredChannelSet.isEmpty() || filteredChannelSet.contains(channelName))
                         ) {
                             channelNames[channelId] = channelName
                             // 与原先 `epgMap[id] = Epg(...)` 的语义一致：重复的 channel
