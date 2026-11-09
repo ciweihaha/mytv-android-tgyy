@@ -330,6 +330,8 @@ object HttpServer : Loggable() {
         // 收到文件分片时才创建输出流：原先请求一到就 open，即便没有文件分片
         // 也会把已有的 uploaded_apk.apk 截断成空文件
         var os: java.io.OutputStream? = null
+        // 本次上传的临时文件：写完再原子改名成正式文件（见 end 回调）
+        var tempApkFile: File? = null
         // multipart 的 Content-Length 是整个请求体（含分隔符），只能做近似
         // 进度；取不到或非法时不报百分比
         val contentLength = request.headers["Content-Length"]?.toLongOrNull() ?: -1L
@@ -339,7 +341,18 @@ object HttpServer : Loggable() {
         body.setMultipartCallback { part ->
             if (part.isFile) {
                 if (os == null) {
-                    os = uploadedApkFile.outputStream()
+                    // 每次上传写独立临时文件：两个浏览器标签同时上传不再
+                    // 往同一个文件里交叉写；中途断开也只留一个临时残文件
+                    // （清缓存时清理），不会截断上一次的完整包；临时文
+                    // 件建不出来时回退到原先的直接写
+                    tempApkFile = try {
+                        File.createTempFile(
+                            "uploaded_apk_", ".apk", AppGlobal.cacheDir
+                        )
+                    } catch (_: Exception) {
+                        null
+                    }
+                    os = (tempApkFile ?: uploadedApkFile).outputStream()
                 }
                 body.setDataCallback { _, bb ->
                     val byteArray = bb.allByteArray
@@ -373,9 +386,16 @@ object HttpServer : Loggable() {
             // 文件收完才回响应：原先一收到请求就回 "success"，网页端会
             // 提前关掉加载提示，而文件其实还在传；没收到文件内容时回 400
             if (hasReceived > 0) {
-                ApkInstaller.installApk(context, uploadedApkFile.path)
+                // 收完再原子改名成正式文件（同目录 rename 是原子操作）；
+                // 改名失败（极少）就直接装临时文件；没用临时文件时是原
+                // 先的直接写，装正式文件
+                val apkFile = tempApkFile?.let { temp ->
+                    if (temp.renameTo(uploadedApkFile)) uploadedApkFile else temp
+                } ?: uploadedApkFile
+                ApkInstaller.installApk(context, apkFile.path)
                 wrapResponse(response).send("success")
             } else {
+                tempApkFile?.delete()
                 wrapResponse(response).code(400).send("no file received")
             }
         }
