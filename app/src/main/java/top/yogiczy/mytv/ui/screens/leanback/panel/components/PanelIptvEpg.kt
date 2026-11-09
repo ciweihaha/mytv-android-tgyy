@@ -62,8 +62,13 @@ fun LeanbackPanelIptvEpgDialog(
                 val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
                 var hasFocused by remember(iptv) { mutableStateOf(false) }
 
-                val listState = LazyListState(
-                    max(0, epg.programmes.indexOfFirst { it.isLive() } - 2))
+                // 列表状态必须 remember：原先每次重组都新建 LazyListState，
+                // 滚动位置会被重置回初始下标；只在节目单本身变化时重建
+                val listState = remember(epg) {
+                    LazyListState(
+                        max(0, epg.programmes.indexOfFirst { it.isLive() } - 2)
+                    )
+                }
 
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.isScrollInProgress }
@@ -76,7 +81,12 @@ fun LeanbackPanelIptvEpgDialog(
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
                     if (epg.programmes.isNotEmpty()) {
-                        items(epg.programmes, key = { it.hashCode() }) { programme ->
+                        items(
+                            epg.programmes,
+                            // 用节目内容作 key：原先用 hashCode()，不同节目可能哈希
+                            // 碰撞导致列表复用错行；内容相同的重复节目本就是同一条
+                            key = { "${it.startAt}-${it.endAt}-${it.title}" },
+                        ) { programme ->
                             var isFocused by remember { mutableStateOf(false) }
                             val focusRequester = remember { FocusRequester() }
 

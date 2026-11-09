@@ -75,15 +75,21 @@ private fun rememberFpsState(): FpsState {
     LaunchedEffect(Unit) {
         while (true) {
             withFrameMillis { ms ->
-                fpsCount++
-                if (fpsCount == 5) {
-                    val fps = (5_000 / (ms - lastUpdate)).toInt()
-                    state = state.copy(
-                        current = fps,
-                        history = (state.history.takeLast(30) + fps).toImmutableList(),
-                    )
+                // 首帧只记录时间戳：lastUpdate 初始为 0 时 5000 / (ms - 0)
+                // 会把开机时长当成分母，算出 0 FPS
+                if (lastUpdate == 0L) {
                     lastUpdate = ms
-                    fpsCount = 0
+                } else {
+                    fpsCount++
+                    if (fpsCount == 5) {
+                        val fps = (5_000 / (ms - lastUpdate)).toInt()
+                        state = state.copy(
+                            current = fps,
+                            history = (state.history.takeLast(30) + fps).toImmutableList(),
+                        )
+                        lastUpdate = ms
+                        fpsCount = 0
+                    }
                 }
             }
         }
