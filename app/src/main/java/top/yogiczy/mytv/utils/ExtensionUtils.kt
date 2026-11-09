@@ -28,8 +28,10 @@ fun String.compareVersion(version2: String): Int {
     fun parseVersion(version: String): Pair<List<Int>, String?> {
         // 先去掉 tag 前缀：上游最新 release 的 tag 是 "tv2.2.7"，旧版
         // "V3.0.0.238" 还是大写 V——只去 "v"（解析器的做法）会把
-        // 首段算成 0，2.2.7 反而比 1.4.4 小，更新检查永远报无更新
-        val stripped = version.trimStart { !it.isDigit() }
+        // 首段算成 0，2.2.7 反而比 1.4.4 小，更新检查永远报无更新；
+        // 先 trim 两端空白，否则尾部空白会让最后一段 toIntOrNull 得
+        // null 记 0，"1.4.4 " 就被算成 1.4.0
+        val stripped = version.trim().trimStart { !it.isDigit() }
         val mainParts = stripped.split("-", limit = 2)
         // 非数字段（如误入的 "v1"）记 0 而不是抛 NumberFormatException
         // 导致整个更新检查失败

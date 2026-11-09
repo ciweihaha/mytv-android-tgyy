@@ -54,6 +54,15 @@ class CompareVersionTest {
     }
 
     @Test
+    fun `surrounding whitespace is ignored`() {
+        // 尾部空白不处理时最后一段 toIntOrNull 得 null 记 0，"1.4.4 " 会被算成 1.4.0
+        assertEquals(0, "1.4.4 ".compareVersion("1.4.4"))
+        assertEquals(0, " 1.4.4".compareVersion("1.4.4"))
+        assertTrue("1.4.4 ".compareVersion("1.4.3") > 0)
+        assertEquals(0, "1.4.4-beta ".compareVersion("1.4.4-beta"))
+    }
+
+    @Test
     fun `numeric pre-release segments compare numerically`() {
         assertTrue("1.4.4-rc.10".compareVersion("1.4.4-rc.2") > 0)
         assertTrue("1.4.4-canary.10".compareVersion("1.4.4-canary.2") > 0)
