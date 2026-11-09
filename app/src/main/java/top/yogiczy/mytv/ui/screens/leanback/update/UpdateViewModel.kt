@@ -66,9 +66,23 @@ class LeanBackUpdateViewModel : ViewModel() {
                 )
             }
 
+            // 分块传输等场景下连接干净断开也可能悄悄截断：按发行版里的
+            // 文件大小校验，大小不对就当下载失败，不留残文件
+            if (_latestRelease.downloadSize > 0 &&
+                latestFile.length() != _latestRelease.downloadSize
+            ) {
+                throw Exception(
+                    "下载文件不完整: 期望 ${_latestRelease.downloadSize} 字节，" +
+                        "实际 ${latestFile.length()} 字节"
+                )
+            }
+
             _updateDownloaded = true
             LeanbackToastState.I.showToast("下载更新成功")
         } catch (ex: Exception) {
+            log.e("下载更新失败", ex)
+            // 残文件（下载中断 / 大小校验失败）不要留着，避免之后被误安装
+            latestFile.delete()
             LeanbackToastState.I.showToast("下载更新失败")
         } finally {
             _isUpdating = false

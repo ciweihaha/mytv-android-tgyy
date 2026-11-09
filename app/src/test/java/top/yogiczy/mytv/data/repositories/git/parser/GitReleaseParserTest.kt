@@ -23,7 +23,8 @@ class GithubGitReleaseParserTest {
               "body": "## 更新内容\n- 修复已知问题",
               "assets": [
                 {
-                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk"
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+                  "size": 25800000
                 }
               ]
             }
@@ -37,6 +38,7 @@ class GithubGitReleaseParserTest {
             result.downloadUrl,
         )
         assertEquals("## 更新内容\n- 修复已知问题", result.description)
+        assertEquals(25800000L, result.downloadSize)
     }
 
     @Test
@@ -90,5 +92,7 @@ class GiteeGitReleaseParserTest {
             result.downloadUrl,
         )
         assertEquals("更新说明", result.description)
+        // Gitee 的发行版信息不带 size 时记 -1（下载时不校验）
+        assertEquals(-1L, result.downloadSize)
     }
 }

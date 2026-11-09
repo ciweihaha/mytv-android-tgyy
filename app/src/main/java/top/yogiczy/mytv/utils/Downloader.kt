@@ -1,8 +1,6 @@
 package top.yogiczy.mytv.utils
 
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -59,6 +57,7 @@ object Downloader : Loggable() {
                     ?: throw IllegalStateException("下载响应体为空")
             ) {
                 var totalBytesRead = 0L
+                var lastProgress = -1
 
                 override fun read(sink: okio.Buffer, byteCount: Long): Long {
                     val bytesRead = super.read(sink, byteCount)
@@ -67,7 +66,12 @@ object Downloader : Loggable() {
                     val length = contentLength()
                     if (length > 0) {
                         val progress = (totalBytesRead * 100 / length).toInt()
-                        CoroutineScope(Dispatchers.IO).launch {
+                        // 只有百分比变化时才回调：原先每读一块（约 8KB）就新起
+                        // 一个协程回调，25MB 的包约 3200 次，且大多是重复百分比；
+                        // 回调方 showToast 内部自己会切到 composition 作用域，
+                        // 这里直接调即可
+                        if (progress != lastProgress) {
+                            lastProgress = progress
                             onProgressCb?.invoke(progress)
                         }
                     }
