@@ -296,7 +296,9 @@ object SP {
 
         companion object {
             fun fromValue(value: Int): UiTimeShowMode {
-                return entries.firstOrNull { it.value == value } ?: ALWAYS
+                // 未知值回落到 HIDDEN：与存储默认值（0）一致；
+                // 原先回落到 ALWAYS，脏数据会让时钟常驻屏幕
+                return entries.firstOrNull { it.value == value } ?: HIDDEN
             }
         }
     }
