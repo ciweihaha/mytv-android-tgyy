@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -57,5 +58,31 @@ class CompareVersionTest {
         assertTrue("1.4.4-rc.10".compareVersion("1.4.4-rc.2") > 0)
         assertTrue("1.4.4-canary.10".compareVersion("1.4.4-canary.2") > 0)
         assertTrue("1.4.4-alpha.1".compareVersion("1.4.4-alpha") > 0)
+    }
+}
+
+class IsIPv6Test {
+    @Test
+    fun `bracketed ipv6 urls are ipv6`() {
+        assertTrue("http://[2001:db8::1]:8080/live".isIPv6())
+        assertTrue("https://[::1]/x".isIPv6())
+        assertTrue("[2001:db8::1]".isIPv6())
+    }
+
+    @Test
+    fun `bare ipv6 urls without brackets are ipv6`() {
+        // M3U 里常见的不带方括号写法
+        assertTrue("http://2408:8207:1234::1:8080/live".isIPv6())
+        assertTrue("2409:8c00::1".isIPv6())
+        assertTrue("http://::ffff:192.168.0.1/live".isIPv6())
+    }
+
+    @Test
+    fun `ipv4 and hostnames are not ipv6`() {
+        assertFalse("http://192.168.1.1:8080/live".isIPv6())
+        assertFalse("http://192.168.1.1/live".isIPv6())
+        assertFalse("http://example.com/live".isIPv6())
+        assertFalse("http://live.example.com:8080/x".isIPv6())
+        assertFalse("".isIPv6())
     }
 }

@@ -1,7 +1,5 @@
 package top.yogiczy.mytv.utils
 
-import java.util.regex.Pattern
-
 fun Long.humanizeMs(): String {
     return when (this) {
         in 0..<60_000 -> "${this / 1000}秒"
@@ -11,10 +9,19 @@ fun Long.humanizeMs(): String {
 }
 
 fun String.isIPv6(): Boolean {
-    val urlPattern = Pattern.compile(
-        "^((http|https)://)?(\\[[0-9a-fA-F:]+])(:[0-9]+)?(/.*)?$"
-    )
-    return urlPattern.matcher(this).matches()
+    // host：scheme 之后、第一个 / 之前
+    val host = substringAfter("://", this).substringBefore("/")
+    if (host.startsWith("[")) {
+        // [2001:db8::1] 或 [2001:db8::1]:8080：取括号内判断
+        val inner = host.substringAfter("[").substringBefore("]")
+        return inner.contains(":") &&
+            inner.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' }
+    }
+    // 裸 IPv6（M3U 里常见的不带方括号写法，如 2408:8207::1:8080）：
+    // host 里至少两个冒号，且只含十六进制、冒号、点（IPv4 映射形如 ::ffff:192.168.0.1）；
+    // IPv4 带端口只有一个冒号，域名含冒号的不是合法 URL，不会误判
+    return host.count { it == ':' } >= 2 &&
+        host.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' }
 }
 
 fun String.compareVersion(version2: String): Int {
