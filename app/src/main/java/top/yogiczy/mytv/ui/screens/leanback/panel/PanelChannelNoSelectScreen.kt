@@ -57,6 +57,9 @@ class LeanbackPanelChannelNoSelectState(
     val channelNo get() = _channelNo
 
     fun input(no: Int) {
+        // 最多 4 位：debounce 按 4 位设计（第 4 位后立即确认）；不封顶时
+        // 按键连发可攒出 10 位以上数字，确认处的 toInt() 抛异常闪退
+        if (_channelNo.length >= 4) return
         _channelNo += no.toString()
         channel.trySend(_channelNo)
     }
