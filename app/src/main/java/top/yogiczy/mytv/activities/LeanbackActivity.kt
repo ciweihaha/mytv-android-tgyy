@@ -83,7 +83,7 @@ class LeanbackActivity : ComponentActivity() {
                 // rememberLeanbackToastState 在合成时赋值），未初始化时丢
                 // 弃本次提示；直接读 lateinit 的 I 会抛
                 // UninitializedPropertyAccessException 闪退
-                if (LeanbackToastState::I.isInitialized) {
+                if (LeanbackToastState.isInitialized) {
                     LeanbackToastState.I.showToast(it, id = "httpServer")
                 }
             },

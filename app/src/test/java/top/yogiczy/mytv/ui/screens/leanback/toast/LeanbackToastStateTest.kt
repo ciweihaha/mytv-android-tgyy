@@ -9,6 +9,6 @@ class LeanbackToastStateTest {
         // I 只在 rememberLeanbackToastState 合成时赋值；单元测试里没
         // 有合成，所以这里一定未初始化——LeanbackActivity 回调里的
         // isInitialized 守卫就依赖这个前提
-        assertFalse(LeanbackToastState::I.isInitialized)
+        assertFalse(LeanbackToastState.isInitialized)
     }
 }

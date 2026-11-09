@@ -63,6 +63,11 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
     companion object {
         // TODO 这种方法可能违反了 Compose 的规则
         lateinit var I: LeanbackToastState
+
+        // I 只在首帧合成时赋值；外部回调（HttpServer）可能在合成前
+        // 触发，读之前先判这个。isInitialized 只能在声明处（这里）
+        // 访问 backing field，类外直接用 ::I.isInitialized 编不过
+        val isInitialized: Boolean get() = ::I.isInitialized
     }
 }
 
