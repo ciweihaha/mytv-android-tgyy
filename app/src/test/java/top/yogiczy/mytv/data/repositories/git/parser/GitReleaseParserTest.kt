@@ -3,6 +3,7 @@ package top.yogiczy.mytv.data.repositories.git.parser
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,6 +24,7 @@ class GithubGitReleaseParserTest {
               "body": "## 更新内容\n- 修复已知问题",
               "assets": [
                 {
+                  "name": "mytv-1.4.4.apk",
                   "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
                   "size": 25800000
                 }
@@ -49,6 +51,7 @@ class GithubGitReleaseParserTest {
               "body": "",
               "assets": [
                 {
+                  "name": "mytv-1.4.5.apk",
                   "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/1.4.5/mytv-1.4.5.apk"
                 }
               ]
@@ -58,6 +61,72 @@ class GithubGitReleaseParserTest {
         val result = parser.parse(data)
 
         assertEquals("1.4.5", result.version)
+    }
+
+    @Test
+    fun `picks the apk asset when it is not first`() = runBlocking {
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk.sha256",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk.sha256",
+                  "size": 128
+                },
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+                  "size": 25800000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(
+            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+            result.downloadUrl,
+        )
+        assertEquals(25800000L, result.downloadSize)
+    }
+
+    @Test
+    fun `empty assets fails instead of downloading the wrong file`() {
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": []
+            }
+        """.trimIndent()
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
+    }
+
+    @Test
+    fun `release without any apk fails`() {
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk.sha256",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk.sha256",
+                  "size": 128
+                }
+              ]
+            }
+        """.trimIndent()
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
     }
 }
 
@@ -78,6 +147,7 @@ class GiteeGitReleaseParserTest {
               "body": "更新说明",
               "assets": [
                 {
+                  "name": "mytv-1.4.4.apk",
                   "browser_download_url": "https://gitee.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk"
                 }
               ]
@@ -94,5 +164,35 @@ class GiteeGitReleaseParserTest {
         assertEquals("更新说明", result.description)
         // Gitee 的发行版信息不带 size 时记 -1（下载时不校验）
         assertEquals(-1L, result.downloadSize)
+    }
+
+    @Test
+    fun `picks the apk asset when it is not first`() = runBlocking {
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk.sha256",
+                  "browser_download_url": "https://gitee.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk.sha256",
+                  "size": 128
+                },
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": "https://gitee.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+                  "size": 25800000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(
+            "https://gitee.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+            result.downloadUrl,
+        )
+        assertEquals(25800000L, result.downloadSize)
     }
 }
