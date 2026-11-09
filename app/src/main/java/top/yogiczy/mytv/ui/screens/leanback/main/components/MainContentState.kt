@@ -115,13 +115,23 @@ class LeanbackMainContentState(
         if (iptv == _currentIptv && urlIdx == null) return
 
         if (iptv == _currentIptv && urlIdx != _currentIptvUrlIdx) {
-            SP.iptvPlayableHostList -= getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            // 仅当旧频道有播放地址时才处理域名记忆（无地址的提示条目没有 urlList[0]）
+            if (_currentIptv.urlList.isNotEmpty()) {
+                SP.iptvPlayableHostList -= getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            }
         }
 
         _isTempPanelVisible = true
 
         _currentIptv = iptv
         SP.iptvLastIptvIdx = iptvGroupList.iptvIdx(_currentIptv)
+
+        // 无可用播放地址的频道（如不支持的源格式返回的 m3u/tvbox 提示条目）：
+        // 只切换显示，不调用播放器——否则 urlList[0] 越界崩溃
+        if (iptv.urlList.isEmpty()) {
+            _currentIptvUrlIdx = 0
+            return
+        }
 
         _currentIptvUrlIdx = if (urlIdx == null) {
             // 优先从记忆中选择可播放的域名
