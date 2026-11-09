@@ -28,7 +28,24 @@ abstract class FileCacheRepository(
 
     private suspend fun setCacheData(data: String) = withContext(Dispatchers.IO) {
         val file = getCacheFile()
-        file.writeText(data)
+        // 原子写：先写唯一临时文件再改名，写一半被杀也不会留下截断的
+        // 缓存；否则下次加载读到半截数据，解析失败要等缓存过期才恢复
+        // （第 67 轮只在 EPG 解码层做了容错，这里是根因，三个缓存
+        // iptv.txt / epg.json / epg.xml 一起受益）。临时文件名唯一，
+        // 并发刷新也不会往同一个文件里交叉写，最后改名的那个胜出，
+        // 文件永远是完整的
+        val tempFile = File.createTempFile("${file.name}_", ".tmp", file.parentFile)
+        try {
+            tempFile.writeText(data)
+            if (!tempFile.renameTo(file)) {
+                // 改名失败时回退到直接写（至少新数据能落盘）
+                tempFile.delete()
+                file.writeText(data)
+            }
+        } catch (ex: Exception) {
+            tempFile.delete()
+            throw ex
+        }
     }
 
     protected suspend fun getOrRefresh(cacheTime: Long, refreshOp: suspend () -> String): String {
