@@ -20,17 +20,17 @@ data class Epg(
 ) {
     companion object {
         /**
-         * 当前节目/下一个节目
+         * 当前节目/下一个节目：一次 indexOfFirst 扫描同时拿到下标与节目。
+         * 原先先 firstOrNull 找节目、再 indexOf（data class 全字段相等比较）
+         * 二次扫描找下标——多天节目单下每个频道项每次组合都多扫一遍
          */
         fun Epg.currentProgrammes(): EpgProgrammeCurrent? {
-            val currentProgramme = programmes.firstOrNull { it.isLive() } ?: return null
+            val index = programmes.indexOfFirst { it.isLive() }
+            if (index < 0) return null
 
             return EpgProgrammeCurrent(
-                now = currentProgramme,
-                next = programmes.indexOf(currentProgramme).let { index ->
-                    if (index + 1 < programmes.size) programmes[index + 1]
-                    else null
-                },
+                now = programmes[index],
+                next = programmes.getOrNull(index + 1),
             )
         }
     }
