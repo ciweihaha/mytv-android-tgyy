@@ -152,8 +152,8 @@ class LeanbackMedia3VideoPlayer(
                         prepare(uri, C.CONTENT_TYPE_HLS)
                     } else if (contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true) {
                         prepare(uri, C.CONTENT_TYPE_OTHER)
-                    } else if (contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true) {
-                        prepare(uri, C.CONTENT_TYPE_OTHER)
+                    } else if (contentTypeAttempts[C.CONTENT_TYPE_RTSP] != true) {
+                        prepare(uri, C.CONTENT_TYPE_RTSP)
                     } else {
                         triggerError(PlaybackException.UNSUPPORTED_TYPE)
                     }
@@ -250,6 +250,8 @@ class LeanbackMedia3VideoPlayer(
     }
 
     override fun release() {
+        updatePositionJob?.cancel()
+        updatePositionJob = null
         videoPlayer.removeListener(playerListener)
         videoPlayer.removeAnalyticsListener(metadataListener)
         videoPlayer.removeAnalyticsListener(eventLogger)

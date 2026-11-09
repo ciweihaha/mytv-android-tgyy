@@ -23,6 +23,13 @@ abstract class LeanbackVideoPlayer(
     }
 
     open fun release() {
+        // 播放器释放后各超时/轮询任务都不应再跑：否则它们会在组合作用域
+        // 仍存活时继续触发已清空的监听器（空操作但浪费资源），以及在
+        // triggerCurrentPosition 里反复重建 cutoff 超时任务
+        loadTimeoutJob?.cancel()
+        loadTimeoutJob = null
+        cutoffTimeoutJob?.cancel()
+        cutoffTimeoutJob = null
         clearAllListeners()
     }
 
