@@ -38,13 +38,18 @@ class Logger private constructor(
     companion object {
         fun create(tag: String) = Logger(tag)
 
+        // 日志历史会被多线程写入（网络线程、播放器回调、主线程），同时被设置页
+        // 与局域网接口读取并序列化：无锁的 ArrayList 在并发读写时会丢数据、
+        // 甚至在序列化中途抛 ConcurrentModificationException
         private val _history = mutableListOf<HistoryItem>()
         val history: List<HistoryItem>
-            get() = _history
+            get() = synchronized(_history) { _history.toList() }
 
         fun addHistoryItem(item: HistoryItem) {
-            _history.add(item)
-            if (_history.size > Constants.LOG_HISTORY_MAX_SIZE) _history.removeAt(0)
+            synchronized(_history) {
+                _history.add(item)
+                if (_history.size > Constants.LOG_HISTORY_MAX_SIZE) _history.removeAt(0)
+            }
         }
     }
 
