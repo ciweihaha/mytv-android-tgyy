@@ -108,7 +108,7 @@ fun LeanbackClassicPanelIptvList(
             .width(220.dp)
             .background(MaterialTheme.colorScheme.background.copy(0.8f)),
     ) {
-        itemsIndexed(iptvList, key = { _, iptv -> iptv.hashCode() }) { index, iptv ->
+        itemsIndexed(iptvList, key = { _, iptv -> iptv }) { index, iptv ->}
             val isSelected by remember { derivedStateOf { iptv == focusedIptv } }
             val initialFocused by remember {
                 derivedStateOf { !hasFocused && iptv == initialIptv }

@@ -103,7 +103,7 @@ fun LeanbackClassicPanelEpgList(
                         }
                     },
             ) {
-                items(programmes) { programme ->
+                items(programmes, key = { it }) { programme ->
                     LeanbackClassicPanelEpgItem(
                         epgProgrammeProvider = { programme },
                     )
@@ -121,7 +121,7 @@ fun LeanbackClassicPanelEpgList(
                         .background(MaterialTheme.colorScheme.background.copy(0.7f))
                 ) {
 
-                    items(programmesGroup.keys.toList()) {
+                    items(programmesGroup.keys.toList(), key = { it }) {
                         LeanbackClassicPanelEpgDayItem(
                             dayProvider = { it },
                             currentDayProvider = { currentDay },

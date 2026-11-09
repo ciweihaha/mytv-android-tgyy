@@ -84,7 +84,7 @@ fun LeanbackClassicPanelIptvGroupList(
                 }
             },
     ) {
-        items(iptvGroupList) { iptvGroup ->
+        items(iptvGroupList, key = { it.name }) { iptvGroup ->
             val isSelected by remember { derivedStateOf { iptvGroup == focusedIptvGroup } }
 
             LeanbackClassicPanelIptvGroupItem(

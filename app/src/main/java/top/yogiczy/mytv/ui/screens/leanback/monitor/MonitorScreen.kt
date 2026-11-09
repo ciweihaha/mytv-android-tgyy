@@ -82,11 +82,14 @@ private fun rememberFpsState(): FpsState {
                 } else {
                     fpsCount++
                     if (fpsCount == 5) {
-                        val fps = (5_000 / (ms - lastUpdate)).toInt()
-                        state = state.copy(
-                            current = fps,
-                            history = (state.history.takeLast(30) + fps).toImmutableList(),
-                        )
+                        val elapsed = ms - lastUpdate
+                        if (elapsed > 0) {
+                            val fps = (5_000 / elapsed).toInt()
+                            state = state.copy(
+                                current = fps,
+                                history = (state.history.takeLast(30) + fps).toImmutableList(),
+                            )
+                        }
                         lastUpdate = ms
                         fpsCount = 0
                     }
