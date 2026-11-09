@@ -33,6 +33,7 @@ import top.yogiczy.mytv.ui.utils.SP
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
@@ -81,6 +82,13 @@ class LeanbackMedia3VideoPlayer(
 
     private val contentTypeAttempts = mutableMapOf<Int, Boolean>()
     private var updatePositionJob: Job? = null
+
+    /**
+     * 实测帧率：VideoFrameMetadataListener 每渲染一帧回调一次，1 秒
+     * 采样一次就是实测帧率；tag 里没给帧率时（0）用它补。回调在播放
+     * 线程、采样在协程里，各一侧读写，用 AtomicInteger
+     */
+    private val renderedFrameCount = AtomicInteger(0)
 
     /**
      * 直播位置落后重试计数：BEHIND_LIVE_WINDOW 原先无条件 seek + prepare
@@ -227,6 +235,14 @@ class LeanbackMedia3VideoPlayer(
                     triggerCurrentPosition(-1)
                     while (true) {
                         triggerCurrentPosition(videoPlayer.currentPosition)
+                        // tag 里没给帧率时（0）用实测值补：1 秒内渲染的帧
+                        // 数；窗口比 1 秒略长，值是近似值，调试信息够用；
+                        // 卡顿时帧数为 0 就留着旧值，别把帧率清成 0
+                        val frames = renderedFrameCount.getAndSet(0)
+                        if (metadata.videoFrameRate == 0f && frames > 0) {
+                            metadata = metadata.copy(videoFrameRate = frames.toFloat())
+                            triggerMetadata(metadata)
+                        }
                         delay(1000)
                     }
                 }
@@ -249,7 +265,8 @@ class LeanbackMedia3VideoPlayer(
                 videoWidth = format.width.noValueToZero(),
                 videoHeight = format.height.noValueToZero(),
                 videoColor = format.colorInfo?.toLogString() ?: "",
-                // TODO 帧率、比特率目前是从tag中获取，有的返回空，后续需要实时计算
+                // 比特率目前仍从 tag 里取，有的返回空，后续需要实时计算；
+                // 帧率已在 1 秒采样循环里用实测渲染帧数补（tag 缺失时）
                 videoFrameRate = format.frameRate.noValueToZero(),
                 videoBitrate = format.bitrate.noValueToZero(),
             )
@@ -297,11 +314,15 @@ class LeanbackMedia3VideoPlayer(
         videoPlayer.addListener(playerListener)
         videoPlayer.addAnalyticsListener(metadataListener)
         videoPlayer.addAnalyticsListener(eventLogger)
+        videoPlayer.setVideoFrameMetadataListener { _, _, _, _ ->
+            renderedFrameCount.incrementAndGet()
+        }
     }
 
     override fun release() {
         updatePositionJob?.cancel()
         updatePositionJob = null
+        videoPlayer.setVideoFrameMetadataListener(null)
         videoPlayer.removeListener(playerListener)
         videoPlayer.removeAnalyticsListener(metadataListener)
         videoPlayer.removeAnalyticsListener(eventLogger)
