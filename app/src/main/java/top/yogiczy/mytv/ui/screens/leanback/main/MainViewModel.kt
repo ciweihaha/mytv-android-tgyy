@@ -80,6 +80,10 @@ class LeanbackMainViewModel : ViewModel() {
     }
 
     private suspend fun refreshEpg() {
+        // 节目单开关原来没人读：关了照样拉节目单；这里真正按开关走。
+        // refresh() 已把 Ready 的 epgList 重置为空，跳过即保持无节目单
+        if (!SP.epgEnable) return
+
         if (_uiState.value is LeanbackMainUiState.Ready) {
             val iptvGroupList = (_uiState.value as LeanbackMainUiState.Ready).iptvGroupList
 

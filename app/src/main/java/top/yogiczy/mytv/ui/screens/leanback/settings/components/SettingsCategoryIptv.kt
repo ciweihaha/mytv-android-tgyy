@@ -99,6 +99,9 @@ fun LeanbackSettingsCategoryIptv(
                 },
                 onSelected = {
                     settingsViewModel.iptvSourceSimplify = !settingsViewModel.iptvSourceSimplify
+                    // 精简只在加载时读 SP：不刷新就得重启才生效；缓存存的
+                    // 是原始源文本，解析时再过滤，所以不用清缓存
+                    mainViewModel.refresh()
                 },
             )
         }

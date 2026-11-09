@@ -63,6 +63,8 @@ fun LeanbackSettingsCategoryEpg(
                 },
                 onSelected = {
                     settingsViewModel.epgEnable = !settingsViewModel.epgEnable
+                    // 开关只在刷新时读：不刷新就得重启才生效
+                    mainViewModel.refresh()
                 },
             )
         }
