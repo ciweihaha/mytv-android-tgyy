@@ -8,6 +8,8 @@ class DefaultEpgFetcher : EpgFetcher {
     }
 
     override fun fetch(response: Response): String {
-        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        // 无扩展名 / 带参数的地址走这里：按内容嗅探解码，而不是像原先
+        // 那样直接返回空节目单
+        return EpgFetcher.decodeBody(response)
     }
 }
