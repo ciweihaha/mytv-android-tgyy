@@ -42,6 +42,13 @@ jobs:
         run: chmod +x ./gradlew && ./gradlew assembleDebug
         timeout-minutes: 30
 
+      # Round 9: run the unit tests (M3U/Tvbox/Git-release parsers). Kept as a
+      # separate step so a test failure is visible without digging through the
+      # build log.
+      - name: 运行单元测试
+        run: ./gradlew testDebugUnitTest
+        timeout-minutes: 30
+
       # Round 8: release builds run R8 (minifyEnabled + shrinkResources) but
       # debug builds do not, so proguard-rules.pro was never exercised. Build
       # release too, signed with a throwaway CI keystore, to validate the R8
