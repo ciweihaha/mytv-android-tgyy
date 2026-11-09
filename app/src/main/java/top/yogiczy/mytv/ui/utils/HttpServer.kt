@@ -52,6 +52,16 @@ internal fun isAuthThrottled(
 ): Boolean = failedAttempts.count { now - it < windowMs } >= limit
 
 /**
+ * 网页端设置值：空串/空白串保留当前值。optString 已处理缺失字段与 JSON
+ * null（给当前值），但空串会原样存进 SP：下次读出来虽然靠 SP 的
+ * ifBlank 回落到内置默认地址，用户的自定义地址却已被悄悄清空，还触发
+ * 了缓存清理与重载。
+ * 顶层函数与 HttpServer 对象无关，方便单元测试直接调用。
+ */
+internal fun keepCurrentIfBlank(newValue: String, currentValue: String): String =
+    newValue.ifBlank { currentValue }
+
+/**
  * 局域网地址候选：address 是某网卡上的地址，isPointToPoint 表示所属
  * 网卡是否为点对点接口（VPN 的 tun 接口通常是点对点）。
  */
@@ -253,9 +263,16 @@ object HttpServer : Loggable() {
             return
         }
 
-        val iptvSourceUrl = jsonObject.optString("iptvSourceUrl", SP.iptvSourceUrl)
-        val epgXmlUrl = jsonObject.optString("epgXmlUrl", SP.epgXmlUrl)
-        val videoPlayerUserAgent = jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent)
+        val iptvSourceUrl = keepCurrentIfBlank(
+            jsonObject.optString("iptvSourceUrl", SP.iptvSourceUrl), SP.iptvSourceUrl
+        )
+        val epgXmlUrl = keepCurrentIfBlank(
+            jsonObject.optString("epgXmlUrl", SP.epgXmlUrl), SP.epgXmlUrl
+        )
+        val videoPlayerUserAgent = keepCurrentIfBlank(
+            jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent),
+            SP.videoPlayerUserAgent,
+        )
 
         var sourceChanged = false
         var valuesChanged = false
