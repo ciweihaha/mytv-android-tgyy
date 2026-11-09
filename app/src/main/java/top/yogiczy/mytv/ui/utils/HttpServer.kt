@@ -123,10 +123,25 @@ object HttpServer : Loggable() {
         request: AsyncHttpServerRequest,
         response: AsyncHttpServerResponse,
     ) {
-        val body = request.getBody<JSONObjectBody>().get()
-        val iptvSourceUrl = body.get("iptvSourceUrl").toString()
-        val epgXmlUrl = body.get("epgXmlUrl").toString()
-        val videoPlayerUserAgent = body.get("videoPlayerUserAgent").toString()
+        val body = request.getBody<JSONObjectBody>()
+        if (body == null) {
+            wrapResponse(response).code(400).send("invalid json body")
+            return
+        }
+
+        // 缺失字段或 JSON null 时保留当前值：原先 body.get(...).toString() 在
+        // 字段缺失时抛 JSONException、在值为 null 时把字面量 "null" 存为 URL
+        val jsonObject = try {
+            body.get()
+        } catch (ex: Exception) {
+            log.e("解析设置失败", ex)
+            wrapResponse(response).code(400).send("invalid json body")
+            return
+        }
+
+        val iptvSourceUrl = jsonObject.optString("iptvSourceUrl", SP.iptvSourceUrl)
+        val epgXmlUrl = jsonObject.optString("epgXmlUrl", SP.epgXmlUrl)
+        val videoPlayerUserAgent = jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent)
 
         if (SP.iptvSourceUrl != iptvSourceUrl) {
             SP.iptvSourceUrl = iptvSourceUrl
@@ -150,17 +165,22 @@ object HttpServer : Loggable() {
     ) {
         val body = request.getBody<MultipartFormDataBody>()
 
-        val os = uploadedApkFile.outputStream()
+        // 收到文件分片时才创建输出流：原先请求一到就 open，即便没有文件分片
+        // 也会把已有的 uploaded_apk.apk 截断成空文件
+        var os: java.io.OutputStream? = null
         val contentLength = request.headers["Content-Length"]?.toLong() ?: 1
         var hasReceived = 0L
 
         body.setMultipartCallback { part ->
             if (part.isFile) {
+                if (os == null) {
+                    os = uploadedApkFile.outputStream()
+                }
                 body.setDataCallback { _, bb ->
                     val byteArray = bb.allByteArray
                     hasReceived += byteArray.size
                     showToast("正在接收文件: ${(hasReceived * 100f / contentLength).toInt()}%")
-                    os.write(byteArray)
+                    os?.write(byteArray)
                 }
             }
         }
@@ -168,9 +188,20 @@ object HttpServer : Loggable() {
         body.setEndCallback {
             showToast("文件接收完成")
             body.dataEmitter.close()
-            os.flush()
-            os.close()
-            ApkInstaller.installApk(context, uploadedApkFile.path)
+            try {
+                os?.flush()
+            } finally {
+                try {
+                    os?.close()
+                } catch (_: Exception) {
+                    // 关闭失败不影响后续流程
+                }
+                os = null
+            }
+            // 只在确实收到文件内容时才触发安装
+            if (hasReceived > 0) {
+                ApkInstaller.installApk(context, uploadedApkFile.path)
+            }
         }
 
         wrapResponse(response).send("success")
