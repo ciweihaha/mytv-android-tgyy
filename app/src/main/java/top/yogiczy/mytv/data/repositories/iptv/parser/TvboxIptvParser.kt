@@ -20,7 +20,11 @@ class TvboxIptvParser : IptvParser {
             if (line.isBlank() || line.startsWith("#")) return@forEach
 
             if (line.contains("#genre#")) {
-                groupName = line.split(",").first()
+                // 只有带分组名的才更新：",#genre#" 这种无名行不能把分组名
+                // 写成空串，后面的频道会进一个无名假分组
+                line.split(",").first().trim()
+                    .takeIf { it.isNotEmpty() && it != "#genre#" }
+                    ?.let { groupName = it }
             } else {
                 val res = line.replace("，", ",").split(",")
                 if (res.size < 2) return@forEach

@@ -20,7 +20,10 @@ class M3uIptvParser : IptvParser {
         lines.forEachIndexed { index, line ->
             if (!line.startsWith("#EXTINF")) return@forEachIndexed
 
-            val name = line.split(",").last()
+            // 频道名是第一个不在引号内的逗号之后的内容：属性值里可能有
+            // 逗号（如 tvg-logo 的 URL），直接 split(",").last() 会把带
+            // 逗号的频道名截断成最后一截；没有这种逗号时保留整行当名字
+            val name = line.substringAfterFirstUnquotedComma()
             val channelName = TVG_NAME_REGEX.find(line)?.groupValues?.get(1) ?: name
             val groupName = GROUP_TITLE_REGEX.find(line)?.groupValues?.get(1) ?: "其他"
 
@@ -50,6 +53,20 @@ class M3uIptvParser : IptvParser {
                 })
             )
         })
+    }
+
+    /**
+     * 取第一个不在双引号内的逗号之后的内容；没有则返回整行
+     */
+    private fun String.substringAfterFirstUnquotedComma(): String {
+        var inQuotes = false
+        for (i in indices) {
+            when (this[i]) {
+                '"' -> inQuotes = !inQuotes
+                ',' -> if (!inQuotes) return substring(i + 1)
+            }
+        }
+        return this
     }
 
     private data class IptvResponseItem(
