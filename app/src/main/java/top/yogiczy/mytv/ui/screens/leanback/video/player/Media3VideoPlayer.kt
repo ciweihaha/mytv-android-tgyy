@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.ui.screens.leanback.video.player
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.view.SurfaceView
@@ -11,8 +12,9 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
@@ -26,8 +28,34 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import top.yogiczy.mytv.ui.utils.SP
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 import androidx.media3.common.PlaybackException as Media3PlaybackException
+
+/**
+ * 只用于媒体播放的信任全部证书管理器。
+ * 部分用户配置的直播源使用自签/过期证书，播放器必须能播；但它只作用于播放器自己的
+ * OkHttp 客户端，不再像以前那样替换进程全局的 HttpsURLConnection 默认值
+ * （以前的 UnsafeTrustManager 会让进程内所有 HTTPS 连接都跳过证书校验）。
+ */
+@SuppressLint("CustomX509TrustManager", "TrustAllX509TrustManager")
+private object TrustAllCertsManager : X509TrustManager {
+    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+        // 信任全部证书（仅限媒体播放）
+    }
+
+    override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+        // 信任全部证书（仅限媒体播放）
+    }
+
+    override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+}
 
 @OptIn(UnstableApi::class)
 class LeanbackMedia3VideoPlayer(
@@ -44,16 +72,31 @@ class LeanbackMedia3VideoPlayer(
     private val contentTypeAttempts = mutableMapOf<Int, Boolean>()
     private var updatePositionJob: Job? = null
 
+    /**
+     * 播放器专用的 HTTP 数据源工厂：用独立的 OkHttp 客户端拉流，证书校验只对播放流量放行。
+     * 超时、User-Agent 与原 DefaultHttpDataSource 配置保持一致；
+     * OkHttp 默认跟随重定向（含跨协议），与原 setAllowCrossProtocolRedirects(true) 等效。
+     */
+    @OptIn(UnstableApi::class)
+    private fun createHttpDataSourceFactory(): DataSource.Factory {
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(TrustAllCertsManager), SecureRandom())
+        }
+        val okHttpClient = OkHttpClient.Builder()
+            .sslSocketFactory(sslContext.socketFactory, TrustAllCertsManager)
+            .hostnameVerifier { _, _ -> true }
+            .connectTimeout(SP.videoPlayerLoadTimeout, TimeUnit.MILLISECONDS)
+            .readTimeout(SP.videoPlayerLoadTimeout, TimeUnit.MILLISECONDS)
+            .build()
+        return OkHttpDataSource.Factory(okHttpClient).apply {
+            setUserAgent(SP.videoPlayerUserAgent)
+        }
+    }
+
     @OptIn(UnstableApi::class)
     private fun prepare(uri: Uri, contentType: Int? = null) {
         val dataSourceFactory =
-            DefaultDataSource.Factory(context, DefaultHttpDataSource.Factory().apply {
-                setUserAgent(SP.videoPlayerUserAgent)
-                setConnectTimeoutMs(SP.videoPlayerLoadTimeout.toInt())
-                setReadTimeoutMs(SP.videoPlayerLoadTimeout.toInt())
-                setKeepPostFor302Redirects(true)
-                setAllowCrossProtocolRedirects(true)
-            })
+            DefaultDataSource.Factory(context, createHttpDataSourceFactory())
 
         val mediaItem = MediaItem.fromUri(uri)
 
