@@ -45,8 +45,10 @@ fun LeanbackPanelIptvInfo(
             Spacer(modifier = Modifier.width(6.dp))
 
             Row(
-                // FIXME 没对齐，临时解决
-                modifier = Modifier.padding(bottom = 6.dp),
+                // 与频道名按基线对齐：原先用 bottom 6.dp 的魔法数字临时
+                // 顶，字号一换就错位；内层 Row 的基线就是第一个角标文
+                // 本的基线，无角标时 Row 是空的，对齐与否都不可见
+                modifier = Modifier.alignByBaseline(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 CompositionLocalProvider(
