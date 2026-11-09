@@ -30,6 +30,10 @@ fun LeanbackPanelDateTimeScreen(
     showModeProvider: () -> SP.UiTimeShowMode = { SP.UiTimeShowMode.HIDDEN },
 ) {
     val childPadding = rememberLeanbackChildPadding()
+    // 每秒创建一次 SimpleDateFormat 是纯浪费：两个格式各建一个复用
+    //（只在这一条协程里用，不存在 SimpleDateFormat 的线程安全问题）
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val timeWithSecondsFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     var timeText by remember { mutableStateOf("") }
     var visible by remember { mutableStateOf(false) }
@@ -52,8 +56,8 @@ fun LeanbackPanelDateTimeScreen(
 
             if (visible) {
                 timeText = when (showModeProvider()) {
-                    SP.UiTimeShowMode.ALWAYS -> SimpleDateFormat("HH:mm", Locale.getDefault())
-                    else -> SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                    SP.UiTimeShowMode.ALWAYS -> timeFormat
+                    else -> timeWithSecondsFormat
                 }.format(timestamp)
             }
 

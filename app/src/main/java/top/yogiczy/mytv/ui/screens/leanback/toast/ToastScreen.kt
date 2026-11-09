@@ -67,7 +67,6 @@ fun LeanbackToastItem(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LeanbackToastContentIcon(
-                showIcon = true,
                 icon = Icons.Outlined.Info,
                 iconColor = MaterialTheme.colorScheme.inverseOnSurface,
                 iconContainerColors = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -84,24 +83,21 @@ fun LeanbackToastItem(
 @Composable
 private fun LeanbackToastContentIcon(
     modifier: Modifier = Modifier,
-    showIcon: Boolean,
     icon: ImageVector,
     iconColor: Color,
     iconContainerColors: Color,
 ) {
-    if (showIcon) {
-        Box(
-            modifier = modifier
-                .background(iconContainerColors, CircleShape)
-                .padding(8.dp),
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = iconColor,
-            )
-        }
+    Box(
+        modifier = modifier
+            .background(iconContainerColors, CircleShape)
+            .padding(8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = iconColor,
+        )
     }
 }
 

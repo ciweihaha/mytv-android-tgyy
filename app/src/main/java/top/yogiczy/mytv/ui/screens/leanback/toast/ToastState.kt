@@ -35,7 +35,7 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
 
             _current = toast
             _visible = true
-            channel.trySend(toast.duration.toMs())
+            channel.trySend(++toastGeneration to toast.duration.toMs())
         }
     }
 
@@ -47,11 +47,17 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
         showToast(LeanbackToastProperty(message = message, duration = duration, id = id))
     }
 
-    private val channel = Channel<Int>(Channel.CONFLATED)
+    // Toast 换代计数：旧 Toast 的隐藏定时器可能与新 Toast 的显示撞在
+    // 同一毫秒（旧 Toast 时长恰好等于新 Toast 请求时刻 + 300ms 换场），
+    // 只关自己那一代的 Toast，新 Toast 不受影响
+    private var toastGeneration = 0
+    private val channel = Channel<Pair<Int, Int>>(Channel.CONFLATED)
 
     @OptIn(FlowPreview::class)
     suspend fun observe() {
-        channel.consumeAsFlow().debounce { it.toLong() }.collect { _visible = false }
+        channel.consumeAsFlow().debounce { it.second.toLong() }.collect { (generation, _) ->
+            if (generation == toastGeneration) _visible = false
+        }
     }
 
     companion object {

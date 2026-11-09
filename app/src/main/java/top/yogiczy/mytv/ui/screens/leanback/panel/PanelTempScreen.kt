@@ -62,7 +62,6 @@ fun LeanbackPanelTempScreen(
                     Box(
                         modifier = Modifier
                             .layoutId("progress")
-                            .align(Alignment.BottomStart)
                             .fillMaxWidth(currentProgrammes.now.progress())
                             .height(3.dp)
                             .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.9f)),
