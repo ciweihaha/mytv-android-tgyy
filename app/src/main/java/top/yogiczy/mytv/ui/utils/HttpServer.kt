@@ -52,14 +52,32 @@ internal fun isAuthThrottled(
 ): Boolean = failedAttempts.count { now - it < windowMs } >= limit
 
 /**
- * 从本机地址里选一个局域网地址：优先内网地址（10/8、172.16/12、
- * 192.168/16），否则取第一个非回环 IPv4；都没有返回 null。
- * 网卡枚举顺序不确定，直接取第一个可能拿到 VPN/移动数据的公网 IP，
- * 设置页与失败屏的二维码就指到了局域网内访问不到的地址。
+ * 局域网地址候选：address 是某网卡上的地址，isPointToPoint 表示所属
+ * 网卡是否为点对点接口（VPN 的 tun 接口通常是点对点）。
  */
-internal fun pickLanAddress(addresses: List<InetAddress>): InetAddress? =
-    addresses.firstOrNull { it is Inet4Address && !it.isLoopbackAddress && it.isSiteLocalAddress }
-        ?: addresses.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
+internal data class LanAddressCandidate(
+    val address: InetAddress,
+    val isPointToPoint: Boolean,
+)
+
+/**
+ * 从本机地址里选一个局域网地址，优先级：
+ * 1. 非点对点网卡的内网地址（10/8、172.16/12、192.168/16）
+ * 2. 非点对点网卡的其它非回环 IPv4
+ * 3. 点对点网卡的内网地址（只有 VPN 时的回落）
+ * 4. 点对点网卡的其它非回环 IPv4
+ * 都没有返回 null。
+ * VPN 常用 10.x 段（也是内网段），只按地址挑会选中 VPN 地址，
+ * 设置页与失败屏的二维码就指到了局域网内访问不到的地址；点对点
+ * 接口（tun/ppp）基本都是 VPN/拨号，不是局域网网卡，先排除。
+ */
+internal fun pickLanAddress(candidates: List<LanAddressCandidate>): InetAddress? {
+    val usable = candidates.filter { it.address is Inet4Address && !it.address.isLoopbackAddress }
+    return usable.firstOrNull { !it.isPointToPoint && it.address.isSiteLocalAddress }?.address
+        ?: usable.firstOrNull { !it.isPointToPoint }?.address
+        ?: usable.firstOrNull { it.address.isSiteLocalAddress }?.address
+        ?: usable.firstOrNull()?.address
+}
 
 object HttpServer : Loggable() {
     private const val SERVER_PORT = 10481
@@ -348,11 +366,14 @@ object HttpServer : Loggable() {
         val defaultIp = "0.0.0.0"
 
         return try {
-            val addresses = NetworkInterface.getNetworkInterfaces()
+            val candidates = NetworkInterface.getNetworkInterfaces()
                 ?.asSequence().orEmpty()
-                .flatMap { it.inetAddresses.asSequence() }
+                .flatMap { iface ->
+                    iface.inetAddresses.asSequence()
+                        .map { LanAddressCandidate(it, iface.isPointToPoint) }
+                }
                 .toList()
-            pickLanAddress(addresses)?.hostAddress ?: defaultIp
+            pickLanAddress(candidates)?.hostAddress ?: defaultIp
         } catch (ex: SocketException) {
             log.e("IP Address: ${ex.message}", ex)
             defaultIp
