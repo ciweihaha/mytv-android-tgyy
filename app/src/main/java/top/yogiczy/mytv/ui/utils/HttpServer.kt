@@ -52,42 +52,14 @@ internal fun isAuthThrottled(
 ): Boolean = failedAttempts.count { now - it < windowMs } >= limit
 
 /**
- * 网页端设置值：空串/空白串保留当前值。optString 已处理缺失字段与 JSON
- * null（给当前值），但空串会原样存进 SP：下次读出来虽然靠 SP 的
- * ifBlank 回落到内置默认地址，用户的自定义地址却已被悄悄清空，还触发
- * 了缓存清理与重载。
- * 顶层函数与 HttpServer 对象无关，方便单元测试直接调用。
+ * 从本机地址里选一个局域网地址：优先内网地址（10/8、172.16/12、
+ * 192.168/16），否则取第一个非回环 IPv4；都没有返回 null。
+ * 网卡枚举顺序不确定，直接取第一个可能拿到 VPN/移动数据的公网 IP，
+ * 设置页与失败屏的二维码就指到了局域网内访问不到的地址。
  */
-internal fun keepCurrentIfBlank(newValue: String, currentValue: String): String =
-    newValue.ifBlank { currentValue }
-
-/**
- * 局域网地址候选：address 是某网卡上的地址，isPointToPoint 表示所属
- * 网卡是否为点对点接口（VPN 的 tun 接口通常是点对点）。
- */
-internal data class LanAddressCandidate(
-    val address: InetAddress,
-    val isPointToPoint: Boolean,
-)
-
-/**
- * 从本机地址里选一个局域网地址，优先级：
- * 1. 非点对点网卡的内网地址（10/8、172.16/12、192.168/16）
- * 2. 非点对点网卡的其它非回环 IPv4
- * 3. 点对点网卡的内网地址（只有 VPN 时的回落）
- * 4. 点对点网卡的其它非回环 IPv4
- * 都没有返回 null。
- * VPN 常用 10.x 段（也是内网段），只按地址挑会选中 VPN 地址，
- * 设置页与失败屏的二维码就指到了局域网内访问不到的地址；点对点
- * 接口（tun/ppp）基本都是 VPN/拨号，不是局域网网卡，先排除。
- */
-internal fun pickLanAddress(candidates: List<LanAddressCandidate>): InetAddress? {
-    val usable = candidates.filter { it.address is Inet4Address && !it.address.isLoopbackAddress }
-    return usable.firstOrNull { !it.isPointToPoint && it.address.isSiteLocalAddress }?.address
-        ?: usable.firstOrNull { !it.isPointToPoint }?.address
-        ?: usable.firstOrNull { it.address.isSiteLocalAddress }?.address
-        ?: usable.firstOrNull()?.address
-}
+internal fun pickLanAddress(addresses: List<InetAddress>): InetAddress? =
+    addresses.firstOrNull { it is Inet4Address && !it.isLoopbackAddress && it.isSiteLocalAddress }
+        ?: addresses.firstOrNull { it is Inet4Address && !it.isLoopbackAddress }
 
 object HttpServer : Loggable() {
     private const val SERVER_PORT = 10481
@@ -137,9 +109,11 @@ object HttpServer : Loggable() {
         return true
     }
 
-    val serverUrl: String by lazy {
-        "http://${getLocalIpAddress()}:${SERVER_PORT}"
-    }
+    // 每次现算不缓存：IP 会变（WiFi 重连、切网络、开热点），lazy 只算
+    // 一次会让设置页和加载失败页的二维码一直显示旧地址，扫了连不上；
+    // 读网卡只是本地枚举、无网络 IO，现算成本可忽略
+    val serverUrl: String
+        get() = "http://${getLocalIpAddress()}:${SERVER_PORT}"
 
     /**
      * @param onSettingsChanged 网页端改了直播源/节目单地址时调用，由 LeanbackActivity
@@ -263,16 +237,9 @@ object HttpServer : Loggable() {
             return
         }
 
-        val iptvSourceUrl = keepCurrentIfBlank(
-            jsonObject.optString("iptvSourceUrl", SP.iptvSourceUrl), SP.iptvSourceUrl
-        )
-        val epgXmlUrl = keepCurrentIfBlank(
-            jsonObject.optString("epgXmlUrl", SP.epgXmlUrl), SP.epgXmlUrl
-        )
-        val videoPlayerUserAgent = keepCurrentIfBlank(
-            jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent),
-            SP.videoPlayerUserAgent,
-        )
+        val iptvSourceUrl = jsonObject.optString("iptvSourceUrl", SP.iptvSourceUrl)
+        val epgXmlUrl = jsonObject.optString("epgXmlUrl", SP.epgXmlUrl)
+        val videoPlayerUserAgent = jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent)
 
         var sourceChanged = false
         var valuesChanged = false
@@ -383,14 +350,11 @@ object HttpServer : Loggable() {
         val defaultIp = "0.0.0.0"
 
         return try {
-            val candidates = NetworkInterface.getNetworkInterfaces()
+            val addresses = NetworkInterface.getNetworkInterfaces()
                 ?.asSequence().orEmpty()
-                .flatMap { iface ->
-                    iface.inetAddresses.asSequence()
-                        .map { LanAddressCandidate(it, iface.isPointToPoint) }
-                }
+                .flatMap { it.inetAddresses.asSequence() }
                 .toList()
-            pickLanAddress(candidates)?.hostAddress ?: defaultIp
+            pickLanAddress(addresses)?.hostAddress ?: defaultIp
         } catch (ex: SocketException) {
             log.e("IP Address: ${ex.message}", ex)
             defaultIp
