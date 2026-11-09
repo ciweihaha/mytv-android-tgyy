@@ -62,7 +62,12 @@ fun LeanbackMainScreen(
             LeanbackMainScreenLoading { s.message }
         }
 
-        is LeanbackMainUiState.Error -> LeanbackMainSettingsHandle(onBackPressed = onBackPressed) {
+        is LeanbackMainUiState.Error -> LeanbackMainSettingsHandle(
+            onBackPressed = onBackPressed,
+            // 加载失败后按确定键直接重试：原先只能进设置页清缓存或重选源，
+            // 临时网络故障也要绕一大圈
+            onRetry = { mainViewModel.refresh() },
+        ) {
             LeanbackMainScreenError({ s.message })
         }
     }
@@ -133,6 +138,12 @@ private fun LeanbackMainScreenError(
                     modifier = Modifier.sizeIn(maxWidth = 500.dp),
                 )
             }
+
+            Text(
+                text = "按确定键重新加载",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+            )
         }
 
         Box(
@@ -190,6 +201,7 @@ private fun LeanbackMainScreenErrorLongPreview() {
 private fun LeanbackMainSettingsHandle(
     modifier: Modifier = Modifier,
     onBackPressed: () -> Unit = {},
+    onRetry: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -207,6 +219,11 @@ private fun LeanbackMainSettingsHandle(
                 .handleLeanbackKeyEvents(
                     onSettings = {
                         showSettings = true
+                    },
+                    onSelect = {
+                        // 设置页打开时确定键归设置项：预览按键事件会先到
+                        // 这里，不加守卫会在设置里按确定也触发重试
+                        if (!showSettings) onRetry?.invoke()
                     },
                 ),
         ) {
