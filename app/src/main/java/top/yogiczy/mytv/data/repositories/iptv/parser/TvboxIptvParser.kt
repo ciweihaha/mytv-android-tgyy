@@ -19,14 +19,23 @@ class TvboxIptvParser : IptvParser {
         lines.forEach { line ->
             if (line.isBlank() || line.startsWith("#")) return@forEach
 
-            if (line.contains("#genre#")) {
+            // 先统一中文逗号：分组行 `央视，#genre#` 也要认
+            val normalized = line.replace("，", ",")
+            // 分组行是 `分组名,#genre#`：只看第一个逗号后面的段是否以
+            // #genre# 开头；频道地址里含 #genre#（如 http://x/a#genre#）
+            // 时整行是频道，不能当分组行——否则频道被丢掉，分组名还会被
+            // 写成频道名
+            val firstComma = normalized.indexOf(',')
+            if (firstComma >= 0 &&
+                normalized.substring(firstComma + 1).trimStart().startsWith("#genre#")
+            ) {
                 // 只有带分组名的才更新：",#genre#" 这种无名行不能把分组名
                 // 写成空串，后面的频道会进一个无名假分组
-                line.split(",").first().trim()
+                normalized.substring(0, firstComma).trim()
                     .takeIf { it.isNotEmpty() && it != "#genre#" }
                     ?.let { groupName = it }
             } else {
-                val res = line.replace("，", ",").split(",")
+                val res = normalized.split(",")
                 if (res.size < 2) return@forEach
 
                 // 空地址段直接丢弃：`CCTV-1,` 或 `CCTV-1,http://a#` 这种行

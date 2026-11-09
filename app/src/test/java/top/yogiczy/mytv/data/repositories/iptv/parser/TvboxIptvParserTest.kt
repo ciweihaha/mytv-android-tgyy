@@ -105,11 +105,10 @@ class TvboxIptvParserTest {
     }
 
     @Test
-    fun `genre line without a name does not create a fake group`() = runBlocking {
+    fun `url containing genre marker is parsed as channel not group`() = runBlocking {
         val data = """
             央视,#genre#
-            CCTV-1,http://example.com/cctv1.m3u8
-            ,#genre#
+            CCTV-1,http://example.com/a#genre#
             CCTV-5,http://example.com/cctv5.m3u8
         """.trimIndent()
 
@@ -118,6 +117,22 @@ class TvboxIptvParserTest {
         assertEquals(1, result.size)
         assertEquals("央视", result[0].name)
         assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("http://example.com/a", result[0].iptvList[0].urlList[0])
         assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
+
+    @Test
+    fun `chinese comma genre line is recognized as group`() = runBlocking {
+        val data = """
+            央视，#genre#
+            CCTV-1,http://example.com/cctv1.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
     }
 }
