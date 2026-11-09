@@ -1,21 +1,34 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# mytv-android ProGuard / R8 rules (round 8).
+# Release builds run with minifyEnabled + shrinkResources. The default
+# proguard-android-optimize.txt and the libraries' own consumer rules cover
+# most cases; the rules below cover the gaps R8 cannot infer statically.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep line numbers so crash stack traces stay readable.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ---- kotlinx-serialization ----
+# @Serializable classes are (de)serialized via generated $$serializer classes
+# looked up by reflection; keep them and their members.
+# (Per kotlinx-serialization's own ProGuard guidance.)
+-keepattributes *Annotation*, InnerClasses, Signature, EnclosingMethod
+-keep class kotlinx.serialization.** { *; }
+-keepclassmembers class **$$serializer { *; }
+-keep class **$$serializer { *; }
+-keep @kotlinx.serialization.Serializable class ** { *; }
+-keepclassmembers @kotlinx.serialization.Serializable class ** {
+    *** Companion;
+    *** serializer(...);
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ---- Media3 FFmpeg extension (app/libs/lib-decoder-ffmpeg-release.aar) ----
+# DefaultRenderersFactory loads the FFmpeg audio/video renderers by class name
+# via reflection (EXTENSION_RENDERER_MODE_ON); keep them explicitly so R8
+# cannot strip the local AAR's classes.
+-keep class androidx.media3.exoplayer.ffmpeg.** { *; }
+
+# ---- Notes: libraries that ship their own consumer rules ----
+# OkHttp / Okio, Compose (incl. tv-material), Media3 core, lifecycle and
+# activity all bundle consumer ProGuard rules; no extra rules needed here.
+# androidasync and qrose are only ever called directly (no reflection), so
+# R8 keeps their reachable code automatically.
