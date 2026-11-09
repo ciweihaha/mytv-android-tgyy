@@ -38,6 +38,8 @@ object HttpServer : Loggable() {
 
     private var onSettingsChanged: (() -> Unit)? = null
 
+    private var isStarted = false
+
     val serverUrl: String by lazy {
         "http://${getLocalIpAddress()}:${SERVER_PORT}"
     }
@@ -52,6 +54,12 @@ object HttpServer : Loggable() {
         onSettingsChanged: (() -> Unit)? = null,
     ) {
         HttpServer.onSettingsChanged = onSettingsChanged
+        HttpServer.showToast = showToast
+        // 服务与进程同寿：重复 start（Activity 重建等）只更新回调，不再
+        // 重复监听端口，否则第二次 listen 抛 BindException，还会误弹
+        // "启动失败"（其实第一个服务还在正常跑）
+        if (isStarted) return
+        isStarted = true
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val server = AsyncHttpServer()
@@ -79,9 +87,9 @@ object HttpServer : Loggable() {
                     handleUploadApk(request, response, context)
                 }
 
-                HttpServer.showToast = showToast
                 log.i("服务已启动: 0.0.0.0:${SERVER_PORT}")
             } catch (ex: Exception) {
+                isStarted = false
                 log.e("服务启动失败: ${ex.message}", ex)
                 launch(Dispatchers.Main) {
                     Toast.makeText(context, "设置服务启动失败", Toast.LENGTH_SHORT).show()
@@ -185,12 +193,20 @@ object HttpServer : Loggable() {
         context: Context,
     ) {
         val body = request.getBody<MultipartFormDataBody>()
+        // 非 multipart 请求没有 body：原先直接空指针
+        if (body == null) {
+            wrapResponse(response).code(400).send("invalid multipart body")
+            return
+        }
 
         // 收到文件分片时才创建输出流：原先请求一到就 open，即便没有文件分片
         // 也会把已有的 uploaded_apk.apk 截断成空文件
         var os: java.io.OutputStream? = null
-        val contentLength = request.headers["Content-Length"]?.toLong() ?: 1
+        // multipart 的 Content-Length 是整个请求体（含分隔符），只能做近似
+        // 进度；取不到或非法时不报百分比
+        val contentLength = request.headers["Content-Length"]?.toLongOrNull() ?: -1L
         var hasReceived = 0L
+        var lastProgress = -1
 
         body.setMultipartCallback { part ->
             if (part.isFile) {
@@ -200,7 +216,14 @@ object HttpServer : Loggable() {
                 body.setDataCallback { _, bb ->
                     val byteArray = bb.allByteArray
                     hasReceived += byteArray.size
-                    showToast("正在接收文件: ${(hasReceived * 100f / contentLength).toInt()}%")
+                    // 分片回调很频繁：只有百分比变化时才弹提示，避免几千次 Toast 刷新
+                    if (contentLength > 0) {
+                        val progress = (hasReceived * 100f / contentLength).toInt()
+                        if (progress != lastProgress) {
+                            lastProgress = progress
+                            showToast("正在接收文件: $progress%")
+                        }
+                    }
                     os?.write(byteArray)
                 }
             }
@@ -219,13 +242,15 @@ object HttpServer : Loggable() {
                 }
                 os = null
             }
-            // 只在确实收到文件内容时才触发安装
+            // 文件收完才回响应：原先一收到请求就回 "success"，网页端会
+            // 提前关掉加载提示，而文件其实还在传；没收到文件内容时回 400
             if (hasReceived > 0) {
                 ApkInstaller.installApk(context, uploadedApkFile.path)
+                wrapResponse(response).send("success")
+            } else {
+                wrapResponse(response).code(400).send("no file received")
             }
         }
-
-        wrapResponse(response).send("success")
     }
 
     private fun getLocalIpAddress(): String {
