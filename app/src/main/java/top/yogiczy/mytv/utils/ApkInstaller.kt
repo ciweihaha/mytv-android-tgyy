@@ -16,10 +16,10 @@ object ApkInstaller {
             val cacheDir = context.cacheDir
             val cachedApkFile = File(cacheDir, file.name)
             // 文件已在缓存目录时（自更新与局域网上传的两个调用方都是如此），
-            // 跳过自我复制：原先 writeBytes(file.readBytes()) 会把整个 APK
-            // 读进内存再写回同一个文件，纯属浪费
+            // 跳过自我复制；否则流式复制：原先 writeBytes(file.readBytes())
+            // 会把整个 APK 读进内存再写回，在低内存电视盒子上容易 OOM
             if (cachedApkFile.absolutePath != file.absolutePath) {
-                cachedApkFile.writeBytes(file.readBytes())
+                file.copyTo(cachedApkFile, overwrite = true)
             }
             // 解决Android6 无法解析安装包
             cachedApkFile.setReadable(true, false)
