@@ -103,12 +103,14 @@ class LeanbackMedia3VideoPlayer(
 
     private fun getDataSourceFactory(): DataSource.Factory {
         val key = SP.videoPlayerLoadTimeout to SP.videoPlayerUserAgent
-        if (cachedDataSourceFactory == null || cachedDataSourceFactoryKey != key) {
-            cachedDataSourceFactoryKey = key
-            cachedDataSourceFactory =
-                DefaultDataSource.Factory(context, createHttpDataSourceFactory())
-        }
-        return cachedDataSourceFactory!!
+        val cached = cachedDataSourceFactory
+        if (cached != null && cachedDataSourceFactoryKey == key) return cached
+        // 直接返回新建的工厂并顺手缓存：原先先赋值再 `!!` 取回，
+        // 全仓唯一的非空断言，后续改这里的条件一不小心就会 NPE，
+        // 让编译器直接保证非空
+        cachedDataSourceFactoryKey = key
+        return DefaultDataSource.Factory(context, createHttpDataSourceFactory())
+            .also { cachedDataSourceFactory = it }
     }
 
     /**
