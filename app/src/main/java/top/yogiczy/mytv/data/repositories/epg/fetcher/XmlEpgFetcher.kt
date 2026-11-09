@@ -8,6 +8,7 @@ class XmlEpgFetcher : EpgFetcher {
     }
 
     override fun fetch(response: Response): String {
-        return response.body!!.string()
+        // 空响应体（如 204）时返回空串，由上层按空节目单处理，而不是 NPE
+        return response.body?.string() ?: ""
     }
 }

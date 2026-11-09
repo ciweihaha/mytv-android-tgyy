@@ -33,7 +33,8 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
                     throw Exception("获取远程直播源失败: $code")
                 }
 
-                return@with body!!.string()
+                return@with body?.string()
+                    ?: throw Exception("获取远程直播源失败: 响应体为空")
             }
         } catch (ex: Exception) {
             log.e("获取远程直播源失败", ex)

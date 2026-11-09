@@ -32,7 +32,12 @@ object Downloader : Loggable() {
                     }
 
                     val file = File(filePath)
-                    FileOutputStream(file).use { fos -> fos.write(body!!.bytes()) }
+                    // 流式写入：原先 body.bytes() 会把整个文件读进内存，
+                    // 在低内存电视盒子上下载 APK（~25 MB）时容易 OOM
+                    FileOutputStream(file).use { fos ->
+                        body?.byteStream()?.use { it.copyTo(fos) }
+                            ?: throw Exception("下载文件失败: 响应体为空")
+                    }
                 }
             } catch (ex: Exception) {
                 log.e("下载文件失败", ex)
@@ -44,20 +49,27 @@ object Downloader : Loggable() {
         private val originalResponse: okhttp3.Response,
         private val onProgressCb: ((Int) -> Unit)?,
     ) : okhttp3.ResponseBody() {
-        override fun contentLength() = originalResponse.body!!.contentLength()
+        override fun contentLength() = originalResponse.body?.contentLength() ?: -1
 
         override fun contentType() = originalResponse.body?.contentType()
 
         override fun source(): BufferedSource {
-            return object : ForwardingSource(originalResponse.body!!.source()) {
+            return object : ForwardingSource(
+                originalResponse.body?.source()
+                    ?: throw IllegalStateException("下载响应体为空")
+            ) {
                 var totalBytesRead = 0L
 
                 override fun read(sink: okio.Buffer, byteCount: Long): Long {
                     val bytesRead = super.read(sink, byteCount)
                     totalBytesRead += if (bytesRead != -1L) bytesRead else 0
-                    val progress = (totalBytesRead * 100 / contentLength()).toInt()
-                    CoroutineScope(Dispatchers.IO).launch {
-                        onProgressCb?.invoke(progress)
+                    // 长度未知（分块传输）时不报进度，避免算出负数百分比
+                    val length = contentLength()
+                    if (length > 0) {
+                        val progress = (totalBytesRead * 100 / length).toInt()
+                        CoroutineScope(Dispatchers.IO).launch {
+                            onProgressCb?.invoke(progress)
+                        }
                     }
                     return bytesRead
                 }

@@ -22,7 +22,9 @@ class GitRepository : Loggable() {
                 }
 
                 val parser = GitReleaseParser.instances.first { it.isSupport(url) }
-                return@with parser.parse(body!!.string())
+                return@with parser.parse(
+                    body?.string() ?: throw Exception("获取最新发行版失败: 响应体为空")
+                )
             }
         } catch (ex: Exception) {
             log.e("获取最新发行版失败", ex)

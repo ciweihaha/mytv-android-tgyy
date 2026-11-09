@@ -12,7 +12,8 @@ class XmlGzEpgFetcher : EpgFetcher {
     }
 
     override fun fetch(response: Response): String {
-        val gzData = response.body!!.bytes()
+        // 空响应体（如 204）时返回空串，由上层按空节目单处理，而不是 NPE
+        val gzData = response.body?.bytes() ?: return ""
         val stringBuilder = StringBuilder()
         GZIPInputStream(ByteArrayInputStream(gzData)).use { gzipInputStream ->
             BufferedReader(InputStreamReader(gzipInputStream)).use { reader ->
