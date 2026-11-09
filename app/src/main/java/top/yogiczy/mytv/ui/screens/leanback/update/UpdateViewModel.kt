@@ -20,6 +20,17 @@ class LeanBackUpdateViewModel : ViewModel() {
     private var _isChecking = false
     private var _isUpdating = false
 
+    /** 正在检查更新：给设置页"应用更新"行显示"检查中" */
+    private var _isCheckingUpdate by mutableStateOf(false)
+    val isCheckingUpdate get() = _isCheckingUpdate
+
+    /**
+     * 最近一次检查是否成功拿到发行版信息：失败或从未检查时为 false，
+     * 此时 latestRelease 还是 "0.0.0" 的默认值，不能当成"最新版本"显示
+     */
+    private var _checkCompleted by mutableStateOf(false)
+    val checkCompleted get() = _checkCompleted
+
     private var _isUpdateAvailable by mutableStateOf(false)
     val isUpdateAvailable get() = _isUpdateAvailable
 
@@ -37,12 +48,15 @@ class LeanBackUpdateViewModel : ViewModel() {
 
         try {
             _isChecking = true
+            _isCheckingUpdate = true
             _latestRelease = GitRepository().latestRelease(Constants.GIT_RELEASE_LATEST_URL)
             _isUpdateAvailable = _latestRelease.version.compareVersion(currentVersion) > 0
+            _checkCompleted = true
         } catch (e: Exception) {
             log.e("检查更新失败", e)
         } finally {
             _isChecking = false
+            _isCheckingUpdate = false
         }
     }
 
