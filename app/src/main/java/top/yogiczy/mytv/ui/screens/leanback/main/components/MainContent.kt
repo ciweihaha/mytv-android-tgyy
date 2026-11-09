@@ -6,11 +6,15 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -94,12 +98,16 @@ fun LeanbackMainContent(
         }
     )
 
+    // 播放界面是否正持有焦点（含子节点）：只在失焦时才补请求焦点，
+    // 不再每 100ms 都调一次 requestFocus（已聚焦时是空操作）；循环
+    // 本身保留作重试——焦点可能在动画中途抢不到，下轮再试才能粘住
+    var videoScreenHasFocus by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         // 防止切换到其他界面时焦点丢失
-        // TODO 换一个更好的解决方案
         while (true) {
-            if (!mainContentState.isPanelVisible
+            if (!videoScreenHasFocus
+                && !mainContentState.isPanelVisible
                 && !mainContentState.isSettingsVisible
                 && !mainContentState.isQuickPanelVisible
             ) {
@@ -125,6 +133,7 @@ fun LeanbackMainContent(
             modifier = Modifier
                 .focusRequester(focusRequester)
                 .focusable()
+                .onFocusChanged { videoScreenHasFocus = it.hasFocus }
                 .handleLeanbackKeyEvents(
                     onUp = {
                         if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToNext()
