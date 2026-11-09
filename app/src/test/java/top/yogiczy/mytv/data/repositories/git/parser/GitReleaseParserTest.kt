@@ -109,6 +109,27 @@ class GithubGitReleaseParserTest {
     }
 
     @Test
+    fun `null body becomes empty description instead of literal null`() = runBlocking {
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": null,
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+                  "size": 25800000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals("", result.description)
+    }
+
+    @Test
     fun `release without any apk fails`() {
         val data = """
             {
@@ -194,5 +215,25 @@ class GiteeGitReleaseParserTest {
             result.downloadUrl,
         )
         assertEquals(25800000L, result.downloadSize)
+    }
+
+    @Test
+    fun `null body becomes empty description instead of literal null`() = runBlocking {
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": null,
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": "https://gitee.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals("", result.description)
     }
 }

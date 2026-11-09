@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.data.repositories.git.parser
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -21,7 +22,9 @@ class GithubGitReleaseParser : GitReleaseParser {
             version = json.getValue("tag_name").jsonPrimitive.content.removePrefix("v"),
             downloadUrl = Constants.GITHUB_PROXY + (asset["browser_download_url"]?.jsonPrimitive?.content
                 ?: throw IllegalArgumentException("APK 附件没有下载地址")),
-            description = json.getValue("body").jsonPrimitive.content,
+            // body 可为 JSON null（无更新说明的发行版）：contentOrNull 取不到
+            // 时记空串，别把字面量 "null" 当说明显示
+            description = json["body"]?.jsonPrimitive?.contentOrNull ?: "",
             downloadSize = asset["size"]?.jsonPrimitive?.longOrNull ?: -1,
         )
     }
