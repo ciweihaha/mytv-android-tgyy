@@ -38,6 +38,8 @@ object HttpServer : Loggable() {
 
     private var onSettingsChanged: (() -> Unit)? = null
 
+    private var onSettingsValuesChanged: (() -> Unit)? = null
+
     private var isStarted = false
 
     val serverUrl: String by lazy {
@@ -47,13 +49,18 @@ object HttpServer : Loggable() {
     /**
      * @param onSettingsChanged 网页端改了直播源/节目单地址时调用，由 LeanbackActivity
      * 传入 LeanbackMainViewModel.refresh()，使新源立即生效、无需重启应用
+     * @param onSettingsValuesChanged 网页端改了任一设置值（源地址或播放器 UA）
+     * 时调用，由 LeanbackActivity 传入 LeanbackSettingsViewModel.syncFromSP()，
+     * 使设置界面不再显示旧值；只改 UA 时不触发 onSettingsChanged（不用重载）
      */
     fun start(
         context: Context,
         showToast: (String) -> Unit,
         onSettingsChanged: (() -> Unit)? = null,
+        onSettingsValuesChanged: (() -> Unit)? = null,
     ) {
         HttpServer.onSettingsChanged = onSettingsChanged
+        HttpServer.onSettingsValuesChanged = onSettingsValuesChanged
         HttpServer.showToast = showToast
         // 服务与进程同寿：重复 start（Activity 重建等）只更新回调，不再
         // 重复监听端口，否则第二次 listen 抛 BindException，还会误弹
@@ -163,20 +170,31 @@ object HttpServer : Loggable() {
         val videoPlayerUserAgent = jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent)
 
         var sourceChanged = false
+        var valuesChanged = false
 
         if (SP.iptvSourceUrl != iptvSourceUrl) {
             SP.iptvSourceUrl = iptvSourceUrl
             IptvRepository().clearCache()
             sourceChanged = true
+            valuesChanged = true
         }
 
         if (SP.epgXmlUrl != epgXmlUrl) {
             SP.epgXmlUrl = epgXmlUrl
             EpgRepository().clearCache()
             sourceChanged = true
+            valuesChanged = true
         }
 
-        SP.videoPlayerUserAgent = videoPlayerUserAgent
+        if (SP.videoPlayerUserAgent != videoPlayerUserAgent) {
+            SP.videoPlayerUserAgent = videoPlayerUserAgent
+            valuesChanged = true
+        }
+
+        // 先同步设置界面的显示值，再重载新源；只改 UA 时只同步、不重载
+        if (valuesChanged) {
+            onSettingsValuesChanged?.invoke()
+        }
 
         // 只改播放器 UA 不用重载；源变了才通知主界面重新加载新源
         if (sourceChanged) {

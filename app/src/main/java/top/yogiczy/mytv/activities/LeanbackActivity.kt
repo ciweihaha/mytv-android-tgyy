@@ -19,6 +19,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModelProvider
 import top.yogiczy.mytv.ui.LeanbackApp
 import top.yogiczy.mytv.ui.screens.leanback.main.LeanbackMainViewModel
+import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.HttpServer
@@ -73,6 +74,7 @@ class LeanbackActivity : ComponentActivity() {
         // 与主界面同一 Activity 作用域的 ViewModel 实例（Compose 的 viewModel()
         // 取的也是这个 store），网页端改源后直接调它的 refresh() 立即重载
         val mainViewModel = ViewModelProvider(this)[LeanbackMainViewModel::class.java]
+        val settingsViewModel = ViewModelProvider(this)[LeanbackSettingsViewModel::class.java]
 
         HttpServer.start(
             applicationContext,
@@ -81,6 +83,9 @@ class LeanbackActivity : ComponentActivity() {
             },
             onSettingsChanged = {
                 mainViewModel.refresh()
+            },
+            onSettingsValuesChanged = {
+                settingsViewModel.syncFromSP()
             },
         )
     }

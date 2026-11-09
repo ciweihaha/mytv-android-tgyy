@@ -249,4 +249,43 @@ class LeanbackSettingsViewModel : ViewModel() {
             _videoPlayerAspectRatio = value
             SP.videoPlayerAspectRatio = value
         }
+
+    /**
+     * 从 SP 重新读回全部设置值：本 ViewModel 只在构造时读过一次 SP，
+     * 但 HttpServer（网页端改源/UA）、LeanbackMainViewModel（源历史增减）、
+     * MainContentState（可播放线路记录、上次频道）都会绕过它直接写 SP，
+     * 不同步则设置界面显示的仍是旧值。设置页每次打开与网页端改值后调用
+     */
+    fun syncFromSP() {
+        _appBootLaunch = SP.appBootLaunch
+        _appLastLatestVersion = SP.appLastLatestVersion
+        _appDeviceDisplayType = SP.appDeviceDisplayType
+        _debugShowFps = SP.debugShowFps
+        _debugShowVideoPlayerMetadata = SP.debugShowVideoPlayerMetadata
+        _iptvLastIptvIdx = SP.iptvLastIptvIdx
+        _iptvChannelChangeFlip = SP.iptvChannelChangeFlip
+        _iptvSourceSimplify = SP.iptvSourceSimplify
+        _iptvSourceCacheTime = SP.iptvSourceCacheTime
+        _iptvSourceUrl = SP.iptvSourceUrl
+        _iptvPlayableHostList = SP.iptvPlayableHostList
+        _iptvChannelNoSelectEnable = SP.iptvChannelNoSelectEnable
+        _iptvSourceUrlHistoryList = SP.iptvSourceUrlHistoryList
+        _iptvChannelFavoriteEnable = SP.iptvChannelFavoriteEnable
+        _iptvChannelFavoriteListVisible = SP.iptvChannelFavoriteListVisible
+        _iptvChannelFavoriteList = SP.iptvChannelFavoriteList
+        _epgEnable = SP.epgEnable
+        _epgXmlUrl = SP.epgXmlUrl
+        _epgRefreshTimeThreshold = SP.epgRefreshTimeThreshold
+        _epgXmlUrlHistoryList = SP.epgXmlUrlHistoryList
+        _uiShowEpgProgrammeProgress = SP.uiShowEpgProgrammeProgress
+        _uiUseClassicPanelScreen = SP.uiUseClassicPanelScreen
+        _uiDensityScaleRatio = SP.uiDensityScaleRatio
+        _uiFontScaleRatio = SP.uiFontScaleRatio
+        _uiTimeShowMode = SP.uiTimeShowMode
+        _uiPipMode = SP.uiPipMode
+        _updateForceRemind = SP.updateForceRemind
+        _videoPlayerUserAgent = SP.videoPlayerUserAgent
+        _videoPlayerLoadTimeout = SP.videoPlayerLoadTimeout
+        _videoPlayerAspectRatio = SP.videoPlayerAspectRatio
+    }
 }

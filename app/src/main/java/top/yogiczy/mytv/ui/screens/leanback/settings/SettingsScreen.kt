@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -29,10 +30,14 @@ import top.yogiczy.mytv.ui.theme.LeanbackTheme
 @Composable
 fun LeanbackSettingsScreen(
     modifier: Modifier = Modifier,
+    settingsViewModel: LeanbackSettingsViewModel = viewModel(),
 ) {
     val childPadding = rememberLeanbackChildPadding()
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
+        // 设置页每次打开都从 SP 重读：源历史、可播放线路等可能已被
+        // 主界面 / 网页端绕过 ViewModel 直接改过（见 syncFromSP 注释）
+        settingsViewModel.syncFromSP()
         focusRequester.requestFocus()
     }
 
