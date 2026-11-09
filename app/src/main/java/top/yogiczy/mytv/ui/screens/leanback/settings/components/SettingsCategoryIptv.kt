@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
+import top.yogiczy.mytv.ui.screens.leanback.main.LeanbackMainViewModel
 import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
@@ -48,6 +49,8 @@ import kotlin.math.max
 fun LeanbackSettingsCategoryIptv(
     modifier: Modifier = Modifier,
     settingsViewModel: LeanbackSettingsViewModel = viewModel(),
+    // 与主界面同一个 Activity 作用域的实例；切换源后立即重载，否则要重启应用才生效
+    mainViewModel: LeanbackMainViewModel = viewModel(),
 ) {
     val coroutineScope = rememberCoroutineScope()
 
@@ -143,6 +146,7 @@ fun LeanbackSettingsCategoryIptv(
                     if (settingsViewModel.iptvSourceUrl != it) {
                         settingsViewModel.iptvSourceUrl = it
                         coroutineScope.launch { IptvRepository().clearCache() }
+                        mainViewModel.refresh()
                     }
                 },
                 onDeleted = {
@@ -157,6 +161,7 @@ fun LeanbackSettingsCategoryIptv(
                 onSelected = {
                     settingsViewModel.iptvPlayableHostList = emptySet()
                     coroutineScope.launch { IptvRepository().clearCache() }
+                    mainViewModel.refresh()
                     LeanbackToastState.I.showToast("清除缓存成功")
                 },
             )
@@ -187,14 +192,19 @@ private fun LeanbackSettingsIptvSourceHistoryDialog(
             text = {
                 var hasFocused by remember { mutableStateOf(false) }
 
-                LazyColumn(
-                    state = LazyListState(
+                // 列表状态必须 remember：原先每次重组都新建，滚动位置会被重置
+                val listState = remember(iptvSourceHistory, currentIptvSource) {
+                    LazyListState(
                         max(0, iptvSourceHistory.indexOf(currentIptvSource) - 2),
-                    ),
+                    )
+                }
+
+                LazyColumn(
+                    state = listState,
                     contentPadding = PaddingValues(vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(iptvSourceHistory) { source ->
+                    items(iptvSourceHistory, key = { it }) { source ->
                         val focusRequester = remember { FocusRequester() }
                         var isFocused by remember { mutableStateOf(false) }
 
@@ -290,6 +300,7 @@ private fun LeanbackSettingsCategoryIptvPreview() {
                     "https://iptv-org.github.io/iptv/iptv3.m3u",
                 )
             },
+            mainViewModel = LeanbackMainViewModel(),
         )
     }
 }

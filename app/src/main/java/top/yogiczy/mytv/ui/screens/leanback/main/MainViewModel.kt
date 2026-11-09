@@ -2,6 +2,7 @@ package top.yogiczy.mytv.ui.screens.leanback.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,8 +29,21 @@ class LeanbackMainViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<LeanbackMainUiState>(LeanbackMainUiState.Loading())
     val uiState: StateFlow<LeanbackMainUiState> = _uiState.asStateFlow()
 
+    private var refreshJob: Job? = null
+
     init {
-        viewModelScope.launch {
+        refresh()
+    }
+
+    /**
+     * 重新加载直播源与节目单：设置里切换源、清除缓存后调用。取消进行中的
+     * 加载并从 Loading 重新开始；主界面随状态回到 Loading 再进 Ready，
+     * 内容状态随之重建，不会持有旧源的频道列表
+     */
+    fun refresh() {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
+            _uiState.value = LeanbackMainUiState.Loading()
             refreshIptv()
             refreshEpg()
         }
