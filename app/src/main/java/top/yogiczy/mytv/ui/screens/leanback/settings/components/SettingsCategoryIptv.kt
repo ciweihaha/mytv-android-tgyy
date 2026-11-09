@@ -14,7 +14,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,7 +30,6 @@ import androidx.compose.foundation.lazy.items
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
@@ -52,8 +50,6 @@ fun LeanbackSettingsCategoryIptv(
     // 与主界面同一个 Activity 作用域的实例；切换源后立即重载，否则要重启应用才生效
     mainViewModel: LeanbackMainViewModel = viewModel(),
 ) {
-    val coroutineScope = rememberCoroutineScope()
-
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -145,7 +141,10 @@ fun LeanbackSettingsCategoryIptv(
                     showDialog = false
                     if (settingsViewModel.iptvSourceUrl != it) {
                         settingsViewModel.iptvSourceUrl = it
-                        coroutineScope.launch { IptvRepository().clearCache() }
+                        // clearCache 是同步删文件，直接调：原先包在 launch 里，
+                        // 顺序只靠 Main.immediate 的同步执行才没跑偏，换个
+                        // dispatcher 就会先刷新、后清缓存，读到旧源数据
+                        IptvRepository().clearCache()
                         mainViewModel.refresh()
                     }
                 },
@@ -160,7 +159,7 @@ fun LeanbackSettingsCategoryIptv(
                 supportingContent = "短按清除直播源缓存文件、可播放域名列表",
                 onSelected = {
                     settingsViewModel.iptvPlayableHostList = emptySet()
-                    coroutineScope.launch { IptvRepository().clearCache() }
+                    IptvRepository().clearCache()
                     mainViewModel.refresh()
                     LeanbackToastState.I.showToast("清除缓存成功")
                 },

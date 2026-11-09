@@ -14,7 +14,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -31,7 +30,6 @@ import androidx.compose.foundation.lazy.items
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
@@ -51,8 +49,6 @@ fun LeanbackSettingsCategoryEpg(
     // 与主界面同一个 Activity 作用域的实例；切换节目单后立即重载，否则要重启应用才生效
     mainViewModel: LeanbackMainViewModel = viewModel(),
 ) {
-    val coroutineScope = rememberCoroutineScope()
-
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -111,7 +107,9 @@ fun LeanbackSettingsCategoryEpg(
                     showDialog = false
                     if (settingsViewModel.epgXmlUrl != it) {
                         settingsViewModel.epgXmlUrl = it
-                        coroutineScope.launch { EpgRepository().clearCache() }
+                        // clearCache 是同步删文件，直接调：原先包在 launch 里，
+                        // 顺序只靠 Main.immediate 的同步执行才没跑偏
+                        EpgRepository().clearCache()
                         mainViewModel.refresh()
                     }
                 },
@@ -126,7 +124,7 @@ fun LeanbackSettingsCategoryEpg(
                 headlineContent = "清除缓存",
                 supportingContent = "短按清除节目单缓存文件",
                 onSelected = {
-                    coroutineScope.launch { EpgRepository().clearCache() }
+                    EpgRepository().clearCache()
                     mainViewModel.refresh()
                     LeanbackToastState.I.showToast("清除缓存成功")
                 },

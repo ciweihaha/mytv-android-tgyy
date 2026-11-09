@@ -135,8 +135,14 @@ class EpgRepository : FileCacheRepository("epg.json") {
     ) = withContext(Dispatchers.Default) {
         try {
             if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
-                log.d("未到时间点，不刷新节目单")
-                return@withContext EpgList()
+                // 未到时间点不拉取，但缓存的节目单仍可用（源文件一般覆盖
+                // 多天，凌晨时段的节目多半在里面）：有缓存就返回缓存，
+                // 别直接给空——原先每天 0 点到阈值（默认 2 点）之间完全
+                // 没有节目信息
+                log.d("未到时间点，不刷新节目单，沿用缓存")
+                val cachedJson = getCachedData()
+                return@withContext if (cachedJson.isNullOrBlank()) EpgList()
+                else EpgList(Json.decodeFromString<List<Epg>>(cachedJson))
             }
 
             val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())

@@ -21,6 +21,11 @@ abstract class FileCacheRepository(
         else null
     }
 
+    /**
+     * 只读本地缓存，不触发刷新：供"未到刷新时间点"等场景直接用旧数据
+     */
+    protected suspend fun getCachedData(): String? = getCacheData()
+
     private suspend fun setCacheData(data: String) = withContext(Dispatchers.IO) {
         val file = getCacheFile()
         file.writeText(data)
