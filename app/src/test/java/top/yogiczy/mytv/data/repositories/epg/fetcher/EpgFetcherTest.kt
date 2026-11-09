@@ -88,6 +88,15 @@ class EpgFetcherTest {
     }
 
     @Test
+    fun `decodeBody does not gunzip when only first magic byte matches`() {
+        val body = byteArrayOf(0x1F, 0x41, 0x42).toResponseBody()
+
+        val result = defaultFetcher.fetch(responseWithBody(body))
+
+        assertEquals("\u001FAB", result)
+    }
+
+    @Test
     fun `empty body returns empty string`() {
         val result = xmlFetcher.fetch(responseWithBody("".toResponseBody()))
 
