@@ -84,7 +84,7 @@ val LeanbackParentPadding = PaddingValues(vertical = 12.dp, horizontal = 24.dp)
 
 @Composable
 fun rememberLeanbackChildPadding(direction: LayoutDirection = LocalLayoutDirection.current) =
-    remember {
+    remember(direction) {
         LeanbackPadding(
             start = LeanbackParentPadding.calculateStartPadding(direction) + 8.dp,
             top = LeanbackParentPadding.calculateTopPadding(),

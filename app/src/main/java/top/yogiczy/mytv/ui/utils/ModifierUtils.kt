@@ -6,6 +6,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
@@ -13,11 +15,15 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.dp
 import kotlin.math.absoluteValue
 
+@Composable
 fun Modifier.handleLeanbackKeyEvents(
     onKeyTap: Map<Int, () -> Unit> = emptyMap(),
     onKeyLongTap: Map<Int, () -> Unit> = emptyMap(),
 ): Modifier {
-    val keyDownMap = mutableMapOf<Int, Boolean>()
+    // 按下状态必须跨重组保留：原先是函数体内的局部 map，每次重组都会新建，
+    // 若在 ACTION_DOWN 与 ACTION_UP 之间发生重组，抬起时查不到按下记录，
+    // 本次按键就丢了（遥控偶尔"没反应"）
+    val keyDownMap = remember { mutableMapOf<Int, Boolean>() }
 
     return onPreviewKeyEvent {
         when (it.nativeKeyEvent.action) {
@@ -59,6 +65,10 @@ fun Modifier.handleLeanbackDragGestures(
 
     return this then pointerInput(Unit) {
         detectVerticalDragGestures(
+            onDragStart = {
+                verticalDragOffset = 0f
+                verticalTracker.resetTracking()
+            },
             onDragEnd = {
                 if (verticalDragOffset.absoluteValue > distanceThreshold.toPx()) {
                     if (verticalTracker.calculateVelocity().y > speedThreshold.toPx()) {
@@ -74,6 +84,10 @@ fun Modifier.handleLeanbackDragGestures(
         }
     }.pointerInput(Unit) {
         detectHorizontalDragGestures(
+            onDragStart = {
+                horizontalDragOffset = 0f
+                horizontalTracker.resetTracking()
+            },
             onDragEnd = {
                 if (horizontalDragOffset.absoluteValue > distanceThreshold.toPx()) {
                     if (horizontalTracker.calculateVelocity().x > speedThreshold.toPx()) {
@@ -90,6 +104,7 @@ fun Modifier.handleLeanbackDragGestures(
     }
 }
 
+@Composable
 fun Modifier.handleLeanbackKeyEvents(
     key: Any = Unit,
     onLeft: () -> Unit = {},
