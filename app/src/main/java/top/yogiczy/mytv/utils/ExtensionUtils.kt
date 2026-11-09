@@ -19,7 +19,11 @@ fun String.isIPv6(): Boolean {
 
 fun String.compareVersion(version2: String): Int {
     fun parseVersion(version: String): Pair<List<Int>, String?> {
-        val mainParts = version.split("-", limit = 2)
+        // 先去掉 tag 前缀：上游最新 release 的 tag 是 "tv2.2.7"，旧版
+        // "V3.0.0.238" 还是大写 V——只去 "v"（解析器的做法）会把
+        // 首段算成 0，2.2.7 反而比 1.4.4 小，更新检查永远报无更新
+        val stripped = version.trimStart { !it.isDigit() }
+        val mainParts = stripped.split("-", limit = 2)
         // 非数字段（如误入的 "v1"）记 0 而不是抛 NumberFormatException
         // 导致整个更新检查失败
         val versionNumbers = mainParts[0].split(".").map { it.toIntOrNull() ?: 0 }
@@ -32,8 +36,22 @@ fun String.compareVersion(version2: String): Int {
         if (label1 == null) return 1 // Non-pre-release version is greater
         if (label2 == null) return -1 // Non-pre-release version is greater
 
-        // Compare pre-release labels lexicographically
-        return label1.compareTo(label2)
+        // 按点分段逐段比：纯数字段按数值比（rc.10 > rc.2，字典序会算反），
+        // 数字段小于字母段，字母段按字典序；短的若是前缀则更小
+        val parts1 = label1.split(".")
+        val parts2 = label2.split(".")
+        for (i in 0 until maxOf(parts1.size, parts2.size)) {
+            val p1 = parts1.getOrNull(i) ?: return -1
+            val p2 = parts2.getOrNull(i) ?: return 1
+            if (p1 == p2) continue
+            val n1 = p1.toIntOrNull()
+            val n2 = p2.toIntOrNull()
+            if (n1 != null && n2 != null) return n1.compareTo(n2)
+            if (n1 != null) return -1
+            if (n2 != null) return 1
+            return p1.compareTo(p2)
+        }
+        return 0
     }
 
     val (v1, preRelease1) = parseVersion(this)
