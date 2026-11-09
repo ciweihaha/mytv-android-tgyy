@@ -34,6 +34,10 @@ class LeanbackVideoPlayerState(
     /** 元数据 */
     var metadata by mutableStateOf(LeanbackVideoPlayer.Metadata())
 
+    /** 最近一次收到的视频分辨率（设置里改比例后重算用） */
+    private var lastVideoWidth = 0
+    private var lastVideoHeight = 0
+
     fun prepare(url: String) {
         error = null
         instance.prepare(url)
@@ -70,13 +74,9 @@ class LeanbackVideoPlayerState(
     fun initialize() {
         instance.initialize()
         instance.onResolution { width, height ->
-            val defaultAspectRatio = defaultAspectRatioProvider()
-
-            if (defaultAspectRatio == null) {
-                if (width > 0 && height > 0) aspectRatio = width.toFloat() / height
-            } else {
-                aspectRatio = defaultAspectRatio
-            }
+            lastVideoWidth = width
+            lastVideoHeight = height
+            applyDefaultAspectRatio(width, height)
         }
         instance.onError { ex ->
             error = if (ex != null) "${ex.errorCodeName}(${ex.errorCode})"
@@ -90,6 +90,25 @@ class LeanbackVideoPlayerState(
         instance.onPrepared { }
         instance.onMetadata { metadata = it }
         instance.onCutoff { onCutoffListeners.forEach { it.invoke() } }
+    }
+
+    /**
+     * 按当前画面比例设置重新计算并立即应用。设置里改比例后调用——
+     * defaultAspectRatioProvider 只在分辨率变化（onResolution）时才被求值，
+     * 不加这一处要等切台才生效；若尚未收到过分辨率事件则什么都不做
+     */
+    fun applyDefaultAspectRatio() {
+        applyDefaultAspectRatio(lastVideoWidth, lastVideoHeight)
+    }
+
+    private fun applyDefaultAspectRatio(width: Int, height: Int) {
+        val defaultAspectRatio = defaultAspectRatioProvider()
+
+        if (defaultAspectRatio == null) {
+            if (width > 0 && height > 0) aspectRatio = width.toFloat() / height
+        } else {
+            aspectRatio = defaultAspectRatio
+        }
     }
 
     fun release() {

@@ -78,6 +78,12 @@ fun LeanbackMainContent(
         videoPlayerState = videoPlayerState,
         iptvGroupList = iptvGroupList,
     )
+
+    // 设置里改画面比例后立即生效：defaultAspectRatioProvider 只在分辨率变化
+    // （onResolution）时才被求值，不加这一处要等切台才变
+    LaunchedEffect(settingsViewModel.videoPlayerAspectRatio) {
+        videoPlayerState.applyDefaultAspectRatio()
+    }
     val panelChannelNoSelectState = rememberLeanbackPanelChannelNoSelectState(
         onChannelNoConfirm = {
             val channelNo = it.toInt() - 1
