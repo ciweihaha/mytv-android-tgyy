@@ -317,12 +317,13 @@ class LeanbackMedia3VideoPlayer(
         videoPlayer.setVideoFrameMetadataListener { _, _, _, _ ->
             renderedFrameCount.incrementAndGet()
         }
+        // 不用清监听器：setVideoFrameMetadataListener 只接受非空，
+        // 且 release() 里 videoPlayer.release() 后它再也不会回调
     }
 
     override fun release() {
         updatePositionJob?.cancel()
         updatePositionJob = null
-        videoPlayer.setVideoFrameMetadataListener(null)
         videoPlayer.removeListener(playerListener)
         videoPlayer.removeAnalyticsListener(metadataListener)
         videoPlayer.removeAnalyticsListener(eventLogger)
