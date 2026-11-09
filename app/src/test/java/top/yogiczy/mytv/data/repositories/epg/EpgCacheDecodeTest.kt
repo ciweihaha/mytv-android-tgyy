@@ -1,18 +1,40 @@
 package top.yogiczy.mytv.data.repositories.epg
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import top.yogiczy.mytv.data.entities.Epg
+import top.yogiczy.mytv.data.entities.EpgProgramme
+import top.yogiczy.mytv.data.entities.EpgProgrammeList
 
 class EpgCacheDecodeTest {
     @Test
     fun `decodes valid cache`() {
-        val decoded = decodeEpgListOrNull(
-            """[{"channel":"CCTV-1","programmes":[{"startAt":1000,"endAt":2000,"title":"新闻"}]}]"""
+        // 用编码器现产 JSON 做输入，避免手写 JSON 与 EpgProgrammeList
+        // 的实际序列化形式（{"value": [...]}）对不上
+        val json = Json.encodeToString(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻"))
+                    )
+                )
+            )
         )
+        val decoded = decodeEpgListOrNull(json)
         assertEquals(1, decoded?.size)
         assertEquals("CCTV-1", decoded?.first()?.channel)
         assertEquals("新闻", decoded?.first()?.programmes?.first()?.title)
+    }
+
+    @Test
+    fun `decodes cache without programmes`() {
+        val decoded = decodeEpgListOrNull("""[{"channel":"CCTV-1"}]""")
+        assertEquals(1, decoded?.size)
+        assertEquals(0, decoded?.first()?.programmes?.size)
     }
 
     @Test
