@@ -24,8 +24,23 @@ jobs:
           distribution: "zulu"
           java-version: "17"
 
+      # Round 3: the Gradle distribution download (services.gradle.org) has
+      # failed 4 consecutive runs with SocketTimeout / HTTP 504 while the
+      # rest of the runner network works (Zulu JDK download OK). The wrapper
+      # downloads the distribution on first use, so retry that step alone
+      # instead of re-running the whole build; once downloaded it is cached
+      # in ~/.gradle/wrapper/dists for the rest of the job.
+      - name: 下载Gradle发行版（带重试）
+        run: |
+          chmod +x ./gradlew
+          for i in 1 2 3 4 5; do
+            ./gradlew --version && break || { echo "download attempt $i failed, retrying in 60s"; sleep 60; }
+          done
+          ./gradlew --version
+
       - name: 构建debug APK
         run: chmod +x ./gradlew && ./gradlew assembleDebug
+        timeout-minutes: 30
 
       - name: 上传debug APK
         uses: actions/upload-artifact@v4
