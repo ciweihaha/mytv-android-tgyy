@@ -122,6 +122,41 @@ class M3uIptvParserTest {
     }
 
     @Test
+    fun `isSupport accepts lowercase extm3u header`() {
+        assertTrue(parser.isSupport("https://example.com/list.m3u", "#extm3u\n#EXTINF:-1,CCTV-1"))
+    }
+
+    @Test
+    fun `parses indented EXTINF lines`() = runBlocking {
+        val data = """
+            #EXTM3U
+              #EXTINF:-1 tvg-name="CCTV-1" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+    }
+
+    @Test
+    fun `parses lowercase extinf lines`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #extinf:-1 tvg-name="CCTV-1" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+    }
+
+    @Test
     fun `channel name containing comma is kept whole`() = runBlocking {
         val data = """
             #EXTM3U

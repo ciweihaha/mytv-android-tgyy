@@ -9,8 +9,9 @@ class M3uIptvParser : IptvParser {
 
     override fun isSupport(url: String, data: String): Boolean {
         // 部分编辑器（Windows 记事本等）保存的 M3U 带 UTF-8 BOM，或首行有
-        // 空行：先去掉 BOM 与前导空白再判断，否则有效源会被判成不支持格式
-        return data.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("#EXTM3U")
+        // 空行：先去掉 BOM 与前导空白再判断，否则有效源会被判成不支持格式；
+        // 有些生成器写小写 #extm3u，同样认
+        return data.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("#EXTM3U", ignoreCase = true)
     }
 
     override suspend fun parse(data: String): IptvGroupList {
@@ -18,14 +19,17 @@ class M3uIptvParser : IptvParser {
         val iptvList = mutableListOf<IptvResponseItem>()
 
         lines.forEachIndexed { index, line ->
-            if (!line.startsWith("#EXTINF")) return@forEachIndexed
+            // 有些生成器/手改文件会缩进 #EXTINF 行或写小写 #extinf：
+            // 先去前后空白再不区分大小写判断，否则整条频道被悄悄丢掉
+            val extinfLine = line.trim()
+            if (!extinfLine.startsWith("#EXTINF", ignoreCase = true)) return@forEachIndexed
 
             // 频道名是第一个不在引号内的逗号之后的内容：属性值里可能有
             // 逗号（如 tvg-logo 的 URL），直接 split(",").last() 会把带
             // 逗号的频道名截断成最后一截；没有这种逗号时保留整行当名字
-            val name = line.substringAfterFirstUnquotedComma()
-            val channelName = TVG_NAME_REGEX.find(line)?.groupValues?.get(1) ?: name
-            val groupName = GROUP_TITLE_REGEX.find(line)?.groupValues?.get(1) ?: "其他"
+            val name = extinfLine.substringAfterFirstUnquotedComma()
+            val channelName = TVG_NAME_REGEX.find(extinfLine)?.groupValues?.get(1) ?: name
+            val groupName = GROUP_TITLE_REGEX.find(extinfLine)?.groupValues?.get(1) ?: "其他"
 
             // 最后一行是 #EXTINF 且后面没有 URL 行时跳过（否则 lines[index + 1] 越界崩溃）
             val url = lines.getOrNull(index + 1)?.trim().orEmpty()
