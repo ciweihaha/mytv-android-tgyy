@@ -40,7 +40,13 @@ class TvboxIptvParser : IptvParser {
 
                 // 空地址段直接丢弃：`CCTV-1,` 或 `CCTV-1,http://a#` 这种行
                 // 原先会把空字符串塞进 urlList，播放时白白走一次错误重试
+                // 地址里的 `#` 既是多源分隔符、也可能是 URL 片段：
+                // `http://x/a#genre#` 按 `#` 切开会多出 "genre" 这种不
+                // 是地址的段；只留带 scheme 的段。全部段都不带 scheme 时
+                // 保留原样，别把频道整个丢掉（无 scheme 的地址本身也许播
+                // 不了，但那是播放器的事，不该由解析器悄悄丢频道）
                 val urls = res[1].split("#").map { it.trim() }.filter { it.isNotEmpty() }
+                    .let { segments -> segments.filter { it.contains("://") }.ifEmpty { segments } }
                 if (urls.isEmpty()) return@forEach
 
                 iptvList.addAll(urls.map { url ->

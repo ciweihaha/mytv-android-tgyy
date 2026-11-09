@@ -123,6 +123,33 @@ class TvboxIptvParserTest {
     }
 
     @Test
+    fun `fragment segment is dropped when a real url exists`() = runBlocking {
+        val data = """
+            央视,#genre#
+            CCTV-1,http://example.com/a#genre#
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals(listOf("http://example.com/a"), result[0].iptvList[0].urlList)
+    }
+
+    @Test
+    fun `scheme-less url is kept when it is the only segment`() = runBlocking {
+        val data = """
+            央视,#genre#
+            CCTV-1,192.168.1.1:8080/live
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(listOf("192.168.1.1:8080/live"), result[0].iptvList[0].urlList)
+    }
+
+    @Test
     fun `chinese comma genre line is recognized as group`() = runBlocking {
         val data = """
             央视，#genre#
