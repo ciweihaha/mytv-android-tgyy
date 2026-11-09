@@ -22,8 +22,10 @@ fun LeanbackPanelDateTime(
     modifier: Modifier = Modifier,
     timestamp: Long = rememberTimestamp(),
 ) {
-    val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-    val dateFormat = SimpleDateFormat("MM/dd EEE", Locale.getDefault())
+    // 两个格式各建一个复用：本组件每秒重组一次（时间戳状态），
+    // 写在函数体里每次重组都会新建（第 44 轮时间屏同类问题）
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    val dateFormat = remember { SimpleDateFormat("MM/dd EEE", Locale.getDefault()) }
 
     Column(
         modifier = modifier,

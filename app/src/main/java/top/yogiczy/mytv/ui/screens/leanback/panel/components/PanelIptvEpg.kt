@@ -59,7 +59,8 @@ fun LeanbackPanelIptvEpgDialog(
             confirmButton = { Text(text = "左右切换频道") },
             title = { Text(iptv.channelName) },
             text = {
-                val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+                // 每次重组都新建格式器是纯浪费：焦点移动就会重组，记住复用
+                val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
                 var hasFocused by remember(iptv) { mutableStateOf(false) }
 
                 // 列表状态必须 remember：原先每次重组都新建 LazyListState，
