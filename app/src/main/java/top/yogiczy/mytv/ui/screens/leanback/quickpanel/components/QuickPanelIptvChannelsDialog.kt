@@ -33,10 +33,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 import okhttp3.Request
 import okio.IOException
 import top.yogiczy.mytv.data.entities.Iptv
+import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.utils.isIPv6
@@ -198,9 +198,8 @@ private fun rememberIptvUrlDelay(url: String): Long {
         withContext(Dispatchers.IO) {
             elapsedTime = measureTimeMillis {
                 try {
-                    val client = OkHttpClient()
                     val request = Request.Builder().url(url).build()
-                    client.newCall(request).execute().use { response ->
+                    sharedHttpClient.newCall(request).execute().use { response ->
                         if (!response.isSuccessful) throw IOException("Unexpected code $response")
                     }
                 } catch (_: Exception) {
