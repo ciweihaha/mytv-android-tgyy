@@ -3,8 +3,7 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    // Round 2: AGP 9.x built-in Kotlin — do not apply
-    // org.jetbrains.kotlin.android (removed by AGP 9.0).
+    alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
 }
@@ -17,12 +16,12 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "top.yogiczy.mytv"
-    compileSdk = 37
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "top.yogiczy.mytv"
         minSdk = 21
-        targetSdk = 37
+        targetSdk = 34
         versionCode = 1
         versionName = "1.4.4"
 
@@ -47,11 +46,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "1.8"
     }
     buildFeatures {
         compose = true
