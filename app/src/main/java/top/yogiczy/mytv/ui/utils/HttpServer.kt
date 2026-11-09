@@ -41,6 +41,17 @@ internal fun isAuthorizedAccessCode(provided: String?, expected: String): Boolea
     !provided.isNullOrBlank() && provided == expected
 
 /**
+ * 访问码防暴力破解：窗口内失败次数达到上限即节流。调用方在判断前先清
+ * 掉窗口外的旧记录；只记失败尝试，成功不影响计数。
+ */
+internal fun isAuthThrottled(
+    failedAttempts: List<Long>,
+    now: Long,
+    limit: Int = 5,
+    windowMs: Long = 60_000L,
+): Boolean = failedAttempts.count { now - it < windowMs } >= limit
+
+/**
  * 从本机地址里选一个局域网地址：优先内网地址（10/8、172.16/12、
  * 192.168/16），否则取第一个非回环 IPv4；都没有返回 null。
  * 网卡枚举顺序不确定，直接取第一个可能拿到 VPN/移动数据的公网 IP，
@@ -70,6 +81,33 @@ object HttpServer : Loggable() {
     private var onSettingsValuesChanged: (() -> Unit)? = null
 
     private var isStarted = false
+
+    private val authLock = Any()
+    private val failedAuthAttempts = ArrayDeque<Long>()
+
+    /**
+     * 写接口的鉴权门：60 秒内失败 5 次后直接返回 429，直到窗口滑过去；
+     * 访问码不对返回 401 并记一次失败。返回 false 时调用方直接 return。
+     */
+    private fun checkAuth(
+        request: AsyncHttpServerRequest,
+        response: AsyncHttpServerResponse,
+    ): Boolean {
+        val now = System.currentTimeMillis()
+        synchronized(authLock) {
+            failedAuthAttempts.removeAll { now - it >= 60_000L }
+            if (isAuthThrottled(failedAuthAttempts, now)) {
+                wrapResponse(response).code(429).send("too many attempts")
+                return false
+            }
+        }
+        if (!isAuthorizedAccessCode(request.headers["X-Auth-Token"], accessCode)) {
+            synchronized(authLock) { failedAuthAttempts.addLast(now) }
+            wrapResponse(response).code(401).send("unauthorized")
+            return false
+        }
+        return true
+    }
 
     val serverUrl: String by lazy {
         "http://${getLocalIpAddress()}:${SERVER_PORT}"
@@ -179,10 +217,7 @@ object HttpServer : Loggable() {
         response: AsyncHttpServerResponse,
     ) {
         // 写接口必须带访问码：局域网内任何设备否则都能悄悄改掉直播源
-        if (!isAuthorizedAccessCode(request.headers["X-Auth-Token"], accessCode)) {
-            wrapResponse(response).code(401).send("unauthorized")
-            return
-        }
+        if (!checkAuth(request, response)) return
 
         val body = request.getBody<JSONObjectBody>()
         if (body == null) {
@@ -246,10 +281,7 @@ object HttpServer : Loggable() {
         context: Context,
     ) {
         // 上传接口同样必须带访问码；安装本身仍要电视上手动确认
-        if (!isAuthorizedAccessCode(request.headers["X-Auth-Token"], accessCode)) {
-            wrapResponse(response).code(401).send("unauthorized")
-            return
-        }
+        if (!checkAuth(request, response)) return
 
         val body = request.getBody<MultipartFormDataBody>()
         // 非 multipart 请求没有 body：原先直接空指针
