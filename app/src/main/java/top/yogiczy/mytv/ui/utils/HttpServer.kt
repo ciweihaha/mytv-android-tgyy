@@ -36,11 +36,22 @@ object HttpServer : Loggable() {
 
     private var showToast: (String) -> Unit = { }
 
+    private var onSettingsChanged: (() -> Unit)? = null
+
     val serverUrl: String by lazy {
         "http://${getLocalIpAddress()}:${SERVER_PORT}"
     }
 
-    fun start(context: Context, showToast: (String) -> Unit) {
+    /**
+     * @param onSettingsChanged 网页端改了直播源/节目单地址时调用，由 LeanbackActivity
+     * 传入 LeanbackMainViewModel.refresh()，使新源立即生效、无需重启应用
+     */
+    fun start(
+        context: Context,
+        showToast: (String) -> Unit,
+        onSettingsChanged: (() -> Unit)? = null,
+    ) {
+        HttpServer.onSettingsChanged = onSettingsChanged
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val server = AsyncHttpServer()
@@ -143,17 +154,27 @@ object HttpServer : Loggable() {
         val epgXmlUrl = jsonObject.optString("epgXmlUrl", SP.epgXmlUrl)
         val videoPlayerUserAgent = jsonObject.optString("videoPlayerUserAgent", SP.videoPlayerUserAgent)
 
+        var sourceChanged = false
+
         if (SP.iptvSourceUrl != iptvSourceUrl) {
             SP.iptvSourceUrl = iptvSourceUrl
             IptvRepository().clearCache()
+            sourceChanged = true
         }
 
         if (SP.epgXmlUrl != epgXmlUrl) {
             SP.epgXmlUrl = epgXmlUrl
             EpgRepository().clearCache()
+            sourceChanged = true
         }
 
         SP.videoPlayerUserAgent = videoPlayerUserAgent
+
+        // 只改播放器 UA 不用重载；源变了才通知主界面重新加载新源
+        if (sourceChanged) {
+            onSettingsChanged?.invoke()
+            showToast("设置已更新，正在重新加载")
+        }
 
         wrapResponse(response).send("success")
     }
