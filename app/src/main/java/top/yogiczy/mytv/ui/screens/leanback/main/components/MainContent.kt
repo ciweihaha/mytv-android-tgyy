@@ -295,7 +295,23 @@ fun LeanbackMainContent(
                 },
                 videoPlayerMetadataProvider = { videoPlayerState.metadata },
                 videoPlayerAspectRatioProvider = { videoPlayerState.aspectRatio },
-                onChangeVideoPlayerAspectRatio = { videoPlayerState.aspectRatio = it },
+                onChangeVideoPlayerAspectRatio = {
+                    videoPlayerState.aspectRatio = it
+                    // 同步写回设置里的画面比例：否则下次收到分辨率事件
+                    // （切台、断线重连）时 onResolution 会按设置重算，
+                    // 快捷面板刚选的比例就悄悄丢了；未知值只改本次，不写设置
+                    when (it) {
+                        16f / 9f -> settingsViewModel.videoPlayerAspectRatio =
+                            SP.VideoPlayerAspectRatio.SIXTEEN_NINE
+
+                        4f / 3f -> settingsViewModel.videoPlayerAspectRatio =
+                            SP.VideoPlayerAspectRatio.FOUR_THREE
+
+                        configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat() ->
+                            settingsViewModel.videoPlayerAspectRatio =
+                                SP.VideoPlayerAspectRatio.AUTO
+                    }
+                },
                 onIptvUrlIdxChange = {
                     mainContentState.changeCurrentIptv(
                         iptv = mainContentState.currentIptv,
