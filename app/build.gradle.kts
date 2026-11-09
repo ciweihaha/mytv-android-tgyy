@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "top.yogiczy.mytv"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 37
         versionCode = 1
         versionName = "1.4.4"
@@ -100,7 +100,6 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
 
     // TV Compose
-    implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
 
     // 播放器
