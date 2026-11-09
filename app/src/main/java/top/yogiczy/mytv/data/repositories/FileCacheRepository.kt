@@ -59,7 +59,9 @@ abstract class FileCacheRepository(
         try {
             getCacheFile().delete()
         } catch (ex: Exception) {
-            ex.printStackTrace()
+            // 别只 printStackTrace：失败只进 logcat stderr，应用内的
+            // 日志历史里看不到，用户反馈“清缓存没反应”时无据可查
+            log.w("清除缓存失败", ex)
         }
     }
 
