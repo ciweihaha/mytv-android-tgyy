@@ -126,7 +126,7 @@ object SP {
 
     /** 上一次最新版本 */
     var appLastLatestVersion: String
-        get() = sp.getString(KEY.APP_LAST_LATEST_VERSION.name, "")!!
+        get() = sp.getString(KEY.APP_LAST_LATEST_VERSION.name, "") ?: ""
         set(value) = sp.edit().putString(KEY.APP_LAST_LATEST_VERSION.name, value).apply()
 
     /** 设备显示类型 */
