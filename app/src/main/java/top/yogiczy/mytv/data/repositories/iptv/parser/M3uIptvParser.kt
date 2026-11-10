@@ -13,7 +13,7 @@ class M3uIptvParser : IptvParser {
 
     override suspend fun parse(data: String): IptvGroupList {
         val lines = data.split("\r\n", "\n")
-        val iptvList = mutableListOf<IptvResponseItem>()
+        val iptvList = mutableListOf<IptvParser.IptvResponseItem>()
 
         lines.forEachIndexed { index, line ->
             // 有些生成器/手改文件会缩进 #EXTINF 行或写小写 #extinf：
@@ -33,7 +33,7 @@ class M3uIptvParser : IptvParser {
             if (url.isEmpty() || url.startsWith("#")) return@forEachIndexed
 
             iptvList.add(
-                IptvResponseItem(
+                IptvParser.IptvResponseItem(
                     name = name.trim(),
                     channelName = channelName.trim(),
                     groupName = groupName.trim(),

@@ -10,7 +10,7 @@ class TvboxIptvParser : IptvParser {
 
     override suspend fun parse(data: String): IptvGroupList {
         val lines = data.split("\r\n", "\n")
-        val iptvList = mutableListOf<IptvResponseItem>()
+        val iptvList = mutableListOf<IptvParser.IptvResponseItem>()
 
         var groupName: String? = null
         lines.forEach { line ->
@@ -47,7 +47,7 @@ class TvboxIptvParser : IptvParser {
                 if (urls.isEmpty()) return@forEach
 
                 iptvList.addAll(urls.map { url ->
-                    IptvResponseItem(
+                    IptvParser.IptvResponseItem(
                         name = res[0].trim(),
                         channelName = res[0].trim(),
                         groupName = groupName?.trim() ?: "其他",
