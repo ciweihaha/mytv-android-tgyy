@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -23,6 +24,10 @@ fun LeanbackSettingsCategoryUI(
     modifier: Modifier = Modifier,
     settingsViewModel: LeanbackSettingsViewModel = viewModel(),
 ) {
+    // DecimalFormat 只在主线程重组里用，无线程安全问题；两个缩放项共用一个，
+    // 免得每次重组各现造一个
+    val scaleFormat = remember { DecimalFormat("#.#") }
+
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -120,7 +125,7 @@ fun LeanbackSettingsCategoryUI(
             LeanbackSettingsCategoryListItem(
                 headlineContent = "界面整体缩放比例",
                 supportingContent = "短按切换缩放比例，长按恢复默认；部分界面受影响",
-                trailingContent = "×${DecimalFormat("#.#").format(settingsViewModel.uiDensityScaleRatio)}",
+                trailingContent = "×${scaleFormat.format(settingsViewModel.uiDensityScaleRatio)}",
                 onSelected = {
                     if (settingsViewModel.uiDensityScaleRatio >= maxScale) {
                         settingsViewModel.uiDensityScaleRatio = minScale
@@ -146,7 +151,7 @@ fun LeanbackSettingsCategoryUI(
             LeanbackSettingsCategoryListItem(
                 headlineContent = "界面字体缩放比例",
                 supportingContent = "短按切换缩放比例，长按恢复默认；部分界面受影响",
-                trailingContent = "×${DecimalFormat("#.#").format(settingsViewModel.uiFontScaleRatio)}",
+                trailingContent = "×${scaleFormat.format(settingsViewModel.uiFontScaleRatio)}",
                 onSelected = {
                     if (settingsViewModel.uiFontScaleRatio >= maxScale) {
                         settingsViewModel.uiFontScaleRatio = minScale
