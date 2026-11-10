@@ -22,7 +22,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.ButtonDefaults
@@ -38,6 +37,7 @@ import top.yogiczy.mytv.ui.screens.leanback.panel.rememberPanelAutoCloseState
 import top.yogiczy.mytv.ui.screens.leanback.quickpanel.components.LeanbackQuickPanelIptvChannelsDialog
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
+import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.ui.utils.handleLeanbackUserAction
 
@@ -49,8 +49,8 @@ fun LeanbackQuickPanelScreen(
     currentProgrammesProvider: () -> EpgProgrammeCurrent? = { null },
     currentIptvChannelNoProvider: () -> String = { "" },
     videoPlayerMetadataProvider: () -> LeanbackVideoPlayer.Metadata = { LeanbackVideoPlayer.Metadata() },
-    videoPlayerAspectRatioProvider: () -> Float = { 16f / 9f },
-    onChangeVideoPlayerAspectRatio: (Float) -> Unit = {},
+    videoPlayerAspectRatioProvider: () -> SP.VideoPlayerAspectRatio = { SP.VideoPlayerAspectRatio.ORIGINAL },
+    onChangeVideoPlayerAspectRatio: (SP.VideoPlayerAspectRatio) -> Unit = {},
     onIptvUrlIdxChange: (Int) -> Unit = {},
     onClearCache: () -> Unit = {},
     onMoreSettings: () -> Unit = {},
@@ -189,28 +189,29 @@ private fun LeanbackQuickPanelActionMultipleChannels(
 
 @Composable
 private fun LeanbackQuickPanelActionVideoAspectRatio(
-    videoPlayerAspectRatioProvider: () -> Float = { 16f / 9f },
-    onChangeVideoPlayerAspectRatio: (Float) -> Unit = {},
+    videoPlayerAspectRatioProvider: () -> SP.VideoPlayerAspectRatio = { SP.VideoPlayerAspectRatio.ORIGINAL },
+    onChangeVideoPlayerAspectRatio: (SP.VideoPlayerAspectRatio) -> Unit = {},
 ) {
-    val configuration = LocalConfiguration.current
-    val screenAspectRatio =
-        configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat()
+    // 当前是哪一档直接按设置里的档位认，不拿浮点数比：16:9 的电视上“自动拉伸”
+    // 算出来和 16:9 是同一个数，4:3 的屏幕上和 4:3 是同一个数，靠比数认档位
+    // 会把自动拉伸认成 16:9（标题永远不显示自动拉伸），在 4:3 屏幕上按到
+    // 4:3 就卡住、再按还是 4:3，回不去 16:9
     LeanbackQuickPanelButton(
         titleProvider = {
             "画面比例 " + when (videoPlayerAspectRatioProvider()) {
-                16f / 9f -> "16:9"
-                4f / 3f -> "4:3"
-                screenAspectRatio -> "自动拉伸"
-                else -> "原始"
+                SP.VideoPlayerAspectRatio.ORIGINAL -> "原始"
+                SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> "16:9"
+                SP.VideoPlayerAspectRatio.FOUR_THREE -> "4:3"
+                SP.VideoPlayerAspectRatio.AUTO -> "自动拉伸"
             }
         },
         onSelect = {
             onChangeVideoPlayerAspectRatio(
                 when (videoPlayerAspectRatioProvider()) {
-                    16f / 9f -> 4f / 3f
-                    4f / 3f -> screenAspectRatio
-                    screenAspectRatio -> 16f / 9f
-                    else -> 16f / 9f
+                    SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> SP.VideoPlayerAspectRatio.FOUR_THREE
+                    SP.VideoPlayerAspectRatio.FOUR_THREE -> SP.VideoPlayerAspectRatio.AUTO
+                    SP.VideoPlayerAspectRatio.AUTO -> SP.VideoPlayerAspectRatio.SIXTEEN_NINE
+                    SP.VideoPlayerAspectRatio.ORIGINAL -> SP.VideoPlayerAspectRatio.SIXTEEN_NINE
                 }
             )
         },

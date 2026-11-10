@@ -312,23 +312,14 @@ fun LeanbackMainContent(
                         .padStart(2, '0')
                 },
                 videoPlayerMetadataProvider = { videoPlayerState.metadata },
-                videoPlayerAspectRatioProvider = { videoPlayerState.aspectRatio },
-                onChangeVideoPlayerAspectRatio = {
-                    videoPlayerState.aspectRatio = it
-                    // 同步写回设置里的画面比例：否则下次收到分辨率事件
-                    // （切台、断线重连）时 onResolution 会按设置重算，
-                    // 快捷面板刚选的比例就悄悄丢了；未知值只改本次，不写设置
-                    when (it) {
-                        16f / 9f -> settingsViewModel.videoPlayerAspectRatio =
-                            SP.VideoPlayerAspectRatio.SIXTEEN_NINE
-
-                        4f / 3f -> settingsViewModel.videoPlayerAspectRatio =
-                            SP.VideoPlayerAspectRatio.FOUR_THREE
-
-                        configuration.screenWidthDp.toFloat() / configuration.screenHeightDp.toFloat() ->
-                            settingsViewModel.videoPlayerAspectRatio =
-                                SP.VideoPlayerAspectRatio.AUTO
-                    }
+                videoPlayerAspectRatioProvider = { settingsViewModel.videoPlayerAspectRatio },
+                onChangeVideoPlayerAspectRatio = { mode ->
+                    // 画面比例按设置里的档位传，不再拿浮点数反推是哪一档：
+                    // 16:9 的电视上“自动拉伸”和 16:9 是同一个数，4:3 的屏幕
+                    // 上和 4:3 是同一个数，靠比数认档位会认错、甚至在 4:3
+                    // 屏幕上按到 4:3 就卡住回不去；档位存好后按档位重算比例
+                    settingsViewModel.videoPlayerAspectRatio = mode
+                    videoPlayerState.applyDefaultAspectRatio()
                 },
                 onIptvUrlIdxChange = {
                     mainContentState.changeCurrentIptv(
