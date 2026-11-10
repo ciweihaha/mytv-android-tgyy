@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.Epg.Companion.currentProgrammes
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
 
 class EntityHelpersTest {
@@ -97,5 +98,41 @@ class EntityHelpersTest {
         )
         assertEquals(-1, groupList.iptvIdx(Iptv(name = "不存在")))
         assertEquals(-1, IptvGroupList().iptvIdx(Iptv(name = "不存在")))
+    }
+
+    @Test
+    fun `iptvAt returns channel by global index across groups`() {
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(
+                    name = "分组1",
+                    iptvList = IptvList(List(3) { Iptv(name = "频道1-$it") }),
+                ),
+                IptvGroup(
+                    name = "空分组",
+                    iptvList = IptvList(emptyList()),
+                ),
+                IptvGroup(
+                    name = "分组2",
+                    iptvList = IptvList(listOf(Iptv(name = "频道2-0"), Iptv(name = "频道2-1"))),
+                ),
+            )
+        )
+
+        assertEquals("频道1-0", groupList.iptvAt(0)?.name)
+        assertEquals("频道1-2", groupList.iptvAt(2)?.name)
+        // 空分组不占下标：分组2 的首台仍是全局第 3 个
+        assertEquals("频道2-0", groupList.iptvAt(3)?.name)
+        assertEquals("频道2-1", groupList.iptvAt(4)?.name)
+    }
+
+    @Test
+    fun `iptvAt returns null for out of range index`() {
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "分组1", iptvList = IptvList(listOf(Iptv(name = "A")))))
+        )
+        assertNull(groupList.iptvAt(1))
+        assertNull(groupList.iptvAt(-1))
+        assertNull(IptvGroupList().iptvAt(0))
     }
 }

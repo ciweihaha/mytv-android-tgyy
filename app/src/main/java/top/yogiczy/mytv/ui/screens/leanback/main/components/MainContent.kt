@@ -33,8 +33,8 @@ import kotlinx.coroutines.launch
 import top.yogiczy.mytv.AppGlobal
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.IptvGroupList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
-import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvList
 import top.yogiczy.mytv.ui.screens.leanback.classicpanel.LeanbackClassicPanelScreen
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackVisible
 import top.yogiczy.mytv.ui.screens.leanback.monitor.LeanbackMonitorScreen
@@ -94,9 +94,8 @@ fun LeanbackMainContent(
         onChannelNoConfirm = {
             val channelNo = it.toInt() - 1
 
-            if (channelNo in iptvGroupList.iptvList.indices) {
-                mainContentState.changeCurrentIptv(iptvGroupList.iptvList[channelNo])
-            }
+            // 输台号选台：按下标逐组找，不再先把全部分组拼成一张大表再取
+            iptvGroupList.iptvAt(channelNo)?.let { mainContentState.changeCurrentIptv(it) }
         }
     )
 

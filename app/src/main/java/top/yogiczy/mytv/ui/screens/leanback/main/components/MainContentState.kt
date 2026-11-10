@@ -13,8 +13,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
-import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvList
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.video.LeanbackVideoPlayerState
 import top.yogiczy.mytv.ui.screens.leanback.video.rememberLeanbackVideoPlayerState
@@ -63,9 +63,8 @@ class LeanbackMainContentState(
         }
 
     init {
-        changeCurrentIptv(iptvGroupList.iptvList.getOrElse(SP.iptvLastIptvIdx) {
-            iptvGroupList.firstOrNull()?.iptvList?.firstOrNull() ?: Iptv()
-        })
+        changeCurrentIptv(iptvGroupList.iptvAt(SP.iptvLastIptvIdx)
+            ?: iptvGroupList.firstOrNull()?.iptvList?.firstOrNull() ?: Iptv())
 
         videoPlayerState.onReady {
             coroutineScope.launch {
@@ -106,16 +105,16 @@ class LeanbackMainContentState(
 
     private fun getPrevIptv(): Iptv {
         val currentIndex = iptvGroupList.iptvIdx(_currentIptv)
-        return iptvGroupList.iptvList.getOrElse(currentIndex - 1) {
-            iptvGroupList.lastOrNull()?.iptvList?.lastOrNull() ?: Iptv()
-        }
+        // 上一台：按下标逐组找，不再先把全部分组拼成一张大表再取——
+        // 每次按上下键都拼一次，千级频道源下白白分配一次全量列表
+        return iptvGroupList.iptvAt(currentIndex - 1)
+            ?: iptvGroupList.lastOrNull()?.iptvList?.lastOrNull() ?: Iptv()
     }
 
     private fun getNextIptv(): Iptv {
         val currentIndex = iptvGroupList.iptvIdx(_currentIptv)
-        return iptvGroupList.iptvList.getOrElse(currentIndex + 1) {
-            iptvGroupList.firstOrNull()?.iptvList?.firstOrNull() ?: Iptv()
-        }
+        return iptvGroupList.iptvAt(currentIndex + 1)
+            ?: iptvGroupList.firstOrNull()?.iptvList?.firstOrNull() ?: Iptv()
     }
 
     fun changeCurrentIptv(iptv: Iptv, urlIdx: Int? = null) {

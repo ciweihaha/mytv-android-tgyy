@@ -148,7 +148,10 @@ class LeanbackMedia3VideoPlayer(
 
         val mediaItem = MediaItem.fromUri(uri)
 
-        val mediaSource = when (val type = contentType ?: Util.inferContentType(uri)) {
+        // 源类型只推断一次：原先 when 里算一次、记尝试表时又算一次，
+        // 同一个地址两次推断结果必然相同
+        val resolvedContentType = contentType ?: Util.inferContentType(uri)
+        val mediaSource = when (resolvedContentType) {
             C.CONTENT_TYPE_HLS -> {
                 HlsMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
             }
@@ -164,7 +167,7 @@ class LeanbackMedia3VideoPlayer(
             else -> {
                 triggerError(
                     PlaybackException.UNSUPPORTED_TYPE.copy(
-                        errorCodeName = "${PlaybackException.UNSUPPORTED_TYPE.message}_$type"
+                        errorCodeName = "${PlaybackException.UNSUPPORTED_TYPE.message}_$resolvedContentType"
                     )
                 )
                 null
@@ -172,7 +175,7 @@ class LeanbackMedia3VideoPlayer(
         }
 
         if (mediaSource != null) {
-            contentTypeAttempts[contentType ?: Util.inferContentType(uri)] = true
+            contentTypeAttempts[resolvedContentType] = true
             videoPlayer.setMediaSource(mediaSource)
             videoPlayer.prepare()
             triggerPrepared()

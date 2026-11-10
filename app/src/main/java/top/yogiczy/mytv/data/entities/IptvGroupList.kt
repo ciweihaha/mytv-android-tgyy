@@ -43,6 +43,23 @@ data class IptvGroupList(
             return -1
         }
 
+        /**
+         * 按全局下标取频道：按分组累加偏移逐组找，不用 flatMap 先把全量
+         * 频道拼成一个新列表再取——上下键切台、输台号选台、启动恢复上次
+         * 频道每次都调它，千级频道源下每次都分配一次全量列表；下标越界
+         * （含负数）返回 null，由调用方决定兜底
+         */
+        fun IptvGroupList.iptvAt(globalIdx: Int): Iptv? {
+            var offset = 0
+            for (group in this) {
+                if (globalIdx < offset + group.iptvList.size) {
+                    return group.iptvList.getOrNull(globalIdx - offset)
+                }
+                offset += group.iptvList.size
+            }
+            return null
+        }
+
         val IptvGroupList.iptvList: List<Iptv>
             get() = this.flatMap { it.iptvList }
     }
