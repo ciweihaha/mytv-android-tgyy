@@ -46,6 +46,7 @@ import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.max
 
@@ -206,10 +207,21 @@ private fun LeanbackClassicPanelEpgDayItem(
 
     // 日期格式器记住复用：每个日期项每次重组都新建一个是纯浪费
     val dateFormat = remember { SimpleDateFormat("E MM-dd", Locale.getDefault()) }
-    val today = dateFormat.format(System.currentTimeMillis())
-    val tomorrow = dateFormat.format(System.currentTimeMillis() + 24 * 3600 * 1000)
-    val dayAfterTomorrow =
-        dateFormat.format(System.currentTimeMillis() + 48 * 3600 * 1000)
+    // 今天/明天/后天按日历天数加：直接加 24 小时在夏令时切换那天会差一小时——
+    // 秋天那天有 25 小时，凌晨算出来的“明天”还是今天；春天那天 23 小时，
+    // 半夜算出来的“明天”已经是后天，日期栏会标错。国内没夏令时不受影响，
+    // 但在有时令切换的地区一年会错两次，改法和第 109 轮数据层同一个思路
+    fun dayString(offsetDays: Int): String {
+        return dateFormat.format(
+            Calendar.getInstance().apply {
+                timeInMillis = System.currentTimeMillis()
+                add(Calendar.DAY_OF_YEAR, offsetDays)
+            }.timeInMillis
+        )
+    }
+    val today = dayString(0)
+    val tomorrow = dayString(1)
+    val dayAfterTomorrow = dayString(2)
 
     val focusRequester = remember { FocusRequester() }
     val isSelected by remember(currentDayProvider()) { derivedStateOf { day == currentDayProvider() } }
