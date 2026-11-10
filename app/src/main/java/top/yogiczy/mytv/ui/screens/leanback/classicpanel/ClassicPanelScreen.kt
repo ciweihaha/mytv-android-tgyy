@@ -181,6 +181,17 @@ private fun LeanbackClassicPanelScreenContent(
 
     var epgListVisible by remember { mutableStateOf(false) }
 
+    // 频道名 → 节目单一次建表记下来：原先右侧节目单每次组合都拿焦点频道名
+    // 把整个节目单线性扫一遍，焦点每挪一下就重扫一次；节目单只在刷新时
+    // 才变，建一次表、后面按名直接查。同名频道留第一次出现的，与原来
+    // firstOrNull 取到的那条一致
+    val epgList = epgListProvider()
+    val epgByChannel = remember(epgList) {
+        buildMap<String, Epg> {
+            epgList.forEach { epg -> putIfAbsent(epg.channel, epg) }
+        }
+    }
+
     Row(modifier = modifier) {
         LeanbackClassicPanelIptvGroupList(
             iptvGroupListProvider = { iptvGroupListWithFavorite },
@@ -237,7 +248,7 @@ private fun LeanbackClassicPanelScreenContent(
 
         LeanbackVisible({ epgListVisible }) {
             LeanbackClassicPanelEpgList(
-                epgProvider = { epgListProvider().firstOrNull { it.channel == focusedIptv.channelName } },
+                epgProvider = { epgByChannel[focusedIptv.channelName] },
                 exitFocusRequesterProvider = { focusedIptvFocusRequester },
                 onUserAction = onUserAction,
             )
