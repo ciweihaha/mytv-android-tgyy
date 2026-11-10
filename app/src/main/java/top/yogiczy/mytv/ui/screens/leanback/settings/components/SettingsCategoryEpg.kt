@@ -2,45 +2,27 @@ package top.yogiczy.mytv.ui.screens.leanback.settings.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import kotlinx.collections.immutable.ImmutableList
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import top.yogiczy.mytv.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.data.utils.Constants
-import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
 import top.yogiczy.mytv.ui.screens.leanback.main.LeanbackMainViewModel
 import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
-import top.yogiczy.mytv.ui.utils.HttpServer
 import top.yogiczy.mytv.ui.utils.SP
-import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
-import kotlin.math.max
 
 @Composable
 fun LeanbackSettingsCategoryEpg(
@@ -96,15 +78,21 @@ fun LeanbackSettingsCategoryEpg(
                 remoteConfig = true,
             )
 
-            LeanbackSettingsEpgSourceHistoryDialog(
+            // 历史源对话框与直播源那边共用一份：原来两份除了标题和文案
+            // 外一模一样，这里只传节目单自己的字符串和源
+            LeanbackSettingsSourceHistoryDialog(
                 showDialogProvider = { showDialog },
                 onDismissRequest = { showDialog = false },
-                epgXmlUrlHistoryProvider = {
+                title = "历史节目单",
+                defaultSource = Constants.EPG_XML_URL,
+                defaultSourceLabel = "默认节目单",
+                addSourceLabel = "添加其他节目单",
+                sourceHistoryProvider = {
                     settingsViewModel.epgXmlUrlHistoryList.filter {
                         it != Constants.EPG_XML_URL
                     }.toImmutableList()
                 },
-                currentEpgXmlUrlProvider = { settingsViewModel.epgXmlUrl },
+                currentSourceProvider = { settingsViewModel.epgXmlUrl },
                 onSelected = {
                     showDialog = false
                     if (settingsViewModel.epgXmlUrl != it) {
@@ -132,121 +120,6 @@ fun LeanbackSettingsCategoryEpg(
                 },
             )
         }
-    }
-}
-
-@Composable
-private fun LeanbackSettingsEpgSourceHistoryDialog(
-    modifier: Modifier = Modifier,
-    showDialogProvider: () -> Boolean = { false },
-    onDismissRequest: () -> Unit = {},
-    epgXmlUrlHistoryProvider: () -> ImmutableList<String> = { persistentListOf() },
-    currentEpgXmlUrlProvider: () -> String = { Constants.EPG_XML_URL },
-    onSelected: (String) -> Unit = {},
-    onDeleted: (String) -> Unit = {},
-) {
-    val epgXmlUrlHistory = listOf(Constants.EPG_XML_URL) + epgXmlUrlHistoryProvider()
-    val currentEpgXmlUrl = currentEpgXmlUrlProvider()
-
-    if (showDialogProvider()) {
-        AlertDialog(
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-            modifier = modifier,
-            onDismissRequest = onDismissRequest,
-            confirmButton = { Text(text = "短按切换；长按删除历史记录") },
-            title = { Text("历史节目单") },
-            text = {
-                var hasFocused by remember { mutableStateOf(false) }
-
-                // 列表状态必须 remember：原先每次重组都新建，滚动位置会被重置
-                val listState = remember(epgXmlUrlHistory, currentEpgXmlUrl) {
-                    LazyListState(
-                        max(0, epgXmlUrlHistory.indexOf(currentEpgXmlUrl) - 2),
-                    )
-                }
-
-                LazyColumn(
-                    state = listState,
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(epgXmlUrlHistory, key = { it }) { url ->
-                        val focusRequester = remember { FocusRequester() }
-                        var isFocused by remember { mutableStateOf(false) }
-
-                        LaunchedEffect(Unit) {
-                            if (url == currentEpgXmlUrl && !hasFocused) {
-                                hasFocused = true
-                                focusRequester.requestFocus()
-                            }
-                        }
-
-                        androidx.tv.material3.ListItem(
-                            modifier = Modifier
-                                .focusRequester(focusRequester)
-                                .onFocusChanged { isFocused = it.isFocused || it.hasFocus }
-                                .handleLeanbackKeyEvents(
-                                    onSelect = {
-                                        if (isFocused) onSelected(url)
-                                        else focusRequester.requestFocus()
-                                    },
-                                    onLongSelect = {
-                                        if (isFocused) onDeleted(url)
-                                        else focusRequester.requestFocus()
-                                    }
-                                ),
-                            selected = currentEpgXmlUrl == url,
-                            onClick = { },
-                            headlineContent = {
-                                androidx.tv.material3.Text(
-                                    text = if (url == Constants.EPG_XML_URL) "默认节目单" else url,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    maxLines = if (isFocused) Int.MAX_VALUE else 2,
-                                )
-                            },
-                            trailingContent = {
-                                if (currentEpgXmlUrl == url) {
-                                    androidx.tv.material3.Icon(
-                                        Icons.Default.CheckCircle,
-                                        contentDescription = "checked",
-                                    )
-                                }
-                            },
-                        )
-                    }
-
-                    item {
-                        val focusRequester = remember { FocusRequester() }
-                        var isFocused by remember { mutableStateOf(false) }
-                        var showDialog by remember { mutableStateOf(false) }
-
-                        androidx.tv.material3.ListItem(
-                            modifier = Modifier
-                                .focusRequester(focusRequester)
-                                .onFocusChanged { isFocused = it.isFocused || it.hasFocus }
-                                .handleLeanbackKeyEvents(
-                                    onSelect = {
-                                        if (isFocused) showDialog = true
-                                        else focusRequester.requestFocus()
-                                    },
-                                ),
-                            selected = false,
-                            onClick = {},
-                            headlineContent = {
-                                androidx.tv.material3.Text("添加其他节目单")
-                            },
-                        )
-
-                        LeanbackQrcodeDialog(
-                            text = HttpServer.serverUrl,
-                            description = "扫码前往设置页面",
-                            showDialogProvider = { showDialog },
-                            onDismissRequest = { showDialog = false },
-                        )
-                    }
-                }
-            }
-        )
     }
 }
 
