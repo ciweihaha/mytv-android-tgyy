@@ -71,6 +71,30 @@ fun LeanbackClassicPanelEpgList(
             programmesGroup.getOrElse(currentDay) { emptyList() }
         }
 
+        // 今天/明天/后天三个标签只算一次记下来：原来每个日期项每次组合
+        // 都现算 3 次 Calendar 再格式化，日期栏有几个项就重复算几份，
+        // 焦点一动又全重算一遍；三个值只和今天有关，所有项共用同一份。
+        // 和 currentDay 一样只在节目单分组变了时重算，跨夜不刷新——
+        // 面板开着跨夜本来节目单本身也不会自己变，保持一致。
+        // 今天/明天/后天按日历天数加：直接加 24 小时在夏令时切换那天会差一小时——
+        // 秋天那天有 25 小时，凌晨算出来的“明天”还是今天；春天那天 23 小时，
+        // 半夜算出来的“明天”已经是后天，日期栏会标错。国内没夏令时不受影响，
+        // 但在有时令切换的地区一年会错两次，改法和第 109 轮数据层同一个思路
+        val dayLabels = remember(programmesGroup) {
+            fun dayString(offsetDays: Int): String {
+                return dateFormat.format(
+                    Calendar.getInstance().apply {
+                        timeInMillis = System.currentTimeMillis()
+                        add(Calendar.DAY_OF_YEAR, offsetDays)
+                    }.timeInMillis
+                )
+            }
+            Triple(dayString(0), dayString(1), dayString(2))
+        }
+        // 日期栏的日期列表也只拼一次记下来：原来每次组合都把分组的键
+        // 再拼成一份新列表，焦点一动就拼一遍
+        val days = remember(programmesGroup) { programmesGroup.keys.toList() }
+
         val programmesListState = remember(programmes) {
             LazyListState(max(0, programmes.indexOfFirst { it.isLive() } - 2))
         }
@@ -123,11 +147,14 @@ fun LeanbackClassicPanelEpgList(
                         .background(MaterialTheme.colorScheme.background.copy(0.7f))
                 ) {
 
-                    items(programmesGroup.keys.toList(), key = { it }) {
+                    items(days, key = { it }) {
                         LeanbackClassicPanelEpgDayItem(
                             dayProvider = { it },
                             currentDayProvider = { currentDay },
                             onChangeCurrentDay = { currentDay = it },
+                            todayProvider = { dayLabels.first },
+                            tomorrowProvider = { dayLabels.second },
+                            dayAfterTomorrowProvider = { dayLabels.third },
                         )
                     }
                 }
@@ -202,26 +229,11 @@ private fun LeanbackClassicPanelEpgDayItem(
     dayProvider: () -> String = { "" },
     currentDayProvider: () -> String = { "" },
     onChangeCurrentDay: () -> Unit = {},
+    todayProvider: () -> String = { "" },
+    tomorrowProvider: () -> String = { "" },
+    dayAfterTomorrowProvider: () -> String = { "" },
 ) {
     val day = dayProvider()
-
-    // 日期格式器记住复用：每个日期项每次重组都新建一个是纯浪费
-    val dateFormat = remember { SimpleDateFormat("E MM-dd", Locale.getDefault()) }
-    // 今天/明天/后天按日历天数加：直接加 24 小时在夏令时切换那天会差一小时——
-    // 秋天那天有 25 小时，凌晨算出来的“明天”还是今天；春天那天 23 小时，
-    // 半夜算出来的“明天”已经是后天，日期栏会标错。国内没夏令时不受影响，
-    // 但在有时令切换的地区一年会错两次，改法和第 109 轮数据层同一个思路
-    fun dayString(offsetDays: Int): String {
-        return dateFormat.format(
-            Calendar.getInstance().apply {
-                timeInMillis = System.currentTimeMillis()
-                add(Calendar.DAY_OF_YEAR, offsetDays)
-            }.timeInMillis
-        )
-    }
-    val today = dayString(0)
-    val tomorrow = dayString(1)
-    val dayAfterTomorrow = dayString(2)
 
     val focusRequester = remember { FocusRequester() }
     val isSelected by remember(currentDayProvider()) { derivedStateOf { day == currentDayProvider() } }
@@ -257,9 +269,9 @@ private fun LeanbackClassicPanelEpgDayItem(
 
                     Text(
                         text = when (day) {
-                            today -> "今天"
-                            tomorrow -> "明天"
-                            dayAfterTomorrow -> "后天"
+                            todayProvider() -> "今天"
+                            tomorrowProvider() -> "明天"
+                            dayAfterTomorrowProvider() -> "后天"
                             else -> key[0]
                         },
                         modifier = Modifier.fillMaxWidth(),
