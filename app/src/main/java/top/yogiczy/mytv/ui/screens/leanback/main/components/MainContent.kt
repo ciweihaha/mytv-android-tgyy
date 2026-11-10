@@ -22,7 +22,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.Density
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
@@ -103,17 +106,24 @@ fun LeanbackMainContent(
     // 本身保留作重试——焦点可能在动画中途抢不到，下轮再试才能粘住
     var videoScreenHasFocus by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
-        // 防止切换到其他界面时焦点丢失
-        while (true) {
-            if (!videoScreenHasFocus
-                && !mainContentState.isPanelVisible
-                && !mainContentState.isSettingsVisible
-                && !mainContentState.isQuickPanelVisible
-            ) {
-                focusRequester.requestFocus()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        // 只在前台可见时抢焦点：App 退到后台后组合还在，原先的
+        // LaunchedEffect(Unit) 会一直每 100ms 调一次 requestFocus，
+        // 白白唤醒主线程；退后台时窗口本来就没焦点，抢了也没用，
+        // 回到前台时循环恢复、重新抢回来
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            // 防止切换到其他界面时焦点丢失
+            while (true) {
+                if (!videoScreenHasFocus
+                    && !mainContentState.isPanelVisible
+                    && !mainContentState.isSettingsVisible
+                    && !mainContentState.isQuickPanelVisible
+                ) {
+                    focusRequester.requestFocus()
+                }
+                delay(100)
             }
-            delay(100)
         }
     }
 
