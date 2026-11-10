@@ -22,6 +22,7 @@ import androidx.tv.material3.Icon
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
+import top.yogiczy.mytv.utils.getPackageInfoCompat
 
 @Composable
 fun LeanbackSettingsCategoryAbout(
@@ -81,7 +82,7 @@ fun LeanbackSettingsCategoryAbout(
 
 @Composable
 private fun rememberPackageInfo(context: Context = LocalContext.current): PackageInfo =
-    context.packageManager.getPackageInfo(context.packageName, 0)
+    context.packageManager.getPackageInfoCompat(context.packageName)
 
 @Preview
 @Composable
