@@ -145,7 +145,7 @@ private fun LeanbackMonitorFpsBar(
             val fps = fpsList[i]
 
             val barHeight =
-                (fps.coerceAtMost(60) * maxBarHeight / 60) // 柱状条的高度，最大为最大高度的一半
+                (fps.coerceAtMost(60) * maxBarHeight / 60) // 柱状条的高度，60 帧时顶满最大高度
 
             val x = i * (barWidth + barSpacing)
             val y = size.height - barHeight

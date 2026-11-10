@@ -44,7 +44,11 @@ class LeanBackUpdateViewModel : ViewModel() {
 
     suspend fun checkUpdate(currentVersion: String) {
         if (_isChecking) return
-        if (_isUpdateAvailable) return
+        // 注意：这里不能因为“已经知道有更新”就直接返回——电视常年不关机，
+        // 启动时查到的只是当时的最新版，之后又发了新版时，只有重新联网查
+        // 才能拿到；直接返回会让“应用更新”行永远只给旧版，直到重启应用。
+        // 查失败时旧值不动（下面 catch 不改 _latestRelease / _isUpdateAvailable），
+        // 所以重查失败也不会丢掉已经知道的那个更新。
 
         try {
             _isChecking = true

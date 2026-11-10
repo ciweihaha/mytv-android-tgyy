@@ -68,9 +68,11 @@ fun LeanbackSettingsCategoryApp(
         }
 
         item {
-            // 更新检查只在启动后跑一次（UpdateScreen，3 秒延迟）：那次失败
+            // 更新检查启动后只跑一次（UpdateScreen，3 秒延迟）：那次失败
             // （断网）后原来没有任何手动重查入口，"应用更新"行还显示
-            // "最新版本：v0.0.0"——0.0.0 只是 GitRelease 的默认值
+            // "最新版本：v0.0.0"——0.0.0 只是 GitRelease 的默认值。
+            // 点按这行会重新联网查：已经知道有更新时也要重查，启动后又
+            // 发了新版、只有重查才能拿到，否则一直给旧版、直到重启应用。
             LeanbackSettingsCategoryListItem(
                 headlineContent = "应用更新",
                 supportingContent = when {
@@ -88,9 +90,7 @@ fun LeanbackSettingsCategoryApp(
                     else -> "未检查"
                 },
                 onSelected = {
-                    if (updateViewModel.isUpdateAvailable) {
-                        updateViewModel.showDialog = true
-                    } else if (!updateViewModel.isCheckingUpdate) {
+                    if (!updateViewModel.isCheckingUpdate) {
                         coroutineScope.launch {
                             updateViewModel.checkUpdate(
                                 context.packageManager
