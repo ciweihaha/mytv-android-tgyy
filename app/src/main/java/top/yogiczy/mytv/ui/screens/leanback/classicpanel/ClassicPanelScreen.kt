@@ -154,6 +154,16 @@ private fun LeanbackClassicPanelScreenContent(
             iptvGroupList
     }
 
+    // 收藏频道列表只拼一次记下来：原来打开收藏分组后，每按一次遥控挪焦点，
+    // 父界面一刷新就把全部分组重新摊平成一份全量频道列表、再筛一遍收藏；
+    // 现在只在直播源或收藏名单变了时才重拼，子界面每次取都直接拿记好的这一份。
+    // 收藏名单是会订阅的状态值，增减收藏会重新算，不会记旧
+    val iptvFavoriteList = iptvFavoriteListProvider()
+    val favoriteIptvList = remember(iptvGroupList, iptvFavoriteList) {
+        val favoriteSet = iptvFavoriteList.toSet()
+        IptvList(iptvGroupList.iptvList.filter { favoriteSet.contains(it.channelName) })
+    }
+
     var focusedIptvGroup by remember {
         mutableStateOf(
             if (iptvFavoriteListVisibleProvider())
@@ -207,14 +217,9 @@ private fun LeanbackClassicPanelScreenContent(
                 },
             iptvGroupProvider = { focusedIptvGroup },
             iptvListProvider = {
-                if (focusedIptvGroup == LeanbackClassicPanelScreenFavoriteIptvGroup) {
-                    // 收藏名单只取一次并转成集合再查：原来是每查一个频道就
-                    // 重新取一次名单（上游每次取都复制一份列表），再逐个比对；
-                    // 现在一次取好、按集合查，结果和原来一模一样
-                    val favoriteSet = iptvFavoriteListProvider().toSet()
-                    IptvList(iptvGroupListProvider().iptvList
-                        .filter { favoriteSet.contains(it.channelName) })
-                } else
+                if (focusedIptvGroup == LeanbackClassicPanelScreenFavoriteIptvGroup)
+                    favoriteIptvList
+                else
                     focusedIptvGroup.iptvList
             },
             epgListProvider = epgListProvider,
