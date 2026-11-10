@@ -37,6 +37,20 @@ internal fun decodeEpgListOrNull(json: String?): EpgList? {
 }
 
 /**
+ * 判断两个时间戳是否在同一天（默认时区）：拿年份＋年内第几天比，
+ * 与按 "yyyy-MM-dd" 格式化后比字符串是同一个意思。
+ * 这里不用 SimpleDateFormat：它不是线程安全的，而调用方跑在
+ * Dispatchers.Default 线程池里，不能放成共用的；每次新建又白白
+ * 造一个格式器。Calendar 每次现取现用，没有共享状态。
+ */
+private fun isSameDay(first: Long, second: Long): Boolean {
+    val firstCal = Calendar.getInstance().apply { timeInMillis = first }
+    val secondCal = Calendar.getInstance().apply { timeInMillis = second }
+    return firstCal.get(Calendar.YEAR) == secondCal.get(Calendar.YEAR) &&
+        firstCal.get(Calendar.DAY_OF_YEAR) == secondCal.get(Calendar.DAY_OF_YEAR)
+}
+
+/**
  * 节目单获取
  */
 class EpgRepository : FileCacheRepository("epg.json") {
@@ -181,10 +195,8 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 log.w("节目单缓存无法解析，跳过等待直接刷新")
             }
 
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-
             val xmlJson = getOrRefresh({ lastModified, _ ->
-                dateFormat.format(System.currentTimeMillis()) != dateFormat.format(lastModified)
+                !isSameDay(System.currentTimeMillis(), lastModified)
             }) {
                 val xmlString = epgXmlRepository.getEpgXml(xmlUrl)
                 Json.encodeToString(parseFromXml(xmlString, filteredChannels).value)
