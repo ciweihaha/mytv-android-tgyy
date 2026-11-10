@@ -84,30 +84,36 @@ class LeanbackMainViewModel : ViewModel() {
         // refresh() 已把 Ready 的 epgList 重置为空，跳过即保持无节目单
         if (!SP.epgEnable) return
 
-        if (_uiState.value is LeanbackMainUiState.Ready) {
-            val iptvGroupList = (_uiState.value as LeanbackMainUiState.Ready).iptvGroupList
+        // 先把 Ready 快照下来，后面再用它：节目单请求是阻塞式网络调用
+        // （execute() 不响应取消），中途用户切源会让 refresh() 把状态
+        // 重置回 Loading，map 里再 as Ready 会闪退；旧节目单还可能贴
+        // 到新频道单上。快照不到 Ready 说明还没加载好，直接跳过
+        val readyState = _uiState.value as? LeanbackMainUiState.Ready ?: return
+        val iptvGroupList = readyState.iptvGroupList
 
-            flow {
-                emit(
-                    epgRepository.getEpgList(
-                        xmlUrl = SP.epgXmlUrl,
-                        filteredChannels = iptvGroupList.iptvList.map { it.channelName },
-                        refreshTimeThreshold = SP.epgRefreshTimeThreshold,
-                    )
+        flow {
+            emit(
+                epgRepository.getEpgList(
+                    xmlUrl = SP.epgXmlUrl,
+                    filteredChannels = iptvGroupList.iptvList.map { it.channelName },
+                    refreshTimeThreshold = SP.epgRefreshTimeThreshold,
                 )
+            )
+        }
+            .retry(Constants.HTTP_RETRY_COUNT) { delay(Constants.HTTP_RETRY_INTERVAL); true }
+            .catch {
+                emit(EpgList())
+                SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
             }
-                .retry(Constants.HTTP_RETRY_COUNT) { delay(Constants.HTTP_RETRY_INTERVAL); true }
-                .catch {
-                    emit(EpgList())
-                    SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
-                }
-                .map { epgList ->
-                    _uiState.value =
-                        (_uiState.value as LeanbackMainUiState.Ready).copy(epgList = epgList)
+            .map { epgList ->
+                // 状态已不是当初那份 Ready（中途又刷新了）：旧结果直接
+                // 丢弃，别往新状态上贴
+                if (_uiState.value === readyState) {
+                    _uiState.value = readyState.copy(epgList = epgList)
                     SP.epgXmlUrlHistoryList += SP.epgXmlUrl
                 }
-                .collect()
-        }
+            }
+            .collect()
     }
 }
 
