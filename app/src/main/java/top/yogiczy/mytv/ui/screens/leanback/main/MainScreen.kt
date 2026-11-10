@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.alexzhirkevich.qrose.options.QrBallShape
 import io.github.alexzhirkevich.qrose.options.QrFrameShape
@@ -48,7 +48,7 @@ fun LeanbackMainScreen(
     onBackPressed: () -> Unit = {},
     mainViewModel: LeanbackMainViewModel = viewModel(),
 ) {
-    val uiState by mainViewModel.uiState.collectAsState()
+    val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
 
     when (val s = uiState) {
         is LeanbackMainUiState.Ready -> LeanbackMainContent(
