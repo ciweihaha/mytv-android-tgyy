@@ -22,6 +22,7 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.screens.leanback.update.components.LeanbackUpdateDialog
 import top.yogiczy.mytv.utils.ApkInstaller
+import top.yogiczy.mytv.utils.getPackageInfoCompat
 import java.io.File
 
 @Composable
@@ -96,4 +97,4 @@ fun LeanbackUpdateScreen(
 
 @Composable
 private fun rememberPackageInfo(context: Context = LocalContext.current): PackageInfo =
-    context.packageManager.getPackageInfo(context.packageName, 0)
+    context.packageManager.getPackageInfoCompat(context.packageName)
