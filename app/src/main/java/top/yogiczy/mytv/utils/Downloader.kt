@@ -3,12 +3,13 @@ package top.yogiczy.mytv.utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
-import okhttp3.OkHttpClient
 import okio.BufferedSource
 import okio.ForwardingSource
 import okio.buffer
+import top.yogiczy.mytv.data.utils.sharedHttpClient
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 
 object Downloader : Loggable() {
     suspend fun downloadTo(url: String, filePath: String, onProgressCb: ((Int) -> Unit)?) =
@@ -20,7 +21,15 @@ object Downloader : Loggable() {
                     .body(DownloadResponseBody(originalResponse, onProgressCb)).build()
             }
 
-            val client = OkHttpClient.Builder().addNetworkInterceptor(interceptor).build()
+            // 从共用客户端派生：复用它的连接池与线程池，不再每次下载都
+            // 新建一个客户端；同时继承连接/读/写单次超时——原先的全新客
+            // 户端没有任何超时，服务器断流时会永远挂住，更新界面一直停
+            // 在“正在下载更新”，重试也被 _isUpdating 挡住。总时长不限：
+            // APK 约 25MB，慢网下超过共用客户端的 120 秒总超时也应继续下
+            val client = sharedHttpClient.newBuilder()
+                .addNetworkInterceptor(interceptor)
+                .callTimeout(0, TimeUnit.SECONDS)
+                .build()
             val request = okhttp3.Request.Builder().url(url).build()
 
             try {
