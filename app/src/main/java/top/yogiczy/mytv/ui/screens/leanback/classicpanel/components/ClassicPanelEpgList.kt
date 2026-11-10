@@ -57,7 +57,8 @@ fun LeanbackClassicPanelEpgList(
     exitFocusRequesterProvider: () -> FocusRequester = { FocusRequester.Default },
     onUserAction: () -> Unit = {},
 ) {
-    val dateFormat = SimpleDateFormat("E MM-dd", Locale.getDefault())
+    // 日期格式器记住复用：每次重组都新建是纯浪费，焦点移动就会重组
+    val dateFormat = remember { SimpleDateFormat("E MM-dd", Locale.getDefault()) }
     val epg = epgProvider()
 
     if (epg != null && epg.programmes.isNotEmpty()) {
@@ -140,7 +141,9 @@ private fun LeanbackClassicPanelEpgItem(
     epgProgrammeProvider: () -> EpgProgramme = { EpgProgramme() },
 ) {
     val programme = epgProgrammeProvider()
-    val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+    // 时间格式器记住复用：每条节目行焦点一动就重组一次，每次都新建
+    // 格式器是纯浪费；普通面板的节目单（PanelIptvEpg）早就是这么做的
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
     val focusRequester = remember { FocusRequester() }
     var isFocused by remember { mutableStateOf(false) }
@@ -201,7 +204,8 @@ private fun LeanbackClassicPanelEpgDayItem(
 ) {
     val day = dayProvider()
 
-    val dateFormat = SimpleDateFormat("E MM-dd", Locale.getDefault())
+    // 日期格式器记住复用：每个日期项每次重组都新建一个是纯浪费
+    val dateFormat = remember { SimpleDateFormat("E MM-dd", Locale.getDefault()) }
     val today = dateFormat.format(System.currentTimeMillis())
     val tomorrow = dateFormat.format(System.currentTimeMillis() + 24 * 3600 * 1000)
     val dayAfterTomorrow =
