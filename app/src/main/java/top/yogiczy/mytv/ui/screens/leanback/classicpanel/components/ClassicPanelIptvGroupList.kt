@@ -53,10 +53,16 @@ fun LeanbackClassicPanelIptvGroupList(
     val iptvGroupList = iptvGroupListProvider()
     val initialIptvGroup = initialIptvGroupProvider()
 
+    // 初始滚动位置只算一次记下来：原来每次组合都现算一遍初始分组在
+    // 列表里的下标，算完只在第一次建列表状态时用一次，之后滚动位置
+    // 由列表状态自己记住；只在直播源变了时重算
+    val initialGroupIdx = remember(iptvGroupList) {
+        max(0, iptvGroupList.indexOf(initialIptvGroup) - 2)
+    }
+    val listState = rememberLazyListState(initialGroupIdx)
+
     val focusRequester = remember { FocusRequester() }
     var focusedIptvGroup by remember { mutableStateOf(initialIptvGroup) }
-
-    val listState = rememberLazyListState(max(0, iptvGroupList.indexOf(initialIptvGroup) - 2))
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }

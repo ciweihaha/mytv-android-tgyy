@@ -192,16 +192,23 @@ private fun LeanbackClassicPanelScreenContent(
         }
     }
 
+    // 初始分组只找一次记下来：原来子界面每次组合都把分组逐个翻一遍、
+    // 每个分组里再逐个比对频道名找当前频道在哪个分组，焦点每挪一下
+    // 父界面一刷新就全量重找一遍；初始分组只在打开面板那一刻有用，
+    // 之后滚动位置与焦点都由子界面自己记住，找一次就够了。只在直播
+    // 源变了时重找，打开面板那一刻的当前频道决定初始分组
+    val initialIptvGroup = remember(iptvGroupList) {
+        if (iptvFavoriteListVisibleProvider())
+            LeanbackClassicPanelScreenFavoriteIptvGroup
+        else
+            iptvGroupList.find { it.iptvList.contains(currentIptvProvider()) }
+                ?: IptvGroup()
+    }
+
     Row(modifier = modifier) {
         LeanbackClassicPanelIptvGroupList(
             iptvGroupListProvider = { iptvGroupListWithFavorite },
-            initialIptvGroupProvider = {
-                if (iptvFavoriteListVisibleProvider())
-                    LeanbackClassicPanelScreenFavoriteIptvGroup
-                else
-                    iptvGroupList.find { it.iptvList.contains(currentIptvProvider()) }
-                        ?: IptvGroup()
-            },
+            initialIptvGroupProvider = { initialIptvGroup },
             onIptvGroupFocused = {
                 focusedIptvGroup = it
                 onIptvFavoriteListVisibleChange(it == LeanbackClassicPanelScreenFavoriteIptvGroup)

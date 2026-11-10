@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -45,8 +46,13 @@ fun LeanbackPanelIptvGroupList(
 ) {
     val iptvGroupList = iptvGroupListProvider()
 
-    val listState =
-        rememberLazyListState(max(0, iptvGroupList.iptvGroupIdx(currentIptvProvider())))
+    // 初始滚动位置只算一次记下来：原来每次组合都按当前频道把分组逐个
+    // 翻一遍找下标，算完只在第一次建列表状态时用一次，之后滚动位置
+    // 由列表状态自己记住；只在直播源变了时重算
+    val initialGroupIdx = remember(iptvGroupList) {
+        max(0, iptvGroupList.iptvGroupIdx(currentIptvProvider()))
+    }
+    val listState = rememberLazyListState(initialGroupIdx)
     val childPadding = rememberLeanbackChildPadding()
 
     LaunchedEffect(listState) {
