@@ -45,7 +45,7 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
      * 简化规则
      */
     private fun simplifyTest(iptv: Iptv): Boolean {
-        return iptv.name.lowercase().startsWith("cctv") || iptv.name.endsWith("卫视")
+        return iptv.name.startsWith("cctv", ignoreCase = true) || iptv.name.endsWith("卫视")
     }
 
     /**
