@@ -38,8 +38,9 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
+import top.yogiczy.mytv.data.entities.Epg
+import top.yogiczy.mytv.data.entities.Epg.Companion.currentProgrammes
 import top.yogiczy.mytv.data.entities.EpgList
-import top.yogiczy.mytv.data.entities.EpgList.Companion.currentProgrammes
 import top.yogiczy.mytv.data.entities.EpgProgramme.Companion.progress
 import top.yogiczy.mytv.data.entities.EpgProgrammeCurrent
 import top.yogiczy.mytv.data.entities.Iptv
@@ -66,6 +67,18 @@ fun LeanbackClassicPanelIptvList(
     val focusManager = LocalFocusManager.current
     val iptvList = iptvListProvider()
     val initialIptv = initialIptvProvider()
+    val epgList = epgListProvider()
+
+    // 频道名 → 节目单一次建表记下来：原先每个频道项每次组合都拿频道名
+    // 把整个节目单线性扫一遍找对应频道，焦点每挪一下、进度每刷一次就
+    // 全量重扫；节目单只在刷新时才变，建一次表、后面按名直接查。
+    // 同名频道（两个源都叫一个名）留第一次出现的，与原来 firstOrNull
+    // 取到的那条一致
+    val epgByChannel = remember(epgList) {
+        buildMap<String, Epg> {
+            epgList.forEach { epg -> putIfAbsent(epg.channel, epg) }
+        }
+    }
 
     var hasFocused by rememberSaveable { mutableStateOf(!iptvList.contains(initialIptv)) }
     val itemFocusRequesterList = remember(iptvList) {
@@ -116,7 +129,7 @@ fun LeanbackClassicPanelIptvList(
 
             LeanbackClassicPanelIptvItem(
                 iptvProvider = { iptv },
-                epgProgrammeCurrentProvider = { epgListProvider().currentProgrammes(iptv) },
+                epgProgrammeCurrentProvider = { epgByChannel[iptv.channelName]?.currentProgrammes() },
                 focusRequesterProvider = { itemFocusRequesterList[index] },
                 isSelectedProvider = { isSelected },
                 initialFocusedProvider = { initialFocused },
