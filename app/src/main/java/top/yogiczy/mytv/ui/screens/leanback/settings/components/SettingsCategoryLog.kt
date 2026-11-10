@@ -20,7 +20,7 @@ fun LeanbackSettingsCategoryLog(
     modifier: Modifier = Modifier,
     history: List<Logger.HistoryItem> = emptyList(),
 ) {
-    val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
     val historySorted = remember(history) {
         history.sortedByDescending { it.time }
     }
