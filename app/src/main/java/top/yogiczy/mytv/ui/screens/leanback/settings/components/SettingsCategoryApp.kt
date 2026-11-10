@@ -18,7 +18,7 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.screens.leanback.update.LeanBackUpdateViewModel
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
-import top.yogiczy.mytv.utils.SP
+import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.utils.getPackageInfoCompat
 
 @Composable
