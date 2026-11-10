@@ -11,7 +11,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import java.text.SimpleDateFormat
@@ -56,10 +59,17 @@ private fun LeanbackPanelDateTimePreview() {
 private fun rememberTimestamp(): Long {
     var timestamp by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)
-            timestamp = System.currentTimeMillis()
+    // 只在前台才每秒刷新：面板开着按 Home 退后台后组合还在（没人
+    // 会在退后台时关面板），原先的 LaunchedEffect(Unit) 会一直每秒
+    // 跳一次、白白唤醒主线程；面板 15 秒无操作会自动关，但这 15 秒
+    // 里时钟本来就看不见，回到前台时循环恢复、立刻重算一次时间
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                timestamp = System.currentTimeMillis()
+                delay(1000)
+            }
         }
     }
 

@@ -16,8 +16,11 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
@@ -74,22 +77,29 @@ private fun PanelPlayerInfoNetSpeed(
 private fun rememberNetSpeed(): Long {
     var netSpeed by remember { mutableLongStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        var lastTotalRxBytes = TrafficStats.getTotalRxBytes()
-        var lastTimeStamp = System.currentTimeMillis()
+    // 只在前台才每秒采样：面板开着按 Home 退后台后组合还在（没人
+    // 会在退后台时关面板），原先的 LaunchedEffect(Unit) 会一直每秒
+    // 读一次流量、白白唤醒主线程；回到前台时重新取基线再采样，
+    // 避免把后台那段时间算进一次网速里
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var lastTotalRxBytes = TrafficStats.getTotalRxBytes()
+            var lastTimeStamp = System.currentTimeMillis()
 
-        while (true) {
-            delay(1000)
-            val nowTotalRxBytes = TrafficStats.getTotalRxBytes()
-            val nowTimeStamp = System.currentTimeMillis()
-            // 系统时间被往回调时两时刻可能相同甚至倒挂：除零会崩溃，
-            // 负数会算出负网速——只在时间正常前进时更新
-            val elapsed = nowTimeStamp - lastTimeStamp
-            if (elapsed > 0) {
-                netSpeed = (nowTotalRxBytes - lastTotalRxBytes) / elapsed * 1000
+            while (true) {
+                delay(1000)
+                val nowTotalRxBytes = TrafficStats.getTotalRxBytes()
+                val nowTimeStamp = System.currentTimeMillis()
+                // 系统时间被往回调时两时刻可能相同甚至倒挂：除零会崩溃，
+                // 负数会算出负网速——只在时间正常前进时更新
+                val elapsed = nowTimeStamp - lastTimeStamp
+                if (elapsed > 0) {
+                    netSpeed = (nowTotalRxBytes - lastTotalRxBytes) / elapsed * 1000
+                }
+                lastTimeStamp = nowTimeStamp
+                lastTotalRxBytes = nowTotalRxBytes
             }
-            lastTimeStamp = nowTimeStamp
-            lastTotalRxBytes = nowTotalRxBytes
         }
     }
 
