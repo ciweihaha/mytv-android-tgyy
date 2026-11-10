@@ -57,6 +57,19 @@ fun LeanbackPanelIptvFavoriteList(
 
     var key by remember { mutableIntStateOf(0) }
     val iptvList = remember(key) { iptvListProvider() }
+    val epgList = epgListProvider()
+
+    // 频道名 → 节目单一次建表记下来：原先每个频道项每次组合都拿频道名
+    // 把整个节目单线性扫一遍找对应频道，焦点每挪一下、进度每刷一次就
+    // 全量重扫；节目单只在刷新时才变，建一次表、后面按名直接查。
+    // 同名频道（两个源都叫一个名）留第一次出现的，与原来 firstOrNull
+    // 取到的那条一致
+    val epgByChannel = remember(epgList) {
+        buildMap<String, Epg> {
+            epgList.forEach { epg -> putIfAbsent(epg.channel, epg) }
+        }
+    }
+
     val listState = rememberLazyGridState(max(0, iptvList.indexOf(currentIptvProvider())))
 
     var hasFocused by rememberSaveable { mutableStateOf(false) }
@@ -109,8 +122,7 @@ fun LeanbackPanelIptvFavoriteList(
                     } else Modifier,
                     iptvProvider = { iptv },
                     currentProgrammeProvider = {
-                        epgListProvider().firstOrNull { epg -> epg.channel == iptv.channelName }
-                            ?.currentProgrammes()?.now
+                        epgByChannel[iptv.channelName]?.currentProgrammes()?.now
                     },
                     showProgrammeProgressProvider = { showProgrammeProgressProvider() },
                     onIptvSelected = { onIptvSelected(iptv) },
@@ -138,9 +150,7 @@ fun LeanbackPanelIptvFavoriteList(
         onDismissRequest = { showEpgDialog = false },
         iptvProvider = { currentShowEpgIptv },
         epgProvider = {
-            epgListProvider().firstOrNull { epg ->
-                epg.channel == currentShowEpgIptv.channelName
-            } ?: Epg()
+            epgByChannel[currentShowEpgIptv.channelName] ?: Epg()
         },
         modifier = Modifier
             .handleLeanbackKeyEvents(
