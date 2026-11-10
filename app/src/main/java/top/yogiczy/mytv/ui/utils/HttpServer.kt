@@ -220,7 +220,10 @@ object HttpServer : Loggable() {
     ) {
         wrapResponse(response).apply {
             setContentType(contentType)
-            send(context.resources.openRawResource(id).readBytes().decodeToString())
+            // 读完就关流：原先 openRawResource 拿到的流读完没关，每次打开
+            // 网页（首页、样式、脚本各一次）都漏一个文件描述符，要等回收
+            // 才释放；use 保证读完（包括读一半抛错）就关
+            send(context.resources.openRawResource(id).use { it.readBytes().decodeToString() })
         }
     }
 

@@ -63,7 +63,9 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
 
             val parser = IptvParser.instances.first { it.isSupport(sourceUrl, sourceData) }
             val groupList = parser.parse(sourceData)
-            log.i("解析直播源完成：${groupList.size}个分组，${groupList.flatMap { it.iptvList }.size}个频道")
+            // 只数个数不用先拼一份全量列表：原先 flatMap 把全部频道先拷
+            // 一份再数，频道上千时白白多一份大列表
+            log.i("解析直播源完成：${groupList.size}个分组，${groupList.sumOf { it.iptvList.size }}个频道")
 
             if (simplify) {
                 return IptvGroupList(groupList.map { group ->
