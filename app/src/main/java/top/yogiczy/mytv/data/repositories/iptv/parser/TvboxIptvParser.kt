@@ -1,9 +1,6 @@
 package top.yogiczy.mytv.data.repositories.iptv.parser
 
-import top.yogiczy.mytv.data.entities.Iptv
-import top.yogiczy.mytv.data.entities.IptvGroup
 import top.yogiczy.mytv.data.entities.IptvGroupList
-import top.yogiczy.mytv.data.entities.IptvList
 
 class TvboxIptvParser : IptvParser {
 
@@ -60,24 +57,6 @@ class TvboxIptvParser : IptvParser {
             }
         }
 
-        return IptvGroupList(iptvList.groupBy { it.groupName }.map { groupEntry ->
-            IptvGroup(
-                name = groupEntry.key,
-                iptvList = IptvList(groupEntry.value.groupBy { it.name }.map { nameEntry ->
-                    Iptv(
-                        name = nameEntry.key,
-                        channelName = nameEntry.value.first().channelName,
-                        urlList = nameEntry.value.map { it.url },
-                    )
-                }),
-            )
-        })
+        return IptvParser.buildGroupList(iptvList)
     }
-
-    private data class IptvResponseItem(
-        val name: String,
-        val channelName: String,
-        val groupName: String,
-        val url: String,
-    )
 }
