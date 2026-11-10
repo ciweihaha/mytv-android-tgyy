@@ -1,5 +1,23 @@
 package top.yogiczy.mytv.utils
 
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.os.Build
+
+/**
+ * 取包信息：API 33 起 getPackageInfo(String, Int) 已废弃，
+ * 用 PackageInfoFlags 版；低版本走旧调用。三个调用点（关于页、
+ * 应用设置页手动检查、更新页）原来都直接调已废弃的旧版。
+ */
+fun PackageManager.getPackageInfoCompat(packageName: String): PackageInfo {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+    } else {
+        @Suppress("DEPRECATION")
+        getPackageInfo(packageName, 0)
+    }
+}
+
 fun Long.humanizeMs(): String {
     return when (this) {
         in 0..<60_000 -> "${this / 1000}秒"
