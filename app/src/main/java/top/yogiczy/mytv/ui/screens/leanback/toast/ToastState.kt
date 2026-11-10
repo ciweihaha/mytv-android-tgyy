@@ -2,6 +2,7 @@ package top.yogiczy.mytv.ui.screens.leanback.toast
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,10 +62,12 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
     }
 
     companion object {
-        // TODO 这种方法可能违反了 Compose 的规则
+        // I 只在首帧合成提交后由 SideEffect 发布（见
+        // rememberLeanbackToastState）；合成中途赋值可能违反 Compose
+        // 的规则，还会让外部回调拿到一个已被丢弃的 State
         lateinit var I: LeanbackToastState
 
-        // I 只在首帧合成时赋值；外部回调（HttpServer）可能在合成前
+        // I 只在首帧合成提交后发布；外部回调（HttpServer）可能在合成前
         // 触发，读之前先判这个。isInitialized 只能在声明处（这里）
         // 访问 backing field，类外直接用 ::I.isInitialized 编不过
         val isInitialized: Boolean get() = ::I.isInitialized
@@ -75,12 +78,15 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
 fun rememberLeanbackToastState(): LeanbackToastState {
     val coroutineScope = rememberCoroutineScope()
 
-    return remember {
+    val state = remember {
         LeanbackToastState(coroutineScope)
-    }.also {
-        LeanbackToastState.I = it
-        LaunchedEffect(it) { it.observe() }
     }
+    // 全局单例只在合成提交成功后发布：合成中途被丢弃时，外部回调
+    // 不会拿到一个已被丢弃的 State；合成时直接赋值是 Compose 规则
+    // 不提倡的副作用
+    SideEffect { LeanbackToastState.I = state }
+    LaunchedEffect(state) { state.observe() }
+    return state
 }
 
 data class LeanbackToastProperty(

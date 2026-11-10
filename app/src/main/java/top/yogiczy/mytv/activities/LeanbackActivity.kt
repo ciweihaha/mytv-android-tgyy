@@ -80,7 +80,7 @@ class LeanbackActivity : ComponentActivity() {
             applicationContext,
             showToast = {
                 // HttpServer 回调跑在 IO 线程，可能在首帧合成前就触发（I 由
-                // rememberLeanbackToastState 在合成时赋值），未初始化时丢
+                // rememberLeanbackToastState 在合成提交后发布），未初始化时丢
                 // 弃本次提示；直接读 lateinit 的 I 会抛
                 // UninitializedPropertyAccessException 闪退
                 if (LeanbackToastState.isInitialized) {
