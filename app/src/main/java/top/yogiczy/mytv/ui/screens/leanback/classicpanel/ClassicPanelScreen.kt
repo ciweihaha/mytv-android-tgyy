@@ -141,6 +141,19 @@ private fun LeanbackClassicPanelScreenContent(
 ) {
     val iptvGroupList = iptvGroupListProvider()
 
+    // 带收藏分组的分组列表只拼一次记下来：原来每次父界面刷新（每按一次遥控
+    // 换台/换分组，focusedIptv/focusedIptvGroup 一变就刷新）都会把收藏分组
+    // 重新拼到分组列表前面，整份分组列表复制一遍；现在只有分组列表本身或
+    // 收藏开关变了才重拼。收藏开关是 mutableStateOf，读它会订阅，开关变了
+    // 会重新算，不会记旧
+    val iptvFavoriteEnabled = iptvFavoriteEnableProvider()
+    val iptvGroupListWithFavorite = remember(iptvGroupList, iptvFavoriteEnabled) {
+        if (iptvFavoriteEnabled)
+            IptvGroupList(listOf(LeanbackClassicPanelScreenFavoriteIptvGroup) + iptvGroupList)
+        else
+            iptvGroupList
+    }
+
     var focusedIptvGroup by remember {
         mutableStateOf(
             if (iptvFavoriteListVisibleProvider())
@@ -160,12 +173,7 @@ private fun LeanbackClassicPanelScreenContent(
 
     Row(modifier = modifier) {
         LeanbackClassicPanelIptvGroupList(
-            iptvGroupListProvider = {
-                if (iptvFavoriteEnableProvider())
-                    IptvGroupList(listOf(LeanbackClassicPanelScreenFavoriteIptvGroup) + iptvGroupList)
-                else
-                    iptvGroupList
-            },
+            iptvGroupListProvider = { iptvGroupListWithFavorite },
             initialIptvGroupProvider = {
                 if (iptvFavoriteListVisibleProvider())
                     LeanbackClassicPanelScreenFavoriteIptvGroup
