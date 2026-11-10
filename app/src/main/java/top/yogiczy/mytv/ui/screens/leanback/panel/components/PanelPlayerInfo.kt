@@ -66,9 +66,12 @@ private fun PanelPlayerInfoNetSpeed(
     modifier: Modifier = Modifier,
     netSpeed: Long = rememberNetSpeed(),
 ) {
+    // 网速格式器记住复用：面板开着时网速每秒变一次、每次重组都新建一个
+    // DecimalFormat 是纯浪费；只在主线程重组里用，无线程安全问题
+    val speedFormat = remember { DecimalFormat("#.#") }
     Text(
         text = if (netSpeed < 1024 * 999) "网速：${netSpeed / 1024}KB/s"
-        else "网速：${DecimalFormat("#.#").format(netSpeed / 1024 / 1024f)}MB/s",
+        else "网速：${speedFormat.format(netSpeed / 1024 / 1024f)}MB/s",
         modifier = modifier,
     )
 }
