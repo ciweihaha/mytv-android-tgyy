@@ -199,10 +199,14 @@ private fun LeanbackClassicPanelScreenContent(
                 },
             iptvGroupProvider = { focusedIptvGroup },
             iptvListProvider = {
-                if (focusedIptvGroup == LeanbackClassicPanelScreenFavoriteIptvGroup)
+                if (focusedIptvGroup == LeanbackClassicPanelScreenFavoriteIptvGroup) {
+                    // 收藏名单只取一次并转成集合再查：原来是每查一个频道就
+                    // 重新取一次名单（上游每次取都复制一份列表），再逐个比对；
+                    // 现在一次取好、按集合查，结果和原来一模一样
+                    val favoriteSet = iptvFavoriteListProvider().toSet()
                     IptvList(iptvGroupListProvider().iptvList
-                        .filter { iptvFavoriteListProvider().contains(it.channelName) })
-                else
+                        .filter { favoriteSet.contains(it.channelName) })
+                } else
                     focusedIptvGroup.iptvList
             },
             epgListProvider = epgListProvider,
