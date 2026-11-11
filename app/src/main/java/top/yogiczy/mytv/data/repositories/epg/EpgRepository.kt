@@ -177,7 +177,11 @@ class EpgRepository : FileCacheRepository("epg.json") {
                             innerEvent = parser.next()
                         }
 
-                        if (keepEpgChannel(channelId, channelName, filteredChannelSet)) {
+                        // 空值先判掉：keepEpgChannel 里也判空，但这里要把两个
+                        // 值收窄成非空、后面才能当 Map 的键和值直接存
+                        if (channelId != null && channelName != null &&
+                            keepEpgChannel(channelId, channelName, filteredChannelSet)
+                        ) {
                             channelNames[channelId] = channelName
                             // 与原先 `epgMap[id] = Epg(...)` 的语义一致：重复的 channel
                             // 标签会重置该频道的节目列表
