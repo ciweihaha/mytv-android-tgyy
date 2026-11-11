@@ -68,6 +68,18 @@ internal fun Int.noValueToZero(): Int = if (this == Format.NO_VALUE) 0 else this
 
 internal fun Float.noValueToZero(): Float = if (this == Format.NO_VALUE.toFloat()) 0f else this
 
+/**
+ * 容器解析失败后下一个要试的类型：按 HLS、普通、RTSP 的顺序，
+ * 三种都试过返回 null，上层上报错误走换线。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun nextUntriedContentType(attempts: Map<Int, Boolean>): Int? = when {
+    attempts[C.CONTENT_TYPE_HLS] != true -> C.CONTENT_TYPE_HLS
+    attempts[C.CONTENT_TYPE_OTHER] != true -> C.CONTENT_TYPE_OTHER
+    attempts[C.CONTENT_TYPE_RTSP] != true -> C.CONTENT_TYPE_RTSP
+    else -> null
+}
+
 @OptIn(UnstableApi::class)
 class LeanbackMedia3VideoPlayer(
     private val context: Context,
@@ -206,16 +218,14 @@ class LeanbackMedia3VideoPlayer(
             // 当解析容器不支持时，尝试使用其他解析容器
             else if (ex.errorCode == Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
                 val uri = videoPlayer.currentMediaItem?.localConfiguration?.uri
-                if (uri != null) {
-                    if (contentTypeAttempts[C.CONTENT_TYPE_HLS] != true) {
-                        prepare(uri, C.CONTENT_TYPE_HLS)
-                    } else if (contentTypeAttempts[C.CONTENT_TYPE_OTHER] != true) {
-                        prepare(uri, C.CONTENT_TYPE_OTHER)
-                    } else if (contentTypeAttempts[C.CONTENT_TYPE_RTSP] != true) {
-                        prepare(uri, C.CONTENT_TYPE_RTSP)
-                    } else {
-                        triggerError(PlaybackException.UNSUPPORTED_TYPE)
-                    }
+                val nextType = nextUntriedContentType(contentTypeAttempts)
+                if (uri != null && nextType != null) {
+                    prepare(uri, nextType)
+                } else {
+                    // 地址拿不到（报错时媒体源已被换掉），或三种容器都试过：
+                    // 别悄悄吞掉，上报错误走正常换线，否则界面一直黑屏、
+                    // 也不切下一条线路
+                    triggerError(PlaybackException.UNSUPPORTED_TYPE)
                 }
             } else {
                 triggerError(
