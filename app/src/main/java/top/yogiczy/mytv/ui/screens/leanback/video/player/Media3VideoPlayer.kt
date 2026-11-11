@@ -69,6 +69,18 @@ internal fun Int.noValueToZero(): Int = if (this == Format.NO_VALUE) 0 else this
 internal fun Float.noValueToZero(): Float = if (this == Format.NO_VALUE.toFloat()) 0f else this
 
 /**
+ * 播完/回到空闲时位置轮询该不该停：READY 时起的 1 秒轮询只在播放
+ * 中才有意义——流一播完（STATE_ENDED，如有限时长的源）位置就
+ * 再也不会变，轮询每秒空转、还一直占着协程；回到空闲（STATE_IDLE）
+ * 时同理。原先只在 prepare/release/再次 READY 时才停，播完不切
+ * 台就一直空转到下次切台。BUFFERING/READY 不停：缓冲时位置
+ * 轮询还要继续盯断流。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldStopPositionPolling(playbackState: Int): Boolean =
+    playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE
+
+/**
  * 容器解析失败后下一个要试的类型：按 HLS、普通、RTSP 的顺序，
  * 三种都试过返回 null，上层上报错误走换线。
  * 顶层函数方便单元测试直接调用。
@@ -263,6 +275,13 @@ class LeanbackMedia3VideoPlayer(
 
             if (playbackState != Player.STATE_BUFFERING) {
                 triggerBuffering(false)
+            }
+
+            // 播完/回到空闲：位置轮询再跑下去只是每秒空转（位置已
+            // 不会再变），停掉它；下次 prepare 或再次 READY 时再起
+            if (shouldStopPositionPolling(playbackState)) {
+                updatePositionJob?.cancel()
+                updatePositionJob = null
             }
         }
     }
