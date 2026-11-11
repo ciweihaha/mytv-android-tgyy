@@ -6,8 +6,9 @@ import org.junit.Test
 class VideoPlayerMetadataBitrateTest {
     @Test
     fun `typical bitrate keeps one decimal`() {
-        // 预览里那条 10Mbps 的流：原来整数除显示 10356 kbps，现在 10356.6 kbps
-        assertEquals("10356.6 kbps", formatVideoBitrateKbps(10605096))
+        // 预览里那条 10Mbps 的流：10605096 / 1024 = 10356.539…，原来整数除
+        // 显示 10356 kbps，现在 10356.5 kbps
+        assertEquals("10356.5 kbps", formatVideoBitrateKbps(10605096))
     }
 
     @Test
