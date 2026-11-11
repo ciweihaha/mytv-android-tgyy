@@ -74,7 +74,12 @@ abstract class LeanbackVideoPlayer(
 
     protected fun triggerError(error: PlaybackException?) {
         onErrorListeners.forEach { it(error) }
-        if(error != PlaybackException.LOAD_TIMEOUT) {
+        // 空错误只是“正在缓冲、清掉错误显示”，不能顺手取消加载超时：
+        // 每次播流都会先进入缓冲状态，进缓冲就取消等于加载超时永远等
+        // 不到触发——细流式卡住的源会一直转圈、永远不换线路；真正播
+        // 起来后 triggerReady() 会取消它，播起来之前超时就该报超时换线路。
+        // 真出错时才取消：下一轮 prepare 会重新挂超时任务
+        if (error != null && error != PlaybackException.LOAD_TIMEOUT) {
             loadTimeoutJob?.cancel()
             loadTimeoutJob = null
         }
@@ -89,11 +94,13 @@ abstract class LeanbackVideoPlayer(
         onBufferingListeners.forEach { it(buffering) }
     }
 
-    protected fun triggerPrepared() {
+    // 超时可传参、默认读设置里的加载超时：和下面的 triggerCurrentPosition
+    // 同一个写法，单测传个短超时就能验超时逻辑，不用碰 SP
+    protected fun triggerPrepared(timeoutMs: Long = SP.videoPlayerLoadTimeout) {
         onPreparedListeners.forEach { it() }
         loadTimeoutJob?.cancel()
         loadTimeoutJob = coroutineScope.launch {
-            delay(SP.videoPlayerLoadTimeout)
+            delay(timeoutMs)
             triggerError(PlaybackException.LOAD_TIMEOUT)
         }
         cutoffTimeoutJob?.cancel()
