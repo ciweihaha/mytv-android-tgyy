@@ -72,20 +72,39 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
             // 一份再数，频道上千时白白多一份大列表
             log.i("解析直播源完成：${groupList.size}个分组，${groupList.sumOf { it.iptvList.size }}个频道")
 
-            if (simplify) {
-                return IptvGroupList(groupList.map { group ->
+            val result = if (simplify) {
+                IptvGroupList(groupList.map { group ->
                     IptvGroup(
                         name = group.name, iptvList = IptvList(group.iptvList.filter { iptv ->
                             simplifyTest(iptv)
                         })
                     )
                 }.filter { it.iptvList.isNotEmpty() })
+            } else {
+                groupList
             }
 
-            return groupList
+            // 空源直接报错：原来解析出 0 个频道也进 Ready，主界面黑屏、
+            // 上下键也切不到台，又没有任何提示；现在走报错那条路，错误页
+            // 有重试按钮和换源二维码
+            checkIptvGroupListNotEmpty(result, simplify)
+            return result
         } catch (ex: Exception) {
             log.e("获取直播源失败", ex)
             throw Exception(ex)
         }
+    }
+}
+
+/**
+ * 直播源里一个频道都没有时报错：空文件、或精简模式把台全筛掉了。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun checkIptvGroupListNotEmpty(groupList: IptvGroupList, simplified: Boolean) {
+    if (groupList.sumOf { it.iptvList.size } == 0) {
+        throw IllegalStateException(
+            if (simplified) "精简后没有频道：该直播源里没有央视或卫视台，请关闭精简模式或换源"
+            else "直播源里没有频道，请检查直播源链接"
+        )
     }
 }
