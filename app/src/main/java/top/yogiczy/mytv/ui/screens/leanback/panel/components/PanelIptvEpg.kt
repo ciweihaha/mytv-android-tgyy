@@ -72,7 +72,9 @@ fun LeanbackPanelIptvEpgDialog(
             modifier = modifier,
             onDismissRequest = onDismissRequest,
             confirmButton = { Text(text = "左右切换频道") },
-            title = { Text(iptv.channelName) },
+            // 标题显示频道名：原来是节目单用的 tvg-name（“cctv1”），
+            // 用户在列表里看到的是显示名（“CCTV-1 综合”），两处对不上
+            title = { Text(iptv.name) },
             text = {
                 // 每次重组都新建格式器是纯浪费：焦点移动就会重组，记住复用
                 val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }

@@ -119,10 +119,10 @@ fun LeanbackMainContent(
         if (settingsViewModel.iptvChannelFavoriteEnable) {
             if (settingsViewModel.iptvChannelFavoriteList.contains(iptv.channelName)) {
                 settingsViewModel.iptvChannelFavoriteList -= iptv.channelName
-                LeanbackToastState.I.showToast("取消收藏: ${iptv.channelName}")
+                LeanbackToastState.I.showToast("取消收藏: ${iptv.name}")
             } else {
                 settingsViewModel.iptvChannelFavoriteList += iptv.channelName
-                LeanbackToastState.I.showToast("已收藏: ${iptv.channelName}")
+                LeanbackToastState.I.showToast("已收藏: ${iptv.name}")
             }
         }
     }
