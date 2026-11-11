@@ -173,6 +173,13 @@ private fun LeanbackClassicPanelEpgItem(
     // 格式器是纯浪费；普通面板的节目单（PanelIptvEpg）早就是这么做的
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
+    // “正在播吗”只算一次记下来：第 143 轮节目单弹窗同样办法——
+    // 原来同一条节目每次组合要算两遍，选中状态一次、播放小图标
+    // 又算一次，每遍都重新取一次当前时间；同一轮组合里两遍结果
+    // 必然相同，记下来两处共用，还避免两遍取时间正好跨过节目
+    // 边界、选中和图标对不上
+    val isLive = programme.isLive()
+
     val focusRequester = remember { FocusRequester() }
     var isFocused by remember { mutableStateOf(false) }
 
@@ -197,7 +204,7 @@ private fun LeanbackClassicPanelEpgItem(
                     alpha = 0.5f
                 ),
             ),
-            selected = programme.isLive(),
+            selected = isLive,
             onClick = { },
             headlineContent = {
                 Text(
@@ -215,7 +222,7 @@ private fun LeanbackClassicPanelEpgItem(
                 )
             },
             trailingContent = {
-                if (programme.isLive()) {
+                if (isLive) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "playing")
                 }
             },
