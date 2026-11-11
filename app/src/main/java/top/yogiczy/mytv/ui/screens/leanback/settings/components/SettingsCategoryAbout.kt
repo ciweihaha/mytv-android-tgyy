@@ -1,6 +1,5 @@
 package top.yogiczy.mytv.ui.screens.leanback.settings.components
 
-import android.content.Context
 import android.content.pm.PackageInfo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,7 +21,7 @@ import androidx.tv.material3.Icon
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
-import top.yogiczy.mytv.utils.getPackageInfoCompat
+import top.yogiczy.mytv.utils.rememberPackageInfo
 
 @Composable
 fun LeanbackSettingsCategoryAbout(
@@ -79,14 +78,6 @@ fun LeanbackSettingsCategoryAbout(
         }
     }
 }
-
-// 包信息只查一次记下来：原来每次组合都调一次系统接口（跨进程调用），
-// 界面一刷新就重新查一遍；版本号在运行中不会变，记下来就够了
-@Composable
-private fun rememberPackageInfo(context: Context = LocalContext.current): PackageInfo =
-    remember(context) {
-        context.packageManager.getPackageInfoCompat(context.packageName)
-    }
 
 @Preview
 @Composable

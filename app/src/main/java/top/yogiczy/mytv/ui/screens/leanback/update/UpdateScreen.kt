@@ -1,8 +1,6 @@
 package top.yogiczy.mytv.ui.screens.leanback.update
 
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInfo
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,7 +20,7 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.screens.leanback.update.components.LeanbackUpdateDialog
 import top.yogiczy.mytv.utils.ApkInstaller
-import top.yogiczy.mytv.utils.getPackageInfoCompat
+import top.yogiczy.mytv.utils.rememberPackageInfo
 import java.io.File
 
 @Composable
@@ -94,11 +92,3 @@ fun LeanbackUpdateScreen(
         },
     )
 }
-
-// 包信息只查一次记下来：原来每次组合都调一次系统接口（跨进程调用），
-// 界面一刷新就重新查一遍；版本号在运行中不会变，记下来就够了
-@Composable
-private fun rememberPackageInfo(context: Context = LocalContext.current): PackageInfo =
-    remember(context) {
-        context.packageManager.getPackageInfoCompat(context.packageName)
-    }

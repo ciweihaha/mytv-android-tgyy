@@ -1,8 +1,12 @@
 package top.yogiczy.mytv.utils
 
+import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * 取包信息：API 33 起 getPackageInfo(String, Int) 已废弃，
@@ -17,6 +21,15 @@ fun PackageManager.getPackageInfoCompat(packageName: String): PackageInfo {
         getPackageInfo(packageName, 0)
     }
 }
+
+// 包信息只查一次记下来：原来关于页和更新页各写了一份一模一样的，
+// 每次组合都调一次系统接口（跨进程调用），界面一刷新就重新查一遍；
+// 版本号在运行中不会变，记下来就够了。两处共用这一份。
+@Composable
+fun rememberPackageInfo(context: Context = LocalContext.current): PackageInfo =
+    remember(context) {
+        context.packageManager.getPackageInfoCompat(context.packageName)
+    }
 
 fun Long.humanizeMs(): String {
     return when (this) {
