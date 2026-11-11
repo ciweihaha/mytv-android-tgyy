@@ -33,16 +33,21 @@ object Downloader : Loggable() {
             val request = okhttp3.Request.Builder().url(url).build()
 
             try {
-                with(client.newCall(request).execute()) {
-                    if (!isSuccessful) {
-                        throw Exception("下载文件失败: $code")
+                // 响应用完就关：原先只在成功读流时关了 body，HTTP 出错
+                // （404/500）直接抛错、响应体没关，连接回不到连接池；
+                // 更新服务器出问题、反复下载失败会占满单 host 的连接槽，
+                // 后续下载一直等连接。use 保证成功、出错两条路都关，和
+                // 测速那边 .execute().use 的写法一致
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw Exception("下载文件失败: ${response.code}")
                     }
 
                     val file = File(filePath)
                     // 流式写入：原先 body.bytes() 会把整个文件读进内存，
                     // 在低内存电视盒子上下载 APK（~25 MB）时容易 OOM
                     FileOutputStream(file).use { fos ->
-                        body?.byteStream()?.use { it.copyTo(fos) }
+                        response.body?.byteStream()?.use { it.copyTo(fos) }
                             ?: throw Exception("下载文件失败: 响应体为空")
                     }
                 }
