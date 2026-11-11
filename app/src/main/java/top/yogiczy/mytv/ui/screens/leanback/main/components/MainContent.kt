@@ -127,6 +127,36 @@ fun LeanbackMainContent(
         }
     }
 
+    // 换台与切线路只写一份共用：原来遥控上下左右键和手势上下左右滑各写了
+    // 一份一模一样的换台/切线路逻辑（共 8 处），改一处容易漏另一处；现在
+    // 抽成四个共用的回调，键和手势都调它。方向对应（上键与下滑同向、下键
+    // 与上滑同向、左键与右滑同向、右键与左滑同向）和翻转设置一字不改；
+    // 翻转开关在每次按键时现读，不是定义时记死，设置里改了立即生效
+    val moveChannelUp: () -> Unit = {
+        if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToNext()
+        else mainContentState.changeCurrentIptvToPrev()
+    }
+    val moveChannelDown: () -> Unit = {
+        if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToPrev()
+        else mainContentState.changeCurrentIptvToNext()
+    }
+    val moveUrlIdxPrev: () -> Unit = {
+        if (mainContentState.currentIptv.urlList.size > 1) {
+            mainContentState.changeCurrentIptv(
+                iptv = mainContentState.currentIptv,
+                urlIdx = mainContentState.currentIptvUrlIdx - 1,
+            )
+        }
+    }
+    val moveUrlIdxNext: () -> Unit = {
+        if (mainContentState.currentIptv.urlList.size > 1) {
+            mainContentState.changeCurrentIptv(
+                iptv = mainContentState.currentIptv,
+                urlIdx = mainContentState.currentIptvUrlIdx + 1,
+            )
+        }
+    }
+
     // 播放界面是否正持有焦点（含子节点）：只在失焦时才补请求焦点，
     // 不再每 100ms 都调一次 requestFocus（已聚焦时是空操作）；循环
     // 本身保留作重试——焦点可能在动画中途抢不到，下轮再试才能粘住
@@ -171,30 +201,10 @@ fun LeanbackMainContent(
                 .focusable()
                 .onFocusChanged { videoScreenHasFocus = it.hasFocus }
                 .handleLeanbackKeyEvents(
-                    onUp = {
-                        if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToNext()
-                        else mainContentState.changeCurrentIptvToPrev()
-                    },
-                    onDown = {
-                        if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToPrev()
-                        else mainContentState.changeCurrentIptvToNext()
-                    },
-                    onLeft = {
-                        if (mainContentState.currentIptv.urlList.size > 1) {
-                            mainContentState.changeCurrentIptv(
-                                iptv = mainContentState.currentIptv,
-                                urlIdx = mainContentState.currentIptvUrlIdx - 1,
-                            )
-                        }
-                    },
-                    onRight = {
-                        if (mainContentState.currentIptv.urlList.size > 1) {
-                            mainContentState.changeCurrentIptv(
-                                iptv = mainContentState.currentIptv,
-                                urlIdx = mainContentState.currentIptvUrlIdx + 1,
-                            )
-                        }
-                    },
+                    onUp = { moveChannelUp() },
+                    onDown = { moveChannelDown() },
+                    onLeft = { moveUrlIdxPrev() },
+                    onRight = { moveUrlIdxNext() },
                     onSelect = { mainContentState.isPanelVisible = true },
                     onLongSelect = { mainContentState.isQuickPanelVisible = true },
                     onSettings = { mainContentState.isQuickPanelVisible = true },
@@ -206,30 +216,10 @@ fun LeanbackMainContent(
                     onLongDown = { mainContentState.isQuickPanelVisible = true },
                 )
                 .handleLeanbackDragGestures(
-                    onSwipeDown = {
-                        if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToNext()
-                        else mainContentState.changeCurrentIptvToPrev()
-                    },
-                    onSwipeUp = {
-                        if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentIptvToPrev()
-                        else mainContentState.changeCurrentIptvToNext()
-                    },
-                    onSwipeRight = {
-                        if (mainContentState.currentIptv.urlList.size > 1) {
-                            mainContentState.changeCurrentIptv(
-                                iptv = mainContentState.currentIptv,
-                                urlIdx = mainContentState.currentIptvUrlIdx - 1,
-                            )
-                        }
-                    },
-                    onSwipeLeft = {
-                        if (mainContentState.currentIptv.urlList.size > 1) {
-                            mainContentState.changeCurrentIptv(
-                                iptv = mainContentState.currentIptv,
-                                urlIdx = mainContentState.currentIptvUrlIdx + 1,
-                            )
-                        }
-                    },
+                    onSwipeDown = { moveChannelUp() },
+                    onSwipeUp = { moveChannelDown() },
+                    onSwipeRight = { moveUrlIdxPrev() },
+                    onSwipeLeft = { moveUrlIdxNext() },
                 ),
         )
 
