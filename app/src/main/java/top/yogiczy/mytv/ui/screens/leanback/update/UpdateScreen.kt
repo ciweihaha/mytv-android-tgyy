@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.ui.screens.leanback.update
 
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
@@ -55,27 +56,19 @@ fun LeanbackUpdateScreen(
 
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (context.packageManager.canRequestPackageInstalls()) {
-                    ApkInstaller.installApk(context, latestFile.path)
-                } else {
-                    LeanbackToastState.I.showToast("未授予安装权限")
-                }
+            // 从系统设置回来：有权限就直接装，没权限只提示，不再重复跳设置
+            if (!tryInstallApk(context, latestFile.path)) {
+                LeanbackToastState.I.showToast("未授予安装权限")
             }
         }
 
     LaunchedEffect(updateViewModel.updateDownloaded) {
         if (!updateViewModel.updateDownloaded) return@LaunchedEffect
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            ApkInstaller.installApk(context, latestFile.path)
-        } else {
-            if (context.packageManager.canRequestPackageInstalls()) {
-                ApkInstaller.installApk(context, latestFile.path)
-            } else {
-                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                launcher.launch(intent)
-            }
+        // 下载好了：有权限就直接装，没权限才跳系统设置去申请
+        if (!tryInstallApk(context, latestFile.path)) {
+            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+            launcher.launch(intent)
         }
     }
 
@@ -91,4 +84,19 @@ fun LeanbackUpdateScreen(
             }
         },
     )
+}
+
+/**
+ * 有安装权限就直接装包，返回 true；没权限返回 false，由调用方决定是提示还是去申请。
+ * 安卓 8.0 以下没有“未知来源安装”这个权限，直接装。
+ * 更新页里两处原来各写了一份同样的判断（下载完装包、从设置回来再装），现在共用这一份。
+ */
+private fun tryInstallApk(context: Context, apkPath: String): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+        context.packageManager.canRequestPackageInstalls()
+    ) {
+        ApkInstaller.installApk(context, apkPath)
+        return true
+    }
+    return false
 }
