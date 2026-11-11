@@ -80,9 +80,13 @@ fun LeanbackSettingsCategoryAbout(
     }
 }
 
+// 包信息只查一次记下来：原来每次组合都调一次系统接口（跨进程调用），
+// 界面一刷新就重新查一遍；版本号在运行中不会变，记下来就够了
 @Composable
 private fun rememberPackageInfo(context: Context = LocalContext.current): PackageInfo =
-    context.packageManager.getPackageInfoCompat(context.packageName)
+    remember(context) {
+        context.packageManager.getPackageInfoCompat(context.packageName)
+    }
 
 @Preview
 @Composable
