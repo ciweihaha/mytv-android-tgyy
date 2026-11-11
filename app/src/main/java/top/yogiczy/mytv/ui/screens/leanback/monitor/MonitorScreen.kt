@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -85,7 +86,9 @@ private fun rememberFpsState(): FpsState {
                     if (fpsCount == 5) {
                         val elapsed = ms - lastUpdate
                         if (elapsed > 0) {
-                            val fps = (5_000 / elapsed).toInt()
+                            // 浮点除再四舍五入：原先整数除法只往下截，5 帧用 84 毫秒
+                            // 实际是 59.5 帧/秒却显示 59，平时也总比真实值低半帧左右
+                            val fps = (5_000f / elapsed).roundToInt()
                             state = state.copy(
                                 current = fps,
                                 history = (state.history.takeLast(30) + fps).toImmutableList(),
