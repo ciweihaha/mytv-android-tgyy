@@ -23,9 +23,17 @@ class M3uIptvParser : IptvParser {
 
             // 频道名是第一个不在引号内的逗号之后的内容：属性值里可能有
             // 逗号（如 tvg-logo 的 URL），直接 split(",").last() 会把带
-            // 逗号的频道名截断成最后一截；没有这种逗号时保留整行当名字
-            val name = extinfLine.substringAfterFirstUnquotedComma()
-            val channelName = TVG_NAME_REGEX.find(extinfLine)?.groupValues?.get(1) ?: name
+            // 逗号的频道名截断成最后一截；没有这个逗号的残缺行（如生成器
+            // 只写 `#EXTINF:-1`），原先把整行当频道名塞进列表，选台界面
+            // 会出现一行 "#EXTINF:-1 ..." 的垃圾频道——没逗号时退到
+            // tvg-name，有 tvg-name 频道还能播；两个都没有就跳过这条
+            val tvgName = TVG_NAME_REGEX.find(extinfLine)?.groupValues?.get(1)?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            val name = extinfLine.substringAfterFirstUnquotedComma()?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: tvgName
+                ?: return@forEachIndexed
+            val channelName = tvgName ?: name
             val groupName = GROUP_TITLE_REGEX.find(extinfLine)?.groupValues?.get(1) ?: "其他"
 
             // 最后一行是 #EXTINF 且后面没有 URL 行时跳过（否则 lines[index + 1] 越界崩溃）
@@ -46,9 +54,10 @@ class M3uIptvParser : IptvParser {
     }
 
     /**
-     * 取第一个不在双引号内的逗号之后的内容；没有则返回整行
+     * 取第一个不在双引号内的逗号之后的内容；没有这种逗号时返回 null，
+     * 调用方据此判断这行是不是残缺的 #EXTINF，而不是拿整行当频道名
      */
-    private fun String.substringAfterFirstUnquotedComma(): String {
+    private fun String.substringAfterFirstUnquotedComma(): String? {
         var inQuotes = false
         for (i in indices) {
             when (this[i]) {
@@ -56,7 +65,7 @@ class M3uIptvParser : IptvParser {
                 ',' -> if (!inQuotes) return substring(i + 1)
             }
         }
-        return this
+        return null
     }
 
     companion object {

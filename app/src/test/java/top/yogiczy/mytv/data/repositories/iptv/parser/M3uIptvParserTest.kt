@@ -157,6 +157,27 @@ class M3uIptvParserTest {
     }
 
     @Test
+    fun `EXTINF without display name falls back to tvg-name or is skipped`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视"
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 group-title="央视"
+            http://example.com/noname.m3u8
+            #EXTINF:-1 tvg-name="CCTV-5" group-title="央视",CCTV-5
+            http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV-1", result[0].iptvList[0].channelName)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
+
+    @Test
     fun `channel name containing comma is kept whole`() = runBlocking {
         val data = """
             #EXTM3U
