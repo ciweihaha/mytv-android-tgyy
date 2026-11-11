@@ -231,6 +231,6 @@ class M3uIptvParserTest {
         assertEquals(2, result[0].iptvList.size)
         assertEquals("cctv1", result[0].iptvList[0].tvgId)
         assertEquals("CCTV-1", result[0].iptvList[0].channelName)
-        assertEquals("CCTV-5", result[1].iptvList[1].channelName)
+        assertEquals("CCTV-5", result[0].iptvList[1].channelName)
     }
 }
