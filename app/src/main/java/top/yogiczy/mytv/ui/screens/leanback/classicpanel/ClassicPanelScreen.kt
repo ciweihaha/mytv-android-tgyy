@@ -205,7 +205,7 @@ private fun LeanbackClassicPanelScreenContent(
             initialIptvGroupProvider = { initialIptvGroup },
             onIptvGroupFocused = {
                 focusedIptvGroup = it
-                onIptvFavoriteListVisibleChange(it == LeanbackClassicPanelScreenFavoriteIptvGroup)
+                onIptvFavoriteListVisibleChange(isFavoriteIptvGroup(it))
             },
             exitFocusRequesterProvider = { focusedIptvFocusRequester },
             onUserAction = onUserAction,
@@ -229,7 +229,7 @@ private fun LeanbackClassicPanelScreenContent(
                 },
             iptvGroupProvider = { focusedIptvGroup },
             iptvListProvider = {
-                if (focusedIptvGroup == LeanbackClassicPanelScreenFavoriteIptvGroup)
+                if (isFavoriteIptvGroup(focusedIptvGroup))
                     favoriteIptvList
                 else
                     focusedIptvGroup.iptvList
@@ -244,7 +244,7 @@ private fun LeanbackClassicPanelScreenContent(
             },
             showProgrammeProgressProvider = showProgrammeProgressProvider,
             onUserAction = onUserAction,
-            isFavoriteListProvider = { focusedIptvGroup == LeanbackClassicPanelScreenFavoriteIptvGroup },
+            isFavoriteListProvider = { isFavoriteIptvGroup(focusedIptvGroup) },
         )
 
         LeanbackVisible({ epgListVisible }) {
@@ -312,3 +312,13 @@ private fun LeanbackClassicPanelScreenPreview() {
 }
 
 val LeanbackClassicPanelScreenFavoriteIptvGroup = IptvGroup(name = "我的收藏")
+
+/**
+ * 是不是“我的收藏”这个假分组：必须按引用比，不能按值比——源里
+ * 也可能有个同名分组，空的同名分组按值算和假分组一模一样（名字
+ * 相同、频道列表都是空），按值比会把它当成收藏分组，频道列表
+ * 就错显示成收藏；假分组全 App 只有一个对象（上面这个 val），
+ * 按引用比才分得清。顶层函数方便单元测试直接调用。
+ */
+internal fun isFavoriteIptvGroup(group: IptvGroup): Boolean =
+    group === LeanbackClassicPanelScreenFavoriteIptvGroup

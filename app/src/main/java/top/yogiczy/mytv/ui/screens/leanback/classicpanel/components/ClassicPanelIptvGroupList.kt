@@ -30,7 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -39,6 +39,15 @@ import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.utils.initialScrollIndex
+
+/**
+ * 经典面板分组列表的 key：分组名前面再带上下标。分组名是解析时 groupBy
+ * 的键、源里天然唯一，但经典面板会在列表最前面再拼一个“我的收藏”
+ * 假分组——源里要是也有个同名分组，两行就撞了同一个 key，列表
+ * 状态会串行、甚至直接报错；下标是列表里的位置，同一轮列表里
+ * 不会重复。顶层函数方便单元测试直接调用。
+ */
+internal fun classicPanelGroupKey(index: Int, name: String): String = "$index:$name"
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -90,7 +99,9 @@ fun LeanbackClassicPanelIptvGroupList(
                 }
             },
     ) {
-        items(iptvGroupList, key = { it.name }) { iptvGroup ->
+        itemsIndexed(iptvGroupList, key = { index, iptvGroup ->
+            classicPanelGroupKey(index, iptvGroup.name)
+        }) { _, iptvGroup ->
             val isSelected by remember { derivedStateOf { iptvGroup == focusedIptvGroup } }
 
             LeanbackClassicPanelIptvGroupItem(
