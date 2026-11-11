@@ -12,7 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -73,7 +73,7 @@ private fun PanelPlayerInfoResolution(
 @Composable
 private fun PanelPlayerInfoNetSpeed(
     modifier: Modifier = Modifier,
-    netSpeed: Long = rememberNetSpeed(),
+    netSpeed: Long? = rememberNetSpeed(),
 ) {
     // 网速格式器记住复用：面板开着时网速每秒变一次、每次重组都新建一个
     // DecimalFormat 是纯浪费；只在主线程重组里用，无线程安全问题
@@ -86,15 +86,37 @@ private fun PanelPlayerInfoNetSpeed(
     // 该显示 1.1MB/s，截完只剩 1.0498 就显示成 1.0MB/s，固定少算 0.1MB/s；
     // 和 KB 那档一样改成两次浮点除，零头保留，显示就对上了
     Text(
-        text = if (netSpeed < 1024 * 999) "网速：${speedFormat.format(netSpeed / 1024f)}KB/s"
-        else "网速：${speedFormat.format(netSpeed / 1024f / 1024f)}MB/s",
+        text = when {
+            // 设备不支持流量统计时显示未知（见 nextNetSpeed），而不是永远 0KB/s
+            netSpeed == null -> "网速：未知"
+            netSpeed < 1024 * 999 -> "网速：${speedFormat.format(netSpeed / 1024f)}KB/s"
+            else -> "网速：${speedFormat.format(netSpeed / 1024f / 1024f)}MB/s"
+        },
         modifier = modifier,
     )
 }
 
+/**
+ * 两次流量采样算网速：设备不支持流量统计时（TrafficStats 返回 -1），
+ * 返回 null、界面显示“未知”，而不是永远 0KB/s 看着像坏了；系统时间
+ * 被往回调、两次时刻相同甚至倒挂时沿用上一次的值，不算负网速；
+ * 流量计数中途倒退（计数器重置）时按 0 算，网速不可能是负数。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun nextNetSpeed(
+    previousSpeed: Long?,
+    lastTotalRxBytes: Long,
+    nowTotalRxBytes: Long,
+    elapsedMs: Long,
+): Long? {
+    if (lastTotalRxBytes < 0 || nowTotalRxBytes < 0) return null
+    if (elapsedMs <= 0) return previousSpeed
+    return maxOf(0L, nowTotalRxBytes - lastTotalRxBytes) * 1000 / elapsedMs
+}
+
 @Composable
-private fun rememberNetSpeed(): Long {
-    var netSpeed by remember { mutableLongStateOf(0) }
+private fun rememberNetSpeed(): Long? {
+    var netSpeed by remember { mutableStateOf<Long?>(0) }
 
     // 只在前台才每秒采样：面板开着按 Home 退后台后组合还在（没人
     // 会在退后台时关面板），原先的 LaunchedEffect(Unit) 会一直每秒
@@ -110,16 +132,14 @@ private fun rememberNetSpeed(): Long {
                 delay(1000)
                 val nowTotalRxBytes = TrafficStats.getTotalRxBytes()
                 val nowTimeStamp = System.currentTimeMillis()
-                // 系统时间被往回调时两时刻可能相同甚至倒挂：除零会崩溃，
-                // 负数会算出负网速——只在时间正常前进时更新
                 // 先乘后除：两边都是 Long，先除会把每毫秒的零头截掉再乘 1000，
                 // 一秒流量不到 1KB 时直接算成 0，平时也固定少算将近 1KB/s；
                 // 先乘 1000 再除，结果一样但零头保留；一秒流量不过几 MB，
-                // 乘 1000 远到不了 Long 上限，不会溢出
-                val elapsed = nowTimeStamp - lastTimeStamp
-                if (elapsed > 0) {
-                    netSpeed = (nowTotalRxBytes - lastTotalRxBytes) * 1000 / elapsed
-                }
+                // 乘 1000 远到不了 Long 上限，不会溢出（见 nextNetSpeed）
+                netSpeed = nextNetSpeed(
+                    netSpeed, lastTotalRxBytes, nowTotalRxBytes,
+                    nowTimeStamp - lastTimeStamp,
+                )
                 lastTimeStamp = nowTimeStamp
                 lastTotalRxBytes = nowTotalRxBytes
             }
