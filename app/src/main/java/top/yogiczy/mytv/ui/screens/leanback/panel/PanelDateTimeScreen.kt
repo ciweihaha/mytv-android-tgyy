@@ -27,6 +27,19 @@ import top.yogiczy.mytv.ui.utils.SP
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+/**
+ * 整点 / 半点模式共用的“靠近周期起点吗”判断：原来两个分支各写了一份
+ * 一模一样的取余比较，只差周期（1 小时 / 半小时）；以后改显示窗口
+ * 容易只改一处、两边走样。现在只留这一份，两处只传周期。
+ * 窗口：周期开始后 31 秒内（30 秒显示范围 + 每秒刷新 1 秒容差），
+ * 或周期结束前 30 秒内。
+ */
+internal fun isNearPeriodBoundary(timestamp: Long, periodMs: Long): Boolean {
+    val remainder = timestamp % periodMs
+    return remainder <= Constants.UI_TIME_SHOW_RANGE + 1000 ||
+        remainder >= periodMs - Constants.UI_TIME_SHOW_RANGE
+}
+
 @Composable
 fun LeanbackPanelDateTimeScreen(
     modifier: Modifier = Modifier,
@@ -60,15 +73,11 @@ fun LeanbackPanelDateTimeScreen(
                     SP.UiTimeShowMode.HIDDEN -> false
                     SP.UiTimeShowMode.ALWAYS -> true
 
-                    SP.UiTimeShowMode.EVERY_HOUR -> {
-                        val remainder = timestamp % 3600000
-                        remainder <= (Constants.UI_TIME_SHOW_RANGE + 1000) || remainder >= 3600000 - Constants.UI_TIME_SHOW_RANGE
-                    }
+                    SP.UiTimeShowMode.EVERY_HOUR ->
+                        isNearPeriodBoundary(timestamp, 3_600_000)
 
-                    SP.UiTimeShowMode.HALF_HOUR -> {
-                        val remainder = timestamp % 1800000
-                        remainder <= (Constants.UI_TIME_SHOW_RANGE + 1000) || remainder >= 1800000 - Constants.UI_TIME_SHOW_RANGE
-                    }
+                    SP.UiTimeShowMode.HALF_HOUR ->
+                        isNearPeriodBoundary(timestamp, 1_800_000)
                 }
 
                 if (visible) {
