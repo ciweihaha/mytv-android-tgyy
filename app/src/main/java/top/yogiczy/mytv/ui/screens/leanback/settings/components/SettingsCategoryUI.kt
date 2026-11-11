@@ -19,6 +19,17 @@ import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.utils.humanizeMs
 import java.text.DecimalFormat
 
+// 缩放档位：界面整体缩放和界面字体缩放共用同一套 1.0~2.0、步进 0.1；
+// 原来两项里各写了一份最小/最大/步进和同样的步进逻辑，改一处容易漏另一处
+private const val SCALE_MIN = 1f
+private const val SCALE_MAX = 2f
+private const val SCALE_STEP = 0.1f
+
+// 下一档缩放：到顶回最小，否则加一档钳在范围内；长按恢复默认就是 SCALE_MIN
+private fun nextScaleRatio(current: Float): Float =
+    if (current >= SCALE_MAX) SCALE_MIN
+    else (current + SCALE_STEP).coerceIn(SCALE_MIN, SCALE_MAX)
+
 @Composable
 fun LeanbackSettingsCategoryUI(
     modifier: Modifier = Modifier,
@@ -117,53 +128,31 @@ fun LeanbackSettingsCategoryUI(
         }
 
         item {
-            val defaultScale = 1f
-            val minScale = 1f
-            val maxScale = 2f
-            val stepScale = 0.1f
-
             LeanbackSettingsCategoryListItem(
                 headlineContent = "界面整体缩放比例",
                 supportingContent = "短按切换缩放比例，长按恢复默认；部分界面受影响",
                 trailingContent = "×${scaleFormat.format(settingsViewModel.uiDensityScaleRatio)}",
                 onSelected = {
-                    if (settingsViewModel.uiDensityScaleRatio >= maxScale) {
-                        settingsViewModel.uiDensityScaleRatio = minScale
-                    } else {
-                        settingsViewModel.uiDensityScaleRatio =
-                            (settingsViewModel.uiDensityScaleRatio + stepScale).coerceIn(
-                                minScale, maxScale
-                            )
-                    }
+                    settingsViewModel.uiDensityScaleRatio =
+                        nextScaleRatio(settingsViewModel.uiDensityScaleRatio)
                 },
                 onLongSelected = {
-                    settingsViewModel.uiDensityScaleRatio = defaultScale
+                    settingsViewModel.uiDensityScaleRatio = SCALE_MIN
                 },
             )
         }
 
         item {
-            val defaultScale = 1f
-            val minScale = 1f
-            val maxScale = 2f
-            val stepScale = 0.1f
-
             LeanbackSettingsCategoryListItem(
                 headlineContent = "界面字体缩放比例",
                 supportingContent = "短按切换缩放比例，长按恢复默认；部分界面受影响",
                 trailingContent = "×${scaleFormat.format(settingsViewModel.uiFontScaleRatio)}",
                 onSelected = {
-                    if (settingsViewModel.uiFontScaleRatio >= maxScale) {
-                        settingsViewModel.uiFontScaleRatio = minScale
-                    } else {
-                        settingsViewModel.uiFontScaleRatio =
-                            (settingsViewModel.uiFontScaleRatio + stepScale).coerceIn(
-                                minScale, maxScale
-                            )
-                    }
+                    settingsViewModel.uiFontScaleRatio =
+                        nextScaleRatio(settingsViewModel.uiFontScaleRatio)
                 },
                 onLongSelected = {
-                    settingsViewModel.uiFontScaleRatio = defaultScale
+                    settingsViewModel.uiFontScaleRatio = SCALE_MIN
                 },
             )
         }
