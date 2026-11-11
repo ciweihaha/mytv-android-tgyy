@@ -180,8 +180,12 @@ fun rememberLeanbackMainContentState(
     )
 }
 
-// 取地址的域名只切一次：原来先按 "://" 切一次、再按 "/" 切一次，
-// 两次切分各建一份临时列表；一次截取结果完全一样
-private fun getUrlHost(url: String): String {
-    return url.substringAfter("://", "").substringBefore("/")
+// 取地址的域名：没有写协议的地址（如 192.168.1.1:8080/live），原来
+// substringAfter("://", "") 直接拿空串——所有没写协议的地址的可播
+// 放记忆都混成同一个空串：一个能播，全都被当成能播；一个播不
+// 了，全都被清掉。现在没有协议就取第一段（域名或 IP:端口），
+// 和带协议的地址取法对齐
+internal fun getUrlHost(url: String): String {
+    return if (url.contains("://")) url.substringAfter("://").substringBefore("/")
+    else url.substringBefore("/")
 }
