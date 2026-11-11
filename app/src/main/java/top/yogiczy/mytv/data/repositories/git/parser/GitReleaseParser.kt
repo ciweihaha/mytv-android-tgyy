@@ -1,9 +1,13 @@
 package top.yogiczy.mytv.data.repositories.git.parser
 
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import top.yogiczy.mytv.data.entities.GitRelease
 
 /**
@@ -47,6 +51,28 @@ interface GitReleaseParser {
                     ?.endsWith(".apk", ignoreCase = true) == true
             }?.jsonObject
                 ?: throw IllegalArgumentException("发行版没有 APK 附件")
+        }
+
+        /**
+         * GitHub / Gitee 发行版信息的公共解析：两边字段完全一样
+         * （tag_name、body、assets），原先各写一份，改一处容易漏
+         * 另一处。唯一差别是下载地址前缀：GitHub 走代理前缀，
+         * Gitee 直接用附件地址，前缀默认空串。
+         */
+        fun parseRelease(data: String, downloadUrlPrefix: String = ""): GitRelease {
+            val json = Json.parseToJsonElement(data).jsonObject
+            val asset = selectApkAsset(json.getValue("assets").jsonArray)
+
+            return GitRelease(
+                version = json.getValue("tag_name").jsonPrimitive.content.removePrefix("v"),
+                downloadUrl = downloadUrlPrefix + (asset["browser_download_url"]?.jsonPrimitive?.content
+                    ?: throw IllegalArgumentException("APK 附件没有下载地址")),
+                // body 可为 JSON null（无更新说明的发行版）：contentOrNull 取不到
+                // 时记空串，别把字面量 "null" 当说明显示
+                description = json["body"]?.jsonPrimitive?.contentOrNull ?: "",
+                // 发行版信息不一定带 size，没有就记 -1（下载时不校验）
+                downloadSize = asset["size"]?.jsonPrimitive?.longOrNull ?: -1,
+            )
         }
     }
 }
