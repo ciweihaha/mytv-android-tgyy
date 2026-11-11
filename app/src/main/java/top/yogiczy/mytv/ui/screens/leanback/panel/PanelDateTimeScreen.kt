@@ -50,21 +50,29 @@ fun LeanbackPanelDateTimeScreen(
             while (true) {
                 val timestamp = System.currentTimeMillis()
 
-                visible = when (showModeProvider()) {
+                // 显示模式每秒只读一次：原来算“现在要不要显示”先读一次、
+                // 选时间格式又读一次，每秒读两次设置；整点/半整点模式下
+                // 取余也各算了两遍。一次读好、后面两处共用，同一秒内
+                // “显示与否”和“用什么格式”也不会读到两个不同的模式
+                val showMode = showModeProvider()
+
+                visible = when (showMode) {
                     SP.UiTimeShowMode.HIDDEN -> false
                     SP.UiTimeShowMode.ALWAYS -> true
 
                     SP.UiTimeShowMode.EVERY_HOUR -> {
-                        timestamp % 3600000 <= (Constants.UI_TIME_SHOW_RANGE + 1000) || timestamp % 3600000 >= 3600000 - Constants.UI_TIME_SHOW_RANGE
+                        val remainder = timestamp % 3600000
+                        remainder <= (Constants.UI_TIME_SHOW_RANGE + 1000) || remainder >= 3600000 - Constants.UI_TIME_SHOW_RANGE
                     }
 
                     SP.UiTimeShowMode.HALF_HOUR -> {
-                        timestamp % 1800000 <= (Constants.UI_TIME_SHOW_RANGE + 1000) || timestamp % 1800000 >= 1800000 - Constants.UI_TIME_SHOW_RANGE
+                        val remainder = timestamp % 1800000
+                        remainder <= (Constants.UI_TIME_SHOW_RANGE + 1000) || remainder >= 1800000 - Constants.UI_TIME_SHOW_RANGE
                     }
                 }
 
                 if (visible) {
-                    timeText = when (showModeProvider()) {
+                    timeText = when (showMode) {
                         SP.UiTimeShowMode.ALWAYS -> timeFormat
                         else -> timeWithSecondsFormat
                     }.format(timestamp)
