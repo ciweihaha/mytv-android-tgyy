@@ -71,9 +71,13 @@ fun Modifier.handleLeanbackDragGestures(
             },
             onDragEnd = {
                 if (verticalDragOffset.absoluteValue > distanceThreshold.toPx()) {
-                    if (verticalTracker.calculateVelocity().y > speedThreshold.toPx()) {
+                    // 速度只算一次：原来先比正向、反向时又算一次，同一手势
+                    // 结束时两次算出来的值必然相同；速度阈值换算也一次算好共用
+                    val velocityY = verticalTracker.calculateVelocity().y
+                    val speedPx = speedThreshold.toPx()
+                    if (velocityY > speedPx) {
                         onSwipeDown()
-                    } else if (verticalTracker.calculateVelocity().y < -speedThreshold.toPx()) {
+                    } else if (velocityY < -speedPx) {
                         onSwipeUp()
                     }
                 }
@@ -90,9 +94,12 @@ fun Modifier.handleLeanbackDragGestures(
             },
             onDragEnd = {
                 if (horizontalDragOffset.absoluteValue > distanceThreshold.toPx()) {
-                    if (horizontalTracker.calculateVelocity().x > speedThreshold.toPx()) {
+                    // 同上：速度与阈值换算各只算一次记下来共用
+                    val velocityX = horizontalTracker.calculateVelocity().x
+                    val speedPx = speedThreshold.toPx()
+                    if (velocityX > speedPx) {
                         onSwipeRight()
-                    } else if (horizontalTracker.calculateVelocity().x < -speedThreshold.toPx()) {
+                    } else if (velocityX < -speedPx) {
                         onSwipeLeft()
                     }
                 }
