@@ -30,7 +30,9 @@ fun LeanbackSettingsCategoryLog(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         contentPadding = PaddingValues(vertical = 10.dp),
     ) {
-        items(historySorted, key = { "${it.time}-${it.tag}-${it.message}" }) {
+        // 按入库编号设 key：时间+标签+内容在同一毫秒里可能重复，
+        // 两条一模一样的日志会撞键让列表直接崩掉
+        items(historySorted, key = { it.id }) {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "${it.level.toString()[0]} ${it.tag}",
                 supportingContent = it.message,

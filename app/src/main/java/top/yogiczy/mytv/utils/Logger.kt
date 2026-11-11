@@ -47,10 +47,15 @@ class Logger private constructor(
 
         fun addHistoryItem(item: HistoryItem) {
             synchronized(_history) {
-                _history.add(item)
+                // 每条入库时给一个自增编号：设置页日志列表原来拿
+                // “时间+标签+内容”当唯一键，同一毫秒里两条一模一样
+                // 的日志（比如两次刷新同时失败）会撞键直接崩掉
+                _history.add(item.copy(id = ++nextHistoryId))
                 if (_history.size > Constants.LOG_HISTORY_MAX_SIZE) _history.removeAt(0)
             }
         }
+
+        private var nextHistoryId = 0L
     }
 
     enum class LevelType {
@@ -64,6 +69,8 @@ class Logger private constructor(
         val message: String,
         val cause: String? = null,
         val time: Long = System.currentTimeMillis(),
+        // 入库时由 addHistoryItem 自增赋值，默认 0 只为兼容旧 JSON 与直接构造
+        val id: Long = 0,
     )
 }
 
