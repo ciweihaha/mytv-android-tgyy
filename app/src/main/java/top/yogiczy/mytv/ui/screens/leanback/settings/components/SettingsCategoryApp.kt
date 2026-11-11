@@ -53,11 +53,7 @@ fun LeanbackSettingsCategoryApp(
             LeanbackSettingsCategoryListItem(
                 headlineContent = "显示模式",
                 supportingContent = "短按切换应用显示模式",
-                trailingContent = when (settingsViewModel.appDeviceDisplayType) {
-                    SP.AppDeviceDisplayType.LEANBACK -> "TV"
-                    SP.AppDeviceDisplayType.PAD -> "Pad"
-                    SP.AppDeviceDisplayType.MOBILE -> "手机"
-                },
+                trailingContent = settingsViewModel.appDeviceDisplayType.label,
                 onSelected = {
                     Toast.makeText(context, "暂未开放", Toast.LENGTH_SHORT).show()
 //                    settingsViewModel.appDeviceDisplayType = SP.AppDeviceDisplayType.entries[

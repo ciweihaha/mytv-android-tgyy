@@ -318,15 +318,23 @@ object SP {
         }
     }
 
-    enum class AppDeviceDisplayType(override val value: Int) : StoredValue {
+    /**
+     * 设备显示类型：中文名原来只在设置页“应用”里写了一份 when（TV / Pad /
+     * 手机），和时间显示、画面比例两个档位之前一个毛病——档位自己的名字
+     * 散在界面里，以后加一种设备或改名容易只改一处、两边走样。现在名字
+     * 挂在档位自己身上，设置页只管取它；切换功能仍是关着的（点按只提示
+     * “暂未开放”），这里不动它。存盘值和声明顺序一字没动，老数据读出来
+     * 还是同一档。
+     */
+    enum class AppDeviceDisplayType(override val value: Int, val label: String) : StoredValue {
         /** tv端 */
-        LEANBACK(0),
+        LEANBACK(0, "TV"),
 
         /** 手机端 */
-        MOBILE(1),
+        MOBILE(1, "手机"),
 
         /** 平板端 */
-        PAD(2);
+        PAD(2, "Pad");
 
         companion object {
             fun fromValue(value: Int): AppDeviceDisplayType =
