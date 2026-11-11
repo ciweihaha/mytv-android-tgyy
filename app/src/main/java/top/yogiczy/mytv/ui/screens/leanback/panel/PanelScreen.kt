@@ -205,17 +205,20 @@ fun LeanbackPanelScreenBottomIptvList(
     val iptvFavoriteEnable = iptvFavoriteEnableProvider()
     var favoriteListVisible by remember { mutableStateOf(iptvFavoriteListVisibleProvider()) }
 
+    // 收藏过滤只写一份共用：原来打开收藏列表和点收藏按钮各写了一份一模一样的
+    // （收藏名单只取一次转成集合、全量频道按名筛），改一处容易漏另一处；
+    // 现在抽成一个共用的回调，两处都调它。每次调都现取名单和频道列表，
+    // 收藏增减了立即生效，结果和原来一模一样
+    val favoriteIptvList: () -> IptvList = {
+        val favoriteSet = iptvFavoriteListProvider().toSet()
+        IptvList(iptvGroupListProvider().iptvList
+            .filter { favoriteSet.contains(it.channelName) })
+    }
+
     Box(modifier = modifier.height(150.dp)) {
         if (favoriteListVisible)
             LeanbackPanelIptvFavoriteList(
-                iptvListProvider = {
-                    // 收藏名单只取一次并转成集合再查：原来是每查一个频道就
-                    // 重新取一次名单（上游每次取都复制一份列表），再逐个比对；
-                    // 现在一次取好、按集合查，结果和原来一模一样
-                    val favoriteSet = iptvFavoriteListProvider().toSet()
-                    IptvList(iptvGroupListProvider().iptvList
-                        .filter { favoriteSet.contains(it.channelName) })
-                },
+                iptvListProvider = { favoriteIptvList() },
                 epgListProvider = epgListProvider,
                 currentIptvProvider = currentIptvProvider,
                 showProgrammeProgressProvider = showProgrammeProgressProvider,
@@ -238,10 +241,7 @@ fun LeanbackPanelScreenBottomIptvList(
                 onToFavorite = {
                     if (!iptvFavoriteEnable) return@LeanbackPanelIptvGroupList
 
-                    // 同上：收藏名单只取一次转成集合再查，不再每查一个频道取一次
-                    val favoriteSet = iptvFavoriteListProvider().toSet()
-                    val favoriteList = iptvGroupListProvider().iptvList
-                        .filter { favoriteSet.contains(it.channelName) }
+                    val favoriteList = favoriteIptvList()
 
                     if (favoriteList.isNotEmpty()) {
                         favoriteListVisible = true
