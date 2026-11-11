@@ -166,7 +166,13 @@ class EpgRepository : FileCacheRepository("epg.json") {
         }
 
         val epgList = EpgList(channelNames.map { (channelId, channelName) ->
-            Epg(channelName, EpgProgrammeList(channelProgrammes[channelId] ?: emptyList()))
+            Epg(
+                channelName,
+                EpgProgrammeList(channelProgrammes[channelId] ?: emptyList()),
+                // channel 标签的 id 原样存下来：和直播源的 tvg-id 是同一套，
+                // 名字写法不同时节目单按 id 兜底查；没 id 的频道记空串
+                id = channelId,
+            )
         })
 
         log.i("解析节目单完成，共${epgList.size}个频道")

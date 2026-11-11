@@ -28,6 +28,8 @@ interface IptvParser {
         val channelName: String,
         val groupName: String,
         val url: String,
+        // m3u 的 tvg-id：tvbox 格式没有，记空串，走原来的按名查
+        val tvgId: String = "",
     )
 
     companion object {
@@ -50,6 +52,7 @@ interface IptvParser {
                         Iptv(
                             name = nameEntry.key,
                             channelName = nameEntry.value.first().channelName,
+                            tvgId = nameEntry.value.first().tvgId,
                             urlList = nameEntry.value.map { it.url },
                         )
                     })

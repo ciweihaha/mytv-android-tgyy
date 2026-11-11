@@ -180,11 +180,12 @@ private fun LeanbackClassicPanelScreenContent(
 
     var epgListVisible by remember { mutableStateOf(false) }
 
-    // 频道名 → 节目单直接用数据层建好的那份表：原来这里又现建一份
-    // 和数据层里一模一样的表（同名频道留第一次出现的、按名直接查），
-    // 同一份节目单在经典面板和频道列表里各建一次；现在只建一次、
-    // 两处共用，节目单刷新换了新对象时表跟着换，不会记旧
-    val epgByChannel = epgListProvider().byChannel
+    // 频道名 → 节目单走数据层那份共用的查找（先按名、再按 tvg-id 兜底）：
+    // 原来这里直接拿按名建好的表按名查，名字写法和节目单不一样的台
+    // （直播源“CCTV综合”、节目单“CCTV-1 综合”）查不到节目；现在
+    // 经 epgFor 查，名字对不上时按 tvg-id 找回节目单，名字对得上的
+    // 台结果和原来一模一样
+    val epgList = epgListProvider()
 
     // 初始分组只找一次记下来：原来子界面每次组合都把分组逐个翻一遍、
     // 每个分组里再逐个比对频道名找当前频道在哪个分组，焦点每挪一下
@@ -249,7 +250,7 @@ private fun LeanbackClassicPanelScreenContent(
 
         LeanbackVisible({ epgListVisible }) {
             LeanbackClassicPanelEpgList(
-                epgProvider = { epgByChannel[focusedIptv.channelName] },
+                epgProvider = { epgList.epgFor(focusedIptv) },
                 exitFocusRequesterProvider = { focusedIptvFocusRequester },
                 onUserAction = onUserAction,
             )

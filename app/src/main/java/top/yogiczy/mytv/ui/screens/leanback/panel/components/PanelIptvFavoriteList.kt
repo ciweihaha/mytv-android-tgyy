@@ -58,11 +58,11 @@ fun LeanbackPanelIptvFavoriteList(
     val iptvList = remember(key) { iptvListProvider() }
     val epgList = epgListProvider()
 
-    // 频道名 → 节目单直接用数据层建好的那份表：原来这里又现建一份
-    // 和数据层里一模一样的表（同名频道留第一次出现的、按名直接查），
-    // 同一份节目单在普通面板和收藏列表里各建一次；现在只建一次、
-    // 两处共用，节目单刷新换了新对象时表跟着换，不会记旧
-    val epgByChannel = epgList.byChannel
+    // 频道名 → 节目单走数据层那份共用的查找（先按名、再按 tvg-id 兜底）：
+    // 原来这里直接拿按名建好的表按名查，名字写法和节目单不一样的台
+    // （直播源“CCTV综合”、节目单“CCTV-1 综合”）查不到节目；现在
+    // 经 epgFor 查，名字对不上时按 tvg-id 找回节目单，名字对得上的
+    // 台结果和原来一模一样
 
     // 初始滚动位置只算一次记下来：同普通面板频道列表——原来每次组合都按当前频道
     // 把收藏列表线性扫一遍找下标，算完只在第一次建网格状态时用一次，
@@ -122,7 +122,7 @@ fun LeanbackPanelIptvFavoriteList(
                     } else Modifier,
                     iptvProvider = { iptv },
                     currentProgrammeProvider = {
-                        epgByChannel[iptv.channelName]?.currentProgrammes()?.now
+                        epgList.epgFor(iptv)?.currentProgrammes()?.now
                     },
                     showProgrammeProgressProvider = { showProgrammeProgressProvider() },
                     onIptvSelected = { onIptvSelected(iptv) },
@@ -150,7 +150,7 @@ fun LeanbackPanelIptvFavoriteList(
         onDismissRequest = { showEpgDialog = false },
         iptvProvider = { currentShowEpgIptv },
         epgProvider = {
-            epgByChannel[currentShowEpgIptv.channelName] ?: Epg()
+            epgList.epgFor(currentShowEpgIptv) ?: Epg()
         },
         modifier = Modifier
             .handleLeanbackKeyEvents(

@@ -29,6 +29,10 @@ class M3uIptvParser : IptvParser {
             // tvg-name，有 tvg-name 频道还能播；两个都没有就跳过这条
             val tvgName = TVG_NAME_REGEX.find(extinfLine)?.groupValues?.get(1)?.trim()
                 ?.takeIf { it.isNotEmpty() }
+            // tvg-id 和节目单 channel 的 id 是同一套：名字写法不同时
+            // （直播源“CCTV综合”、节目单“CCTV-1 综合”），节目单按名
+            // 查不到，靠它兜底；没有 tvg-id 的行记空串，走原来的按名查
+            val tvgId = TVG_ID_REGEX.find(extinfLine)?.groupValues?.get(1)?.trim().orEmpty()
             val name = extinfLine.substringAfterFirstUnquotedComma()?.trim()
                 ?.takeIf { it.isNotEmpty() }
                 ?: tvgName
@@ -46,6 +50,7 @@ class M3uIptvParser : IptvParser {
                     channelName = channelName.trim(),
                     groupName = groupName.trim(),
                     url = url,
+                    tvgId = tvgId,
                 )
             )
         }
@@ -71,6 +76,7 @@ class M3uIptvParser : IptvParser {
     companion object {
         // 正则只编译一次：原先每条 #EXTINF 行都 new 两个 Regex，大源很浪费
         private val TVG_NAME_REGEX = Regex("tvg-name=\"(.+?)\"")
+        private val TVG_ID_REGEX = Regex("tvg-id=\"(.+?)\"")
         private val GROUP_TITLE_REGEX = Regex("group-title=\"(.+?)\"")
     }
 }

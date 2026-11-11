@@ -35,6 +35,8 @@ class EpgCacheDecodeTest {
         val decoded = decodeEpgListOrNull("""[{"channel":"CCTV-1"}]""")
         assertEquals(1, decoded?.size)
         assertEquals(0, decoded?.first()?.programmes?.size)
+        // 老缓存里没有 id 字段：按默认值空串解，不会读坏老缓存
+        assertEquals("", decoded?.first()?.id)
     }
 
     @Test

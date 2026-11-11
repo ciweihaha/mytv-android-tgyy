@@ -17,6 +17,13 @@ data class Epg(
      * 节目列表
      */
     val programmes: EpgProgrammeList = EpgProgrammeList(),
+
+    /**
+     * 节目单里的频道 id（xml 里 channel 标签的 id 属性）：和直播源
+     * 的 tvg-id 是同一套，名字写法不同时靠它兜底查节目单。旧缓存里
+     * 没有这个字段，解码时按默认值空串走，不会读坏老缓存
+     */
+    val id: String = "",
 ) {
     companion object {
         /**

@@ -194,4 +194,23 @@ class M3uIptvParserTest {
         assertEquals("CCTV-1,高清", result[0].iptvList[0].name)
         assertEquals("CCTV-5", result[0].iptvList[1].name)
     }
+
+    @Test
+    fun `parses tvg-id for epg lookup and keeps channel name unchanged`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="cctv1" tvg-name="CCTV综合" group-title="央视频道",CCTV综合
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-name="凤凰中文" group-title="其他地区直播",凤凰中文
+            http://example.com/fhzx
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(2, result.size)
+        assertEquals("cctv1", result[0].iptvList[0].tvgId)
+        assertEquals("CCTV综合", result[0].iptvList[0].channelName)
+        assertEquals("", result[1].iptvList[0].tvgId)
+        assertEquals("凤凰中文", result[1].iptvList[0].channelName)
+    }
 }
