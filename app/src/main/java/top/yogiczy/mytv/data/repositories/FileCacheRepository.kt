@@ -55,7 +55,7 @@ abstract class FileCacheRepository(
         )
     }
 
-    fun clearCache() {
+    open fun clearCache() {
         try {
             getCacheFile().delete()
         } catch (ex: Exception) {

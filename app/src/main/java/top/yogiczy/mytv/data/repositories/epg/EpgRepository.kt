@@ -86,6 +86,19 @@ class EpgRepository : FileCacheRepository("epg.json") {
     private val epgXmlRepository = EpgXmlRepository()
 
     /**
+     * 连同原始 XML 缓存一起清：节目单是两级缓存（epg.xml 原文 +
+     * epg.json 解析结果），只清解析结果时，换源后新源拉取失败会回落
+     * 到旧源的 epg.xml，把旧源的节目单当成新源的节目单显示、还写回
+     * 缓存；FileCacheRepository 里“换源时已先清缓存、旧缓存只可能是
+     * 同源”的前提在这里不成立。三处调用（设置页换源/清缓存、网页端
+     * 改源）都是换源或清缓存语义，都要两级一起清
+     */
+    override fun clearCache() {
+        super.clearCache()
+        epgXmlRepository.clearCache()
+    }
+
+    /**
      * 解析节目单xml
      */
     private suspend fun parseFromXml(
