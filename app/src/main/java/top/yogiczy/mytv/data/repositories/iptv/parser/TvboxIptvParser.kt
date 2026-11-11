@@ -39,6 +39,11 @@ class TvboxIptvParser : IptvParser {
                 val res = normalized.split(",", limit = 2)
                 if (res.size < 2) return@forEach
 
+                // 无名行直接跳过：名字空着进列表就是一行空白频道，选台时
+                // 看不到名字、收藏与节目单也都按名字找它；M3U 解析器那边
+                // 没名字没 tvg-name 就跳过，这里保持一致
+                if (res[0].trim().isEmpty()) return@forEach
+
                 // 空地址段直接丢弃：`CCTV-1,` 或 `CCTV-1,http://a#` 这种行
                 // 原先会把空字符串塞进 urlList，播放时白白走一次错误重试
                 // 地址里的 `#` 既是多源分隔符、也可能是 URL 片段：

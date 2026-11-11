@@ -164,6 +164,22 @@ class TvboxIptvParserTest {
     }
 
     @Test
+    fun `nameless lines are skipped`() = runBlocking {
+        val data = """
+            央视,#genre#
+            ,http://example.com/nameless.m3u8
+            CCTV-1,http://example.com/cctv1.m3u8
+            ,http://example.com/nameless2.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+    }
+
+    @Test
     fun `url containing comma is kept intact`() = runBlocking {
         val data = """
             央视,#genre#
