@@ -200,3 +200,33 @@ class ProgressPercentTest {
         assertNull(progressPercent(100, -1))
     }
 }
+
+/**
+ * 毫秒数转中文时长：第 442 轮补——全仓 40 多个单测文件里唯一没被测到的
+ * 小工具。设置页三处显示都走它（直播源缓存时间、HTTP 重试间隔、界面
+ * 自动关闭延时），分档边界（60 秒、60 分钟）算错会直接显示错单位。
+ */
+class HumanizeMsTest {
+    @Test
+    fun `under one minute shows seconds`() {
+        assertEquals("0秒", 0L.humanizeMs())
+        assertEquals("1秒", 1_000L.humanizeMs())
+        assertEquals("3秒", 3_000L.humanizeMs())
+        assertEquals("15秒", 15_000L.humanizeMs())
+        assertEquals("59秒", 59_000L.humanizeMs())
+    }
+
+    @Test
+    fun `one minute to one hour shows minutes`() {
+        assertEquals("1分钟", 60_000L.humanizeMs())
+        assertEquals("5分钟", 300_000L.humanizeMs())
+        assertEquals("59分钟", 3_599_000L.humanizeMs())
+    }
+
+    @Test
+    fun `one hour and above shows hours`() {
+        assertEquals("1小时", 3_600_000L.humanizeMs())
+        assertEquals("2小时", 7_200_000L.humanizeMs())
+        assertEquals("24小时", 86_400_000L.humanizeMs())
+    }
+}
