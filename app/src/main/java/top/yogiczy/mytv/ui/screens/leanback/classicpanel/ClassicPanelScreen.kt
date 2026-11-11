@@ -36,8 +36,8 @@ import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroup
 import top.yogiczy.mytv.data.entities.IptvGroupList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvGroupIdx
-import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.rememberLeanbackChildPadding
 import top.yogiczy.mytv.ui.screens.leanback.classicpanel.components.LeanbackClassicPanelEpgList
@@ -156,11 +156,11 @@ private fun LeanbackClassicPanelScreenContent(
     // 收藏频道列表只拼一次记下来：原来打开收藏分组后，每按一次遥控挪焦点，
     // 父界面一刷新就把全部分组重新摊平成一份全量频道列表、再筛一遍收藏；
     // 现在只在直播源或收藏名单变了时才重拼，子界面每次取都直接拿记好的这一份。
-    // 收藏名单是会订阅的状态值，增减收藏会重新算，不会记旧
+    // 收藏名单是会订阅的状态值，增减收藏会重新算，不会记旧。
+    // 筛法走数据层那份共用的查找，和普通面板同一份
     val iptvFavoriteList = iptvFavoriteListProvider()
     val favoriteIptvList = remember(iptvGroupList, iptvFavoriteList) {
-        val favoriteSet = iptvFavoriteList.toSet()
-        IptvList(iptvGroupList.iptvList.filter { favoriteSet.contains(it.channelName) })
+        iptvGroupList.favoriteIptvList(iptvFavoriteList)
     }
 
     var focusedIptvGroup by remember {

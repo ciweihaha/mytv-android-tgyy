@@ -72,5 +72,18 @@ data class IptvGroupList(
             }
             return null
         }
+
+        /**
+         * 收藏频道列表：按收藏名单（频道名集合）从全量频道里筛，普通面
+         * 板和经典面板原来各写了一份一模一样的，改一处容易漏另一处，
+         * 现在两处都调这一份。同一台在两个分组里出现、名字地址都一样
+         * 时，全量列表里是两个完全相同的频道对象——收藏夹直接拿这份
+         * 去渲染会撞唯一键崩掉；去重后只留一个，本来就是同一条地址，
+         * 播起来一模一样。名字相同、地址不同的台不受影响，各留各的。
+         */
+        fun IptvGroupList.favoriteIptvList(favoriteChannelNames: Collection<String>): IptvList {
+            val favoriteSet = favoriteChannelNames.toSet()
+            return IptvList(iptvList.filter { favoriteSet.contains(it.channelName) }.distinct())
+        }
     }
 }

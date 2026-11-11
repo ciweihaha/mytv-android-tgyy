@@ -29,6 +29,7 @@ import kotlinx.collections.immutable.persistentListOf
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
 import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.data.utils.Constants
@@ -205,14 +206,12 @@ fun LeanbackPanelScreenBottomIptvList(
     val iptvFavoriteEnable = iptvFavoriteEnableProvider()
     var favoriteListVisible by remember { mutableStateOf(iptvFavoriteListVisibleProvider()) }
 
-    // 收藏过滤只写一份共用：原来打开收藏列表和点收藏按钮各写了一份一模一样的
-    // （收藏名单只取一次转成集合、全量频道按名筛），改一处容易漏另一处；
-    // 现在抽成一个共用的回调，两处都调它。每次调都现取名单和频道列表，
+    // 收藏过滤走数据层那份共用的查找：原来普通面板和经典面板各写了一份
+    // 一模一样的（收藏名单只取一次转成集合、全量频道按名筛），改一处
+    // 容易漏另一处；现在两处都调这一份。每次调都现取名单和频道列表，
     // 收藏增减了立即生效，结果和原来一模一样
     val favoriteIptvList: () -> IptvList = {
-        val favoriteSet = iptvFavoriteListProvider().toSet()
-        IptvList(iptvGroupListProvider().iptvList
-            .filter { favoriteSet.contains(it.channelName) })
+        iptvGroupListProvider().favoriteIptvList(iptvFavoriteListProvider())
     }
 
     Box(modifier = modifier.height(150.dp)) {
