@@ -1,6 +1,9 @@
 package top.yogiczy.mytv.utils
 
 import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import top.yogiczy.mytv.data.utils.Constants
 
@@ -45,6 +48,11 @@ class Logger private constructor(
         val history: List<HistoryItem>
             get() = synchronized(_history) { _history.toList() }
 
+        // 日志页要实时刷新：history 只是每次现拷的快照，设置页读一次就不再变，
+        // 停在日志页上新日志不会出现；另给一条流，入库时在同一把锁里同步推一份新快照
+        private val _historyFlow = MutableStateFlow<List<HistoryItem>>(emptyList())
+        val historyFlow: StateFlow<List<HistoryItem>> = _historyFlow.asStateFlow()
+
         fun addHistoryItem(item: HistoryItem) {
             synchronized(_history) {
                 // 每条入库时给一个自增编号：设置页日志列表原来拿
@@ -52,6 +60,7 @@ class Logger private constructor(
                 // 的日志（比如两次刷新同时失败）会撞键直接崩掉
                 _history.add(item.copy(id = ++nextHistoryId))
                 if (_history.size > Constants.LOG_HISTORY_MAX_SIZE) _history.removeAt(0)
+                _historyFlow.value = _history.toList()
             }
         }
 
