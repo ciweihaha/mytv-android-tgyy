@@ -37,6 +37,34 @@ internal fun decodeEpgListOrNull(json: String?): EpgList? {
 }
 
 /**
+ * 节目单时间的兜底解析：主解析只认 `yyyyMMddHHmmss Z`（`20261112080000 +0800`），
+ * 但部分源的写法不一样——时区直接贴在秒后面（`20261112080000+0800`）、
+ * 时区带冒号（`20261112080000 +08:00`）、或干脆不写时区（`20261112080000`），
+ * 三种在主解析里全抛错记 0，整条节目 startAt/endAt 都是 0，当前节目永远
+ * 查不到、面板一直显示“无节目”。按贴时区、冒号时区、无时区（按本地时区，
+ * XMLTV 没写时区时就是本地时间）的顺序逐个试，全失败才记 0；仍是单条
+ * 容错，不拖垮整个节目单。只在主解析失败时调，主路径仍复用那一个
+ * SimpleDateFormat 实例。顶层函数方便单元测试直接调用。
+ */
+internal fun parseEpgTimeFallback(time: String): Long {
+    val trimmed = time.trim()
+    if (trimmed.length < 14) return 0
+    // 贴时区/带空格的时区都能认；冒号时区；最后是无时区的本地时间。
+    // 注意顺序：无时区格式放最后——它会把 `20261112080000 +0800` 的
+    // 前 14 位当本地时间解析、悄悄丢掉时区，带时区的写法必须先被认走
+    val formats = listOf("yyyyMMddHHmmssZ", "yyyyMMddHHmmss XXX", "yyyyMMddHHmmss")
+    for (pattern in formats) {
+        try {
+            val parsed = SimpleDateFormat(pattern, Locale.getDefault()).parse(trimmed)
+            if (parsed != null) return parsed.time
+        } catch (_: Exception) {
+            // 换下一种写法再试
+        }
+    }
+    return 0
+}
+
+/**
  * 判断两个时间戳是否在同一天（默认时区）：拿年份＋年内第几天比，
  * 与按 "yyyy-MM-dd" 格式化后比字符串是同一个意思。
  * 这里不用 SimpleDateFormat：它不是线程安全的，而调用方跑在
@@ -77,8 +105,9 @@ class EpgRepository : FileCacheRepository("epg.json") {
             return try {
                 timeFormat.parse(time)?.time ?: 0
             } catch (_: Exception) {
-                // 单条时间格式异常时记 0，而不是让整个节目单解析失败
-                0
+                // 单条时间格式异常时走兜底解析（贴时区/冒号时区/无时区），
+                // 全失败才记 0，而不是让整个节目单解析失败
+                parseEpgTimeFallback(time)
             }
         }
 
