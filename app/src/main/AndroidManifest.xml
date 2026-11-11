@@ -39,7 +39,7 @@
 
         <activity
             android:name=".activities.LeanbackActivity"
-            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|screenLayout|keyboardHidden"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:supportsPictureInPicture="true"
