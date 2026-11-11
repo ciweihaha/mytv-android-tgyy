@@ -56,9 +56,6 @@ fun LeanbackSettingsCategoryApp(
                 trailingContent = settingsViewModel.appDeviceDisplayType.label,
                 onSelected = {
                     Toast.makeText(context, "暂未开放", Toast.LENGTH_SHORT).show()
-//                    settingsViewModel.appDeviceDisplayType = SP.AppDeviceDisplayType.entries[
-//                        (settingsViewModel.appDeviceDisplayType.ordinal + 1) % SP.AppDeviceDisplayType.entries.size
-//                    ]
                 },
             )
         }
