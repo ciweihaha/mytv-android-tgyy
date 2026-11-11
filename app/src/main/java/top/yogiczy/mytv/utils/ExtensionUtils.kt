@@ -93,8 +93,10 @@ inline fun <reified T : Enum<T>> T.nextEnum(): T {
 }
 
 fun String.isIPv6(): Boolean {
-    // host：scheme 之后、第一个 / 之前
-    val host = substringAfter("://", this).substringBefore("/")
+    // host：scheme 之后、第一个 / 之前；先去掉 @ 之前的账号密码
+    // （如 http://user:pass@[2001:db8::1]:8080），否则 [ 判不到、
+    // 裸判也被账号里的字母搅黄，IPv6 的台会被标成 IPV4
+    val host = substringAfter("://", this).substringBefore("/").substringAfterLast("@")
     if (host.startsWith("[")) {
         // [2001:db8::1] 或 [2001:db8::1]:8080：取括号内判断
         val inner = host.substringAfter("[").substringBefore("]")

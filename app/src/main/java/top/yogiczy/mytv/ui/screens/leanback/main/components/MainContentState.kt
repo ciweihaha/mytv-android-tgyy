@@ -252,6 +252,10 @@ fun rememberLeanbackMainContentState(
 // 了，全都被清掉。现在没有协议就取第一段（域名或 IP:端口），
 // 和带协议的地址取法对齐
 internal fun getUrlHost(url: String): String {
-    return if (url.contains("://")) url.substringAfter("://").substringBefore("/")
+    val host = if (url.contains("://")) url.substringAfter("://").substringBefore("/")
     else url.substringBefore("/")
+    // 带账号密码的地址（如 http://user:pass@host/live）：@ 之前是账号密码，
+    // 不能当成域名记进可播放记忆——既会把密码存进设置，也让同一台换个
+    // 账号就认不出来；按最后一个 @ 分，密码里带 @ 的也认得对
+    return host.substringAfterLast("@")
 }

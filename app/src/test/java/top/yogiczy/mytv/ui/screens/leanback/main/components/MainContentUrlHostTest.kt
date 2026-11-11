@@ -25,4 +25,17 @@ class MainContentUrlHostTest {
     fun `空地址还是空串`() {
         assertEquals("", getUrlHost(""))
     }
+
+    @Test
+    fun `带账号密码的地址只取 @ 之后的域名`() {
+        // 部分源用 http://user:pass@host/ 这种带鉴权的地址：@ 之前是账号密码，
+        // 不能当成域名记进可播放记忆——既会把密码存进设置，也让同一台换个
+        // 账号就认不出来
+        assertEquals("example.com", getUrlHost("http://user:pass@example.com/live"))
+        assertEquals("example.com:8080", getUrlHost("http://user:pass@example.com:8080/a"))
+        // 密码里带 @ 的按最后一个 @ 分
+        assertEquals("example.com", getUrlHost("http://user:p@ss@example.com/live"))
+        // 没写协议的也一样
+        assertEquals("192.168.1.1:8080", getUrlHost("user:pass@192.168.1.1:8080/live"))
+    }
 }

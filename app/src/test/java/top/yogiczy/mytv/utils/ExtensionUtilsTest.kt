@@ -87,6 +87,16 @@ class IsIPv6Test {
     }
 
     @Test
+    fun `ipv6 urls with userinfo are still ipv6`() {
+        // 带账号密码的地址：先去掉 @ 之前的账号密码再判，否则 [ 判不到、
+        // 裸判也被账号里的字母搅黄
+        assertTrue("http://user:pass@[2001:db8::1]:8080/live".isIPv6())
+        assertTrue("http://user:pass@2408:8207:1234::1:8080/live".isIPv6())
+        assertFalse("http://user:pass@192.168.1.1:8080/live".isIPv6())
+        assertFalse("http://user:pass@example.com/live".isIPv6())
+    }
+
+    @Test
     fun `bare ipv6 urls without brackets are ipv6`() {
         // M3U 里常见的不带方括号写法
         assertTrue("http://2408:8207:1234::1:8080/live".isIPv6())
