@@ -213,4 +213,24 @@ class M3uIptvParserTest {
         assertEquals("", result[1].iptvList[0].tvgId)
         assertEquals("凤凰中文", result[1].iptvList[0].channelName)
     }
+
+    @Test
+    fun `mixed-case attribute names are recognized`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 TVG-ID="cctv1" TVG-NAME="CCTV-1" GROUP-TITLE="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 Tvg-Name="CCTV-5" Group-Title="央视",CCTV-5
+            http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("cctv1", result[0].iptvList[0].tvgId)
+        assertEquals("CCTV-1", result[0].iptvList[0].channelName)
+        assertEquals("CCTV-5", result[1].iptvList[1].channelName)
+    }
 }

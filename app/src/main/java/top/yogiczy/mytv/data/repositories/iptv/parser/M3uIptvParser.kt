@@ -74,9 +74,13 @@ class M3uIptvParser : IptvParser {
     }
 
     companion object {
-        // 正则只编译一次：原先每条 #EXTINF 行都 new 两个 Regex，大源很浪费
-        private val TVG_NAME_REGEX = Regex("tvg-name=\"(.+?)\"")
-        private val TVG_ID_REGEX = Regex("tvg-id=\"(.+?)\"")
-        private val GROUP_TITLE_REGEX = Regex("group-title=\"(.+?)\"")
+        // 正则只编译一次：原先每条 #EXTINF 行都 new 两个 Regex，大源很浪费。
+        // 属性名不区分大小写：#EXTINF 本身已有生成器写小写（见 isSupport），
+        // 同样有源把属性写成 TVG-NAME / Tvg-Name；区分大小写时 tvg-name、
+        // tvg-id、group-title 全取不到，频道名退到逗号后、分组退到“其他”、
+        // 节目单的 tvg-id 兜底也丢了
+        private val TVG_NAME_REGEX = Regex("tvg-name=\"(.+?)\"", RegexOption.IGNORE_CASE)
+        private val TVG_ID_REGEX = Regex("tvg-id=\"(.+?)\"", RegexOption.IGNORE_CASE)
+        private val GROUP_TITLE_REGEX = Regex("group-title=\"(.+?)\"", RegexOption.IGNORE_CASE)
     }
 }
