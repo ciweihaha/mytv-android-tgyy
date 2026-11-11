@@ -332,9 +332,15 @@ fun LeanbackMainContent(
                         // 错、只能重启恢复；留着目录，下次刷新直接重新拉取
                         // 已下载好还没装的更新包（latest.apk）别清：没给
                         // 安装权限时它会留在缓存里等装，误删后要重新下载
-                        // 才能装
+                        // 才能装；局域网刚上传的安装包（uploaded_apk.apk）
+                        // 也别清：上传完只是发了安装请求，系统安装器要用户
+                        // 在电视上手动确认，确认前文件必须还在，误删后安装
+                        // 器读不到文件、得重新从手机上传。上传中途断开留
+                        // 下的临时残文件（uploaded_apk_*.apk）照常清
                         AppGlobal.cacheDir.listFiles()?.forEach {
-                            if (it.name != "latest.apk") it.deleteRecursively()
+                            if (it.name != "latest.apk" && it.name != "uploaded_apk.apk") {
+                                it.deleteRecursively()
+                            }
                         }
                     }
                     LeanbackToastState.I.showToast("缓存已清除")
