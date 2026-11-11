@@ -54,7 +54,15 @@ fun LeanbackPanelIptvList(
         }
     }
 
-    val listState = rememberLazyListState(max(0, iptvList.indexOf(currentIptvProvider()) - 2))
+    // 初始滚动位置只算一次记下来：原来每次组合都按当前频道把频道列表线性扫一遍找下标，
+    // 算完只在第一次建列表状态时用一次（rememberLazyListState 之后不再看这个参数），
+    // 焦点一动、父界面一刷新就白白重扫一次；只在频道列表变了时重算。
+    // 普通面板的分组列表和经典面板的分组列表早就是这么做的，这里是普通面板里
+    // 还没收的同类写法
+    val initialIptvIdx = remember(iptvList) {
+        max(0, iptvList.indexOf(currentIptvProvider()) - 2)
+    }
+    val listState = rememberLazyListState(initialIptvIdx)
     val childPadding = rememberLeanbackChildPadding()
 
     var hasFocused by rememberSaveable { mutableStateOf(false) }

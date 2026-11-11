@@ -70,7 +70,13 @@ fun LeanbackPanelIptvFavoriteList(
         }
     }
 
-    val listState = rememberLazyGridState(max(0, iptvList.indexOf(currentIptvProvider())))
+    // 初始滚动位置只算一次记下来：同普通面板频道列表——原来每次组合都按当前频道
+    // 把收藏列表线性扫一遍找下标，算完只在第一次建网格状态时用一次，
+    // 焦点一动、父界面一刷新就白白重扫一次；只在收藏列表变了时重算
+    val initialIptvIdx = remember(iptvList) {
+        max(0, iptvList.indexOf(currentIptvProvider()))
+    }
+    val listState = rememberLazyGridState(initialIptvIdx)
 
     var hasFocused by rememberSaveable { mutableStateOf(false) }
 
