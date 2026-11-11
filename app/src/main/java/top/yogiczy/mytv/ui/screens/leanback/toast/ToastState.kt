@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastProperty.Companion.toMs
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicInteger
 
 @Stable
 class LeanbackToastState(private val coroutineScope: CoroutineScope) {
@@ -28,15 +29,21 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
     val current get() = _current
 
     private fun showToast(toast: LeanbackToastProperty) {
+        // 请求时就领号：每条提示各起一个协程，先到的那条在 300ms 换场里
+        // 睡着时，后到的提示可能已经显示了——旧提示醒来要先看号过期了
+        // 没有，过期了就直接退出，别把最新提示盖回去（网页端与遥控操作
+        // 可能同时触发，300ms 的窗口真实存在）
+        val generation = toastGeneration.incrementAndGet()
         coroutineScope.launch {
             if (_visible && _current.id != toast.id) {
                 _visible = false
                 delay(300)
+                if (generation != toastGeneration.get()) return@launch
             }
 
             _current = toast
             _visible = true
-            channel.trySend(++toastGeneration to toast.duration.toMs())
+            channel.trySend(generation to toast.duration.toMs())
         }
     }
 
@@ -50,14 +57,16 @@ class LeanbackToastState(private val coroutineScope: CoroutineScope) {
 
     // Toast 换代计数：旧 Toast 的隐藏定时器可能与新 Toast 的显示撞在
     // 同一毫秒（旧 Toast 时长恰好等于新 Toast 请求时刻 + 300ms 换场），
-    // 只关自己那一代的 Toast，新 Toast 不受影响
-    private var toastGeneration = 0
+    // 只关自己那一代的 Toast，新 Toast 不受影响。showToast 是多线程
+    // 调的（界面与局域网回调），领号用原子计数，两个并发请求不会领到
+    // 同一个号
+    private val toastGeneration = AtomicInteger(0)
     private val channel = Channel<Pair<Int, Int>>(Channel.CONFLATED)
 
     @OptIn(FlowPreview::class)
     suspend fun observe() {
         channel.consumeAsFlow().debounce { it.second.toLong() }.collect { (generation, _) ->
-            if (generation == toastGeneration) _visible = false
+            if (generation == toastGeneration.get()) _visible = false
         }
     }
 
