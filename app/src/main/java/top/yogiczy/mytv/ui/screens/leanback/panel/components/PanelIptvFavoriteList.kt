@@ -59,16 +59,11 @@ fun LeanbackPanelIptvFavoriteList(
     val iptvList = remember(key) { iptvListProvider() }
     val epgList = epgListProvider()
 
-    // 频道名 → 节目单一次建表记下来：原先每个频道项每次组合都拿频道名
-    // 把整个节目单线性扫一遍找对应频道，焦点每挪一下、进度每刷一次就
-    // 全量重扫；节目单只在刷新时才变，建一次表、后面按名直接查。
-    // 同名频道（两个源都叫一个名）留第一次出现的，与原来 firstOrNull
-    // 取到的那条一致
-    val epgByChannel = remember(epgList) {
-        buildMap<String, Epg> {
-            epgList.forEach { epg -> putIfAbsent(epg.channel, epg) }
-        }
-    }
+    // 频道名 → 节目单直接用数据层建好的那份表：原来这里又现建一份
+    // 和数据层里一模一样的表（同名频道留第一次出现的、按名直接查），
+    // 同一份节目单在普通面板和收藏列表里各建一次；现在只建一次、
+    // 两处共用，节目单刷新换了新对象时表跟着换，不会记旧
+    val epgByChannel = epgList.byChannel
 
     // 初始滚动位置只算一次记下来：同普通面板频道列表——原来每次组合都按当前频道
     // 把收藏列表线性扫一遍找下标，算完只在第一次建网格状态时用一次，

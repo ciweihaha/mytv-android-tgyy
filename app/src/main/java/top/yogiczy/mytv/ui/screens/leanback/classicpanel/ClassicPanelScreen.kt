@@ -180,16 +180,11 @@ private fun LeanbackClassicPanelScreenContent(
 
     var epgListVisible by remember { mutableStateOf(false) }
 
-    // 频道名 → 节目单一次建表记下来：原先右侧节目单每次组合都拿焦点频道名
-    // 把整个节目单线性扫一遍，焦点每挪一下就重扫一次；节目单只在刷新时
-    // 才变，建一次表、后面按名直接查。同名频道留第一次出现的，与原来
-    // firstOrNull 取到的那条一致
-    val epgList = epgListProvider()
-    val epgByChannel = remember(epgList) {
-        buildMap<String, Epg> {
-            epgList.forEach { epg -> putIfAbsent(epg.channel, epg) }
-        }
-    }
+    // 频道名 → 节目单直接用数据层建好的那份表：原来这里又现建一份
+    // 和数据层里一模一样的表（同名频道留第一次出现的、按名直接查），
+    // 同一份节目单在经典面板和频道列表里各建一次；现在只建一次、
+    // 两处共用，节目单刷新换了新对象时表跟着换，不会记旧
+    val epgByChannel = epgListProvider().byChannel
 
     // 初始分组只找一次记下来：原来子界面每次组合都把分组逐个翻一遍、
     // 每个分组里再逐个比对频道名找当前频道在哪个分组，焦点每挪一下

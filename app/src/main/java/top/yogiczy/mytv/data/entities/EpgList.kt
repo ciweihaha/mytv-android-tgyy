@@ -14,8 +14,10 @@ data class EpgList(
      * 单对象进来时才建，平时不重建。
      * 同名频道（两个源都叫一个名）留第一次出现的，跟原来
      * firstOrNull 取到的那条一致。
+     * 四个面板（普通/收藏/经典频道列表、经典面板）原来各建一份
+     * 一模一样的表，现在都直接用这一份，同一份节目单只建一次。
      */
-    private val byChannel: Map<String, Epg> by lazy {
+    val byChannel: Map<String, Epg> by lazy {
         buildMap {
             value.forEach { putIfAbsent(it.channel, it) }
         }
