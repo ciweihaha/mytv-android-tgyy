@@ -3,6 +3,9 @@ package top.yogiczy.mytv.ui.utils
 import android.content.Context
 import android.content.SharedPreferences
 import top.yogiczy.mytv.data.utils.Constants
+import top.yogiczy.mytv.utils.StoredValue
+import top.yogiczy.mytv.utils.nextEnum
+import top.yogiczy.mytv.utils.storedEnumFromValue
 
 /**
  * 应用配置存储
@@ -290,7 +293,7 @@ object SP {
      * 下面那份长的说明（不显示时间 / 总是显示时间 / 整点前后几秒…）
      * 带动态秒数、字不一样，仍留在设置页不动。
      */
-    enum class UiTimeShowMode(val value: Int, val label: String) {
+    enum class UiTimeShowMode(override val value: Int, val label: String) : StoredValue {
         /** 隐藏 */
         HIDDEN(0, "隐藏"),
 
@@ -303,20 +306,19 @@ object SP {
         /** 半点 */
         HALF_HOUR(3, "半点");
 
-        /** 下一档：按声明顺序循环，到头回第一档 */
-        fun next(): UiTimeShowMode =
-            entries[(ordinal + 1) % entries.size]
+        /** 下一档：按声明顺序循环，到头回第一档（共用的 nextEnum） */
+        fun next(): UiTimeShowMode = nextEnum()
 
         companion object {
             fun fromValue(value: Int): UiTimeShowMode {
                 // 未知值回落到 HIDDEN：与存储默认值（0）一致；
                 // 原先回落到 ALWAYS，脏数据会让时钟常驻屏幕
-                return entries.firstOrNull { it.value == value } ?: HIDDEN
+                return storedEnumFromValue(value, HIDDEN)
             }
         }
     }
 
-    enum class AppDeviceDisplayType(val value: Int) {
+    enum class AppDeviceDisplayType(override val value: Int) : StoredValue {
         /** tv端 */
         LEANBACK(0),
 
@@ -327,9 +329,8 @@ object SP {
         PAD(2);
 
         companion object {
-            fun fromValue(value: Int): AppDeviceDisplayType {
-                return entries.firstOrNull { it.value == value } ?: LEANBACK
-            }
+            fun fromValue(value: Int): AppDeviceDisplayType =
+                storedEnumFromValue(value, LEANBACK)
         }
     }
 
@@ -340,7 +341,7 @@ object SP {
      * 两边走样。名字和下一档都挂在档位自己身上，两处只调它。
      * 循环顺序就是声明顺序：原始→16:9→4:3→自动拉伸→原始。
      */
-    enum class VideoPlayerAspectRatio(val value: Int, val label: String) {
+    enum class VideoPlayerAspectRatio(override val value: Int, val label: String) : StoredValue {
         /** 原始 */
         ORIGINAL(0, "原始"),
 
@@ -353,14 +354,12 @@ object SP {
         /** 自动拉伸 */
         AUTO(3, "自动拉伸");
 
-        /** 下一档：按声明顺序循环，到头回第一档 */
-        fun next(): VideoPlayerAspectRatio =
-            entries[(ordinal + 1) % entries.size]
+        /** 下一档：按声明顺序循环，到头回第一档（共用的 nextEnum） */
+        fun next(): VideoPlayerAspectRatio = nextEnum()
 
         companion object {
-            fun fromValue(value: Int): VideoPlayerAspectRatio {
-                return entries.firstOrNull { it.value == value } ?: ORIGINAL
-            }
+            fun fromValue(value: Int): VideoPlayerAspectRatio =
+                storedEnumFromValue(value, ORIGINAL)
         }
     }
 }

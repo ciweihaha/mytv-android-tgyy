@@ -69,6 +69,29 @@ fun progressPercent(received: Long, total: Long): Int? {
     return (received * 100 / total).toInt()
 }
 
+// 档位枚举共用：SP 里三份档位枚举（时间显示、设备显示、画面比例）原来
+// 各写了一遍“按存盘值找档位、找不到回默认值”，只差回落的默认值；
+// 其中时间显示和画面比例还各写了一遍“按声明顺序换下一档、到头回第一档”，
+// 一字不差。以后加一档或改回落值，只改枚举自己的声明，不用再碰算法。
+// 存盘值是 Int 的档位都实现这个接口：存在手机里的还是那个 Int，老数据
+// 读出来还是同一档。
+interface StoredValue {
+    val value: Int
+}
+
+// 按存盘值找档位：找到就返回那一档，找不到（脏数据、老版本多余的值）
+// 回调用方传的默认值；各档位的默认值不一样，所以默认值由调用处传进来
+inline fun <reified T> storedEnumFromValue(value: Int, default: T): T
+        where T : Enum<T>, T : StoredValue =
+    enumValues<T>().firstOrNull { it.value == value } ?: default
+
+// 换下一档：按声明顺序循环，到头回第一档；只在用户点按时调一次，
+// 每次现取档位表那点开销可以忽略
+inline fun <reified T : Enum<T>> T.nextEnum(): T {
+    val values = enumValues<T>()
+    return values[(ordinal + 1) % values.size]
+}
+
 fun String.isIPv6(): Boolean {
     // host：scheme 之后、第一个 / 之前
     val host = substringAfter("://", this).substringBefore("/")
