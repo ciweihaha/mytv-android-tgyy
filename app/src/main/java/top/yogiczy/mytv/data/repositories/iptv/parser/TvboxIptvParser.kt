@@ -32,7 +32,11 @@ class TvboxIptvParser : IptvParser {
                     .takeIf { it.isNotEmpty() && it != "#genre#" }
                     ?.let { groupName = it }
             } else {
-                val res = normalized.split(",")
+                // 只按第一个逗号分名字和地址：地址里也可能带逗号（如
+                // token 参数 `?token=a,b`），全切开再取 res[1] 会把
+                // 地址截断、播不了；多地址本来就是用 # 分隔（见下），
+                // 逗号不是多地址分隔符。名字在第一个逗号之前，不会受影响
+                val res = normalized.split(",", limit = 2)
                 if (res.size < 2) return@forEach
 
                 // 空地址段直接丢弃：`CCTV-1,` 或 `CCTV-1,http://a#` 这种行

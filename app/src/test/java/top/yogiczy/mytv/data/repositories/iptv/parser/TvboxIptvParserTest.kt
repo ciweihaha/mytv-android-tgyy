@@ -162,4 +162,44 @@ class TvboxIptvParserTest {
         assertEquals("央视", result[0].name)
         assertEquals("CCTV-1", result[0].iptvList[0].name)
     }
+
+    @Test
+    fun `url containing comma is kept intact`() = runBlocking {
+        val data = """
+            央视,#genre#
+            CCTV-1,http://example.com/live.m3u8?token=a,b
+            CCTV-5,http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(
+            listOf("http://example.com/live.m3u8?token=a,b"),
+            result[0].iptvList[0].urlList,
+        )
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
+
+    @Test
+    fun `url containing comma still splits multiple urls on hash`() = runBlocking {
+        val data = """
+            央视,#genre#
+            CCTV-1,http://example.com/a.m3u8?token=x,y#http://example.com/b.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals(
+            listOf(
+                "http://example.com/a.m3u8?token=x,y",
+                "http://example.com/b.m3u8",
+            ),
+            result[0].iptvList[0].urlList,
+        )
+    }
 }
