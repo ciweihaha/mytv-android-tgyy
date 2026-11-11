@@ -101,7 +101,13 @@ class LeanbackMainViewModel : ViewModel() {
         }
             .retry(Constants.HTTP_RETRY_COUNT) { delay(Constants.HTTP_RETRY_INTERVAL); true }
             .catch {
-                emit(EpgList())
+                // 节目单失败只记空节目单：直接在这里写回空节目单，不再
+                // emit 后走 map——map 里会把刚删掉的历史地址又加回去，
+                // 坏地址永远删不掉；直播源那路失败时 catch 不发数据、
+                // map 不跑，删除是生效的，这里与它对齐
+                if (_uiState.value === readyState) {
+                    _uiState.value = readyState.copy(epgList = EpgList())
+                }
                 SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
             }
             .map { epgList ->
