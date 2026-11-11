@@ -68,9 +68,12 @@ class Logger private constructor(
 }
 
 /**
- * 注入日志
+ * 注入日志：日志对象只建一次记下来——Logger 本身没有状态，每次访问
+ * 都现建一个只是白白多造对象；其余各处（EpgRepository、IptvRepository、
+ * FileCacheRepository、UpdateViewModel）也都是建一次复用，这里与它们保持一致。
+ * 标签仍是子类的类名：属性初始化时 javaClass 已是实际的子类，与原来
+ * 每次访问时算出来的值相同。
  */
 abstract class Loggable(private val tag: String? = null) {
-    protected val log: Logger
-        get() = Logger.create(tag ?: javaClass.simpleName)
+    protected val log: Logger = Logger.create(tag ?: javaClass.simpleName)
 }
