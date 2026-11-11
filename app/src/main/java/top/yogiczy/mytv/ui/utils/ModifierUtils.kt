@@ -127,7 +127,11 @@ fun Modifier.handleLeanbackKeyEvents(
     onSettings: () -> Unit = {},
     onNumber: (Int) -> Unit = {},
 ) = this then handleLeanbackKeyEvents(
-    onKeyTap = mapOf(
+    // 系统导航键只在 API 25+ 才有：原先这里是 mapOf(...).apply { A to B }，
+    // mapOf 返回的是只读 Map，to 只是生成一个立刻丢弃的 Pair，四个键
+    // 实际一个都没注册上——发出系统导航键的遥控/手柄按方向键在 App 里
+    // 全无反应；改成可变 Map 后 put 才真正生效
+    onKeyTap = mutableMapOf(
         KeyEvent.KEYCODE_DPAD_LEFT to onLeft,
         KeyEvent.KEYCODE_DPAD_RIGHT to onRight,
         KeyEvent.KEYCODE_DPAD_UP to onUp,
@@ -158,10 +162,10 @@ fun Modifier.handleLeanbackKeyEvents(
         KeyEvent.KEYCODE_9 to { onNumber(9) },
     ).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT to onLeft
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT to onRight
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP to onUp
-            KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN to onDown
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT, onLeft)
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT, onRight)
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP, onUp)
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN, onDown)
         }
     },
     onKeyLongTap = mapOf(
