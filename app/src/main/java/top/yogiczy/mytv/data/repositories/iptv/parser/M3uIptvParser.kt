@@ -45,8 +45,20 @@ class M3uIptvParser : IptvParser {
             val groupName = GROUP_TITLE_REGEX.find(extinfLine)?.groupValues?.get(1)
                 ?.takeIf { it.isNotBlank() } ?: "其他"
 
-            // 最后一行是 #EXTINF 且后面没有 URL 行时跳过（否则 lines[index + 1] 越界崩溃）
-            val url = lines.getOrNull(index + 1)?.trim().orEmpty()
+            // 地址是 #EXTINF 之后第一个非空行：有些生成器/手改文件在
+            // 两行之间夹空行，原先只看紧挨着的下一行，空行就把这条
+            // 频道悄悄丢掉；往后跳过空行再找，下一条就是 # 开头的行
+            // （地址缺失）或到文件尾时仍跳过这条
+            var url = ""
+            var nextIndex = index + 1
+            while (nextIndex < lines.size) {
+                val candidate = lines[nextIndex].trim()
+                if (candidate.isNotEmpty()) {
+                    url = candidate
+                    break
+                }
+                nextIndex++
+            }
             if (url.isEmpty() || url.startsWith("#")) return@forEachIndexed
 
             iptvList.add(

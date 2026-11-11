@@ -248,4 +248,44 @@ class M3uIptvParserTest {
         assertEquals("CCTV-1", result[0].iptvList[0].channelName)
         assertEquals("CCTV-5", result[0].iptvList[1].channelName)
     }
+
+    @Test
+    fun `blank lines between EXTINF and url do not drop the channel`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视",CCTV-1
+
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-name="CCTV-5" group-title="央视",CCTV-5
+
+
+            http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+        assertEquals(listOf("http://example.com/cctv5.m3u8"), result[0].iptvList[1].urlList)
+    }
+
+    @Test
+    fun `EXTINF followed only by blank lines and the next EXTINF is still skipped`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 group-title="央视",CCTV-1
+
+            #EXTINF:-1 group-title="央视",CCTV-5
+            http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV-5", result[0].iptvList[0].name)
+    }
 }
