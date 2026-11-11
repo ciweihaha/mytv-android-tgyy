@@ -104,7 +104,10 @@ fun LeanbackSettingsCategoryListItem(
     headlineContent: String,
     supportingContent: String? = null,
     trailingContent: String,
-    onSelected: () -> Unit = {},
+    // 默认必须是 null 而不是空函数：第一个重载里“没传动作 + remoteConfig”
+    // 会弹扫码进网页端；这里默认空函数会让那个判断永远走不到，
+    // 以后谁用这个重载加一行 remoteConfig = true、按一下会什么反应都没有
+    onSelected: (() -> Unit)? = null,
     onLongSelected: () -> Unit = {},
     locK: Boolean = false,
     remoteConfig: Boolean = false,
