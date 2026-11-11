@@ -57,6 +57,16 @@ data class IptvGroupList(
         }
 
         /**
+         * 台号显示：频道在列表里时是下标+1、补零到两位；不在列表里
+         * （空源的占位频道）显示“–”，不显示不存在的“00”。三处右上角
+         * 台号（临时面板、普通面板、快捷面板）都调这一份。
+         */
+        fun IptvGroupList.channelNoText(iptv: Iptv): String {
+            val idx = iptvIdx(iptv)
+            return if (idx < 0) "–" else (idx + 1).toString().padStart(2, '0')
+        }
+
+        /**
          * 按全局下标取频道：按分组累加偏移逐组找，不用 flatMap 先把全量
          * 频道拼成一个新列表再取——上下键切台、输台号选台、启动恢复上次
          * 频道每次都调它，千级频道源下每次都分配一次全量列表；下标越界

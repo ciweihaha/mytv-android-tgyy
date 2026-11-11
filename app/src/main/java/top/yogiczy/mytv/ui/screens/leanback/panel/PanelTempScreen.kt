@@ -29,7 +29,7 @@ import top.yogiczy.mytv.ui.theme.LeanbackTheme
 @Composable
 fun LeanbackPanelTempScreen(
     modifier: Modifier = Modifier,
-    channelNoProvider: () -> Int = { 0 },
+    channelNoProvider: () -> String = { "" },
     currentIptvProvider: () -> Iptv = { Iptv() },
     currentIptvUrlIdxProvider: () -> Int = { 0 },
     currentProgrammesProvider: () -> EpgProgrammeCurrent? = { null },
@@ -47,7 +47,8 @@ fun LeanbackPanelTempScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         LeanbackPanelChannelNo(
-            channelNoProvider = { channelNoProvider().toString().padStart(2, '0') },
+            // 台号已在调用方按列表现算好（含不在列表里显示“–”），这里直接传
+            channelNoProvider = { channelNoProvider() },
             modifier = Modifier
                 .padding(top = childPadding.top, end = childPadding.end)
                 .align(Alignment.TopEnd),
@@ -106,7 +107,7 @@ fun LeanbackPanelTempScreen(
 private fun LeanbackPanelTempScreenPreview() {
     LeanbackTheme {
         LeanbackPanelTempScreen(
-            channelNoProvider = { 1 },
+            channelNoProvider = { "01" },
             currentIptvProvider = { Iptv.EXAMPLE },
             currentProgrammesProvider = {
                 EpgProgrammeCurrent(

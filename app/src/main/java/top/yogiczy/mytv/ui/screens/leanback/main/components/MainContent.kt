@@ -34,8 +34,8 @@ import top.yogiczy.mytv.AppGlobal
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
-import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
 import top.yogiczy.mytv.ui.screens.leanback.classicpanel.LeanbackClassicPanelScreen
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackVisible
 import top.yogiczy.mytv.ui.screens.leanback.monitor.LeanbackMonitorScreen
@@ -253,7 +253,7 @@ fun LeanbackMainContent(
                         && panelChannelNoSelectState.channelNo.isEmpty()
             }) {
                 LeanbackPanelTempScreen(
-                    channelNoProvider = { iptvGroupList.iptvIdx(mainContentState.currentIptv) + 1 },
+                    channelNoProvider = { iptvGroupList.channelNoText(mainContentState.currentIptv) },
                     currentIptvProvider = { mainContentState.currentIptv },
                     currentIptvUrlIdxProvider = { mainContentState.currentIptvUrlIdx },
                     currentProgrammesProvider = { epgList.currentProgrammes(mainContentState.currentIptv) },
@@ -305,8 +305,7 @@ fun LeanbackMainContent(
                 currentIptvUrlIdxProvider = { mainContentState.currentIptvUrlIdx },
                 currentProgrammesProvider = { epgList.currentProgrammes(mainContentState.currentIptv) },
                 currentIptvChannelNoProvider = {
-                    (iptvGroupList.iptvIdx(mainContentState.currentIptv) + 1).toString()
-                        .padStart(2, '0')
+                    iptvGroupList.channelNoText(mainContentState.currentIptv)
                 },
                 videoPlayerMetadataProvider = { videoPlayerState.metadata },
                 videoPlayerAspectRatioProvider = { settingsViewModel.videoPlayerAspectRatio },

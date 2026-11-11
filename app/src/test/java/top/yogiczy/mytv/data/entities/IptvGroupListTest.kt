@@ -2,9 +2,35 @@ package top.yogiczy.mytv.data.entities
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
 
 class IptvGroupListTest {
+    @Test
+    fun `台号是下标加一补零到两位`() {
+        val cctv1 = Iptv(name = "CCTV-1", channelName = "cctv1")
+        val cctv2 = Iptv(name = "CCTV-2", channelName = "cctv2")
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "央视", iptvList = IptvList(listOf(cctv1, cctv2))))
+        )
+
+        assertEquals("01", groupList.channelNoText(cctv1))
+        assertEquals("02", groupList.channelNoText(cctv2))
+    }
+
+    @Test
+    fun `不在列表里的台显示横线而不是00`() {
+        // 空源的占位频道不在列表里：原来下标 -1 加 1 得 0，右上角
+        // 显示不存在的“00”；现在显示“–”
+        val cctv1 = Iptv(name = "CCTV-1", channelName = "cctv1")
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "央视", iptvList = IptvList(listOf(cctv1))))
+        )
+
+        assertEquals("–", groupList.channelNoText(Iptv()))
+        assertEquals("–", IptvGroupList().channelNoText(cctv1))
+    }
+
     @Test
     fun `同一台在两个分组里出现时收藏夹只留一个`() {
         // 同一台（名字、频道名、地址全一样）在两个分组里都出现：

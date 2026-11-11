@@ -29,8 +29,8 @@ import kotlinx.collections.immutable.persistentListOf
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
-import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
 import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.rememberLeanbackChildPadding
@@ -77,8 +77,7 @@ fun LeanbackPanelScreen(
     ) {
         LeanbackPanelScreenTopRight(
             channelNoProvider = {
-                (iptvGroupListProvider().iptvIdx(currentIptvProvider()) + 1).toString()
-                    .padStart(2, '0')
+                iptvGroupListProvider().channelNoText(currentIptvProvider())
             }
         )
 
