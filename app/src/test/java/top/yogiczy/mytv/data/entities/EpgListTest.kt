@@ -88,6 +88,127 @@ class EpgListTest {
     }
 
     @Test
+    fun `gap between programmes still shows the next one`() {
+        // 节目空档（上一档播完、下一档还没开始）时，原先直接回 null，
+        // 面板里“正在播放”和“稍后播放”都显示“无节目”；现在把最近
+        // 的下一个节目带上，正在播放仍是空
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now - 7200_000,
+                                endAt = now - 3600_000,
+                                title = "上一档",
+                            ),
+                            EpgProgramme(
+                                startAt = now + 3600_000,
+                                endAt = now + 7200_000,
+                                title = "下一档",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertNull(current?.now)
+        assertEquals("下一档", current?.next?.title)
+    }
+
+    @Test
+    fun `before first programme of the day still shows the next one`() {
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now + 3600_000,
+                                endAt = now + 7200_000,
+                                title = "首档",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertNull(current?.now)
+        assertEquals("首档", current?.next?.title)
+    }
+
+    @Test
+    fun `returns null when all programmes have ended`() {
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now - 7200_000,
+                                endAt = now - 3600_000,
+                                title = "已播完",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        assertNull(epgList.currentProgrammes(iptv))
+    }
+
+    @Test
+    fun `next programme does not depend on list order`() {
+        // 节目单顺序不保证按时间排：列表里先写晚的、后写早的，最近的
+        // 下一个仍应是开始时间最早的那档，而不是列表里的第一档
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now + 7200_000,
+                                endAt = now + 10800_000,
+                                title = "晚一档",
+                            ),
+                            EpgProgramme(
+                                startAt = now + 3600_000,
+                                endAt = now + 7200_000,
+                                title = "早一档",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertNull(current?.now)
+        assertEquals("早一档", current?.next?.title)
+    }
+
+    @Test
     fun `name spelling check ignores digits spaces dash and plus`() {
         assertTrue(isSameEpgChannelName("CCTV综合", "CCTV-1 综合"))
         assertTrue(isSameEpgChannelName("CCTV体育赛事", "CCTV-5+ 体育赛事"))
