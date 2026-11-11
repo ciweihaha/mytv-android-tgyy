@@ -230,14 +230,21 @@ private class EpgXmlRepository : FileCacheRepository("epg.xml") {
         val request = Request.Builder().url(url).build()
 
         try {
-            with(sharedHttpClient.newCall(request).execute()) {
-                if (!isSuccessful) {
-                    throw Exception("获取远程节目单xml失败: $code")
+            // 响应体全路径都关：原来只有成功读流那条路关了 body（解码层
+            // 的 .use），服务器出错（404/500）或没有解析器能认这个地址
+            // 时直接抛错、响应体根本没关，连接回不到连接池；节目单每天
+            // 定时拉、源一挂就反复失败几次，占满单 host 的连接槽后后续
+            // 拉取一直等连接。成功路径也不受影响：解码层本来就关流，
+            // 再关一次响应是安全的幂等操作。写法与 Downloader（第 180
+            // 轮）与 QuickPanel 测速那处 .execute().use 保持一致
+            sharedHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw Exception("获取远程节目单xml失败: ${response.code}")
                 }
 
                 val fetcher = EpgFetcher.instances.first { it.isSupport(url) }
 
-                return@with fetcher.fetch(this)
+                fetcher.fetch(response)
             }
         } catch (ex: Exception) {
             throw Exception("获取远程节目单xml失败，请检查网络连接", ex)
