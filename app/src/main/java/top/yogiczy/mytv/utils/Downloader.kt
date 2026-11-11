@@ -72,17 +72,14 @@ object Downloader : Loggable() {
                     val bytesRead = super.read(sink, byteCount)
                     totalBytesRead += if (bytesRead != -1L) bytesRead else 0
                     // 长度未知（分块传输）时不报进度，避免算出负数百分比
-                    val length = contentLength()
-                    if (length > 0) {
-                        val progress = (totalBytesRead * 100 / length).toInt()
-                        // 只有百分比变化时才回调：原先每读一块（约 8KB）就新起
-                        // 一个协程回调，25MB 的包约 3200 次，且大多是重复百分比；
-                        // 回调方 showToast 内部自己会切到 composition 作用域，
-                        // 这里直接调即可
-                        if (progress != lastProgress) {
-                            lastProgress = progress
-                            onProgressCb?.invoke(progress)
-                        }
+                    val progress = progressPercent(totalBytesRead, contentLength())
+                    // 只有百分比变化时才回调：原先每读一块（约 8KB）就新起
+                    // 一个协程回调，25MB 的包约 3200 次，且大多是重复百分比；
+                    // 回调方 showToast 内部自己会切到 composition 作用域，
+                    // 这里直接调即可
+                    if (progress != null && progress != lastProgress) {
+                        lastProgress = progress
+                        onProgressCb?.invoke(progress)
                     }
                     return bytesRead
                 }

@@ -2,6 +2,7 @@ package top.yogiczy.mytv.utils
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -155,5 +156,37 @@ class InitialScrollIndexTest {
         assertEquals(5, initialScrollIndex(5, above = 0))
         assertEquals(1, initialScrollIndex(1, above = 0))
         assertEquals(0, initialScrollIndex(-1, above = 0))
+    }
+}
+
+/**
+ * 下载/上传进度百分比：第 171 轮把 Downloader（下载更新包）和
+ * HttpServer（局域网上传安装包）各写的一份百分比算式抽成了共用的
+ * progressPercent——原来一个是 Long 整数算、一个是 Float 算。这里
+ * 验收抽出来的那份和原来两份算出来一样：向下取整、收满是 100、
+ * 总长未知时不报。
+ */
+class ProgressPercentTest {
+    @Test
+    fun `fraction truncates toward zero`() {
+        assertEquals(0, progressPercent(0, 3))
+        assertEquals(33, progressPercent(1, 3))
+        assertEquals(66, progressPercent(2, 3))
+        assertEquals(50, progressPercent(1, 2))
+    }
+
+    @Test
+    fun `full download is exactly 100`() {
+        // 原先 Float 版收满时可能因浮点舍入算出 99，整数算必是 100
+        assertEquals(100, progressPercent(100, 100))
+        assertEquals(100, progressPercent(26_214_400, 26_214_400))
+        assertEquals(50, progressPercent(13_107_200, 26_214_400))
+    }
+
+    @Test
+    fun `unknown total reports nothing`() {
+        // 分块传输拿不到总长、非法总长：原来两处都不报进度
+        assertNull(progressPercent(100, 0))
+        assertNull(progressPercent(100, -1))
     }
 }

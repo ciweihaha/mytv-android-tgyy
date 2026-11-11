@@ -56,6 +56,19 @@ fun nextHourStepMs(currentMs: Long, maxHours: Int): Long =
 // 减完也是负数，同样夹回 0，就是第一行。以后改“留几行”只改这一处。
 fun initialScrollIndex(index: Int, above: Int = 2): Int = max(0, index - above)
 
+// 下载/上传进度百分比：下载更新包（Downloader）和局域网上传安装包
+// （HttpServer）原来各写了一份——一个是 Long 整数算、一个是 Float 算，
+// 两份都是“收到多少占总长百分之几、向下取整、只在变了才报”；以后改
+// 口径只改这一处。统一成 Long 整数算：Float 版在大文件下会丢精度，
+// 收满时还可能因为浮点舍入算出 99 而不是 100，整数算收满必是 100。
+// 总长度未知或非法（<= 0，如分块传输）时返回 null，调用处直接不报进度；
+// 收到比总长多（上传的 Content-Length 含分隔符、只是近似值）时和原来
+// 一样照实返回超过 100 的数，不额外夹。
+fun progressPercent(received: Long, total: Long): Int? {
+    if (total <= 0) return null
+    return (received * 100 / total).toInt()
+}
+
 fun String.isIPv6(): Boolean {
     // host：scheme 之后、第一个 / 之前
     val host = substringAfter("://", this).substringBefore("/")

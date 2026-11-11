@@ -22,6 +22,7 @@ import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.utils.ApkInstaller
 import top.yogiczy.mytv.utils.Loggable
 import top.yogiczy.mytv.utils.Logger
+import top.yogiczy.mytv.utils.progressPercent
 import java.io.File
 import java.net.Inet4Address
 import java.net.InetAddress
@@ -361,12 +362,10 @@ object HttpServer : Loggable() {
                     val byteArray = bb.allByteArray
                     hasReceived += byteArray.size
                     // 分片回调很频繁：只有百分比变化时才弹提示，避免几千次 Toast 刷新
-                    if (contentLength > 0) {
-                        val progress = (hasReceived * 100f / contentLength).toInt()
-                        if (progress != lastProgress) {
-                            lastProgress = progress
-                            showToast("正在接收文件: $progress%")
-                        }
+                    val progress = progressPercent(hasReceived, contentLength)
+                    if (progress != null && progress != lastProgress) {
+                        lastProgress = progress
+                        showToast("正在接收文件: $progress%")
                     }
                     os?.write(byteArray)
                 }
