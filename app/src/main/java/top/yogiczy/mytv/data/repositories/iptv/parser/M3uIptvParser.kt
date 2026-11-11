@@ -38,7 +38,12 @@ class M3uIptvParser : IptvParser {
                 ?: tvgName
                 ?: return@forEachIndexed
             val channelName = tvgName ?: name
-            val groupName = GROUP_TITLE_REGEX.find(extinfLine)?.groupValues?.get(1) ?: "其他"
+            // 分组名只有空白也按缺失处理：group-title=" " 时正则能匹配到
+            // 一个空格，不加这一层会拼出一个名字是空串的分组；缺失、空白
+            // 都回落到“其他”，和没名字没 tvg-name 就跳过、tvbox 那边无
+            // 名行不更新分组名的做法一致
+            val groupName = GROUP_TITLE_REGEX.find(extinfLine)?.groupValues?.get(1)
+                ?.takeIf { it.isNotBlank() } ?: "其他"
 
             // 最后一行是 #EXTINF 且后面没有 URL 行时跳过（否则 lines[index + 1] 越界崩溃）
             val url = lines.getOrNull(index + 1)?.trim().orEmpty()

@@ -56,6 +56,21 @@ class M3uIptvParserTest {
     }
 
     @Test
+    fun `blank group-title falls back to 其他`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title=" ",CCTV-1
+            http://example.com/cctv1.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("其他", result[0].name)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+    }
+
+    @Test
     fun `duplicate channel names merge into one entry with multiple urls`() = runBlocking {
         val data = """
             #EXTM3U
