@@ -209,6 +209,124 @@ class EpgListTest {
     }
 
     @Test
+    fun `next programme after live one does not depend on list order`() {
+        // 正在播那条分支之前拿列表里正在播的下一条当“稍后播放”：
+        // 顺序一乱，下邻居可能是已播完的那档；现在按时间取，取开始
+        // 时间在当前节目结束时刻之后、最早的那档
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now + 7200_000,
+                                endAt = now + 10800_000,
+                                title = "晚一档",
+                            ),
+                            EpgProgramme(
+                                startAt = now - 3600_000,
+                                endAt = now + 3600_000,
+                                title = "正在播",
+                            ),
+                            EpgProgramme(
+                                startAt = now - 7200_000,
+                                endAt = now - 3600_000,
+                                title = "已播完",
+                            ),
+                            EpgProgramme(
+                                startAt = now + 3600_000,
+                                endAt = now + 7200_000,
+                                title = "下一档",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertEquals("正在播", current?.now?.title)
+        assertEquals("下一档", current?.next?.title)
+    }
+
+    @Test
+    fun `next programme after live one still works when list is in order`() {
+        // 顺序正常时行为不变：下邻居就是紧挨着播的那档
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now - 7200_000,
+                                endAt = now - 3600_000,
+                                title = "上一档",
+                            ),
+                            EpgProgramme(
+                                startAt = now - 3600_000,
+                                endAt = now + 3600_000,
+                                title = "正在播",
+                            ),
+                            EpgProgramme(
+                                startAt = now + 3600_000,
+                                endAt = now + 7200_000,
+                                title = "下一档",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertEquals("正在播", current?.now?.title)
+        assertEquals("下一档", current?.next?.title)
+    }
+
+    @Test
+    fun `overlapping next programme is still shown when nothing starts after current ends`() {
+        // 脏数据：后面那档和正在播的重叠了（开始时间在当前节目结束
+        // 之前），按“开始在当前结束之后”筛不到，就退一步取还没开始
+        // 的最早那档，别直接显示“无节目”
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    id = "cctv1",
+                    programmes = EpgProgrammeList(
+                        listOf(
+                            EpgProgramme(
+                                startAt = now - 3600_000,
+                                endAt = now + 3600_000,
+                                title = "正在播",
+                            ),
+                            EpgProgramme(
+                                startAt = now + 1800_000,
+                                endAt = now + 5400_000,
+                                title = "重叠档",
+                            ),
+                        )
+                    ),
+                )
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertEquals("正在播", current?.now?.title)
+        assertEquals("重叠档", current?.next?.title)
+    }
+
+    @Test
     fun `name spelling check ignores digits spaces dash and plus`() {
         assertTrue(isSameEpgChannelName("CCTV综合", "CCTV-1 综合"))
         assertTrue(isSameEpgChannelName("CCTV体育赛事", "CCTV-5+ 体育赛事"))
