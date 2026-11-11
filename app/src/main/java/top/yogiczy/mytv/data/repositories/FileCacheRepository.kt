@@ -69,7 +69,13 @@ abstract class FileCacheRepository(
         isExpired: (lastModified: Long, cacheData: String?) -> Boolean,
         refreshOp: suspend () -> String,
     ): String {
-        var data = getCacheData()
+        // 开头读到的旧缓存先记下来：过期时下面要丢掉它、刷新失败时又要
+        // 拿它顶上。原先失败时重新从磁盘读一整遍，节目单 epg.json /
+        // epg.xml 动辄几百 KB 到几 MB，白白多一次大文件读；现在直接
+        // 用开头那份。只有开头没读到东西时才再读一次——并发的另一路
+        // 刷新可能刚把文件写好，那份新的完整缓存仍值得捡回来
+        val cachedData = getCacheData()
+        var data = cachedData
 
         if (isExpired(getCacheFile().lastModified(), data)) {
             data = null
@@ -83,7 +89,7 @@ abstract class FileCacheRepository(
                 // 刷新失败时用旧缓存顶上（若有）：源服务器临时故障也不至于
                 // 无频道可看；换源时调用方已先清缓存，所以旧缓存只可能是
                 // 同源的。注意不重写缓存文件：时间戳不变，下次加载仍会重试刷新
-                val staleData = getCacheData()
+                val staleData = if (!cachedData.isNullOrBlank()) cachedData else getCacheData()
                 if (!staleData.isNullOrBlank()) {
                     log.w("刷新失败，使用旧缓存", ex)
                     return staleData

@@ -36,6 +36,30 @@ class FileCacheRepositoryTest {
     }
 
     @Test
+    fun `refresh failure reuses stale cache read at start`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        repo.load(0) { "stale but usable" }
+
+        // 缓存已过期（cacheTime 为 0 一律过期），刷新又失败：应直接
+        // 拿开头读到的那份旧缓存顶上，而不是再读一遍磁盘
+        val result = repo.load(0) { throw RuntimeException("network down") }
+
+        assertEquals("stale but usable", result)
+    }
+
+    @Test
+    fun `refresh failure without cache still throws`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+
+        try {
+            repo.load(0) { throw RuntimeException("network down") }
+            org.junit.Assert.fail("没有旧缓存时刷新失败应抛错")
+        } catch (ex: RuntimeException) {
+            assertEquals("network down", ex.message)
+        }
+    }
+
+    @Test
     fun `concurrent refreshes never leave mixed content`() = runBlocking {
         val repo = TestCacheRepo("test.txt")
         // 每个刷新写 200KB 的单一字符：直接 writeText 并发写会交叉
