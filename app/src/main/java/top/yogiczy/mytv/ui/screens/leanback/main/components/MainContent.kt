@@ -330,7 +330,12 @@ fun LeanbackMainContent(
                         // 只清目录内容，不删目录本身：AppGlobal.cacheDir 是
                         // 启动时取到的 File 引用，目录删了之后再写缓存会抛
                         // 错、只能重启恢复；留着目录，下次刷新直接重新拉取
-                        AppGlobal.cacheDir.listFiles()?.forEach { it.deleteRecursively() }
+                        // 已下载好还没装的更新包（latest.apk）别清：没给
+                        // 安装权限时它会留在缓存里等装，误删后要重新下载
+                        // 才能装
+                        AppGlobal.cacheDir.listFiles()?.forEach {
+                            if (it.name != "latest.apk") it.deleteRecursively()
+                        }
                     }
                     LeanbackToastState.I.showToast("缓存已清除")
                 },
