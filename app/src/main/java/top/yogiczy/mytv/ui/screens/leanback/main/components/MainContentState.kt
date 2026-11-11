@@ -144,10 +144,13 @@ class LeanbackMainContentState(
      */
     private fun hideTempPanelAfterDelay() {
         coroutineScope.launch {
-            val name = _currentIptv.name
+            // 按频道对象比对，不只按名字：同名不同地址的两个台（如两个分组
+            // 里都有“CCTV-1”）1.5 秒内连切，旧计时器按名字认不出是换台了，
+            // 会把新台的提示条提前藏掉；对象按值相等，地址不同就是不同台
+            val iptv = _currentIptv
             val urlIdx = _currentIptvUrlIdx
             delay(Constants.UI_TEMP_PANEL_SCREEN_SHOW_DURATION)
-            if (name == _currentIptv.name && urlIdx == _currentIptvUrlIdx) {
+            if (iptv == _currentIptv && urlIdx == _currentIptvUrlIdx) {
                 _isTempPanelVisible = false
             }
         }
