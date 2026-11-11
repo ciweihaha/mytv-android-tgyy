@@ -2,6 +2,7 @@ package top.yogiczy.mytv.data.entities
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.Epg.Companion.currentProgrammes
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
@@ -134,5 +135,33 @@ class EntityHelpersTest {
         assertNull(groupList.iptvAt(1))
         assertNull(groupList.iptvAt(-1))
         assertNull(IptvGroupList().iptvAt(0))
+    }
+
+    @Test
+    fun `iptvList flattens groups in order and is built only once`() {
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(
+                    name = "分组1",
+                    iptvList = IptvList(List(3) { Iptv(name = "频道1-$it") }),
+                ),
+                IptvGroup(
+                    name = "空分组",
+                    iptvList = IptvList(emptyList()),
+                ),
+                IptvGroup(
+                    name = "分组2",
+                    iptvList = IptvList(listOf(Iptv(name = "频道2-0"), Iptv(name = "频道2-1"))),
+                ),
+            )
+        )
+
+        assertEquals(
+            listOf("频道1-0", "频道1-1", "频道1-2", "频道2-0", "频道2-1"),
+            groupList.iptvList.map { it.name },
+        )
+        // 多次访问拿的是同一份，不再每次重新摊平一份新列表
+        assertSame(groupList.iptvList, groupList.iptvList)
+        assertEquals(emptyList<Iptv>(), IptvGroupList().iptvList)
     }
 }

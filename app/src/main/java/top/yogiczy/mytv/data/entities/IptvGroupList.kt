@@ -9,6 +9,19 @@ import androidx.compose.runtime.Immutable
 data class IptvGroupList(
     val value: List<IptvGroup> = emptyList(),
 ) : List<IptvGroup> by value {
+    /**
+     * 全量频道列表：只摊平一次记下来。原来是扩展属性，每访问一次就把
+     * 全部分组重新摊平成一份新列表；临时面板、经典面板、节目单刷新
+     * 几处按需调用的地方每次都重新分配一份千级列表。现在跟节目单
+     * EpgList 里那个按频道建表的做法一样，第一次访问时建好、之后
+     * 直接拿同一份。分组列表对象是解析完就不再改的，记下来的这份
+     * 不会变旧；copy 出新对象时会重新算，也不会串到旧的那份上。
+     * 调用方都只读（筛、取名字），共用同一份没影响
+     */
+    val iptvList: List<Iptv> by lazy {
+        value.flatMap { it.iptvList }
+    }
+
     companion object {
         val EXAMPLE = IptvGroupList(List(5) { groupIdx ->
             IptvGroup(
@@ -59,8 +72,5 @@ data class IptvGroupList(
             }
             return null
         }
-
-        val IptvGroupList.iptvList: List<Iptv>
-            get() = this.flatMap { it.iptvList }
     }
 }
