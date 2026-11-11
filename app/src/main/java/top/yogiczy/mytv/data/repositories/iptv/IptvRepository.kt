@@ -27,12 +27,17 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
         val request = Request.Builder().url(sourceUrl).build()
 
         try {
-            with(sharedHttpClient.newCall(request).execute()) {
-                if (!isSuccessful) {
-                    throw Exception("获取远程直播源失败: $code")
+            // 响应体全路径都关：原来只有成功读 body 那条路关了（string()
+            // 会关流），服务器出错（404/500）或响应体为空时直接抛错、
+            // 响应体根本没关，连接回不到连接池；直播源一挂就反复失败
+            // 几次，占满单 host 的连接槽后后续拉取一直等连接。写法与
+            // Downloader（第 180 轮）、节目单拉取（第 181 轮）一致
+            sharedHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw Exception("获取远程直播源失败: ${response.code}")
                 }
 
-                return@with body?.string()
+                response.body?.string()
                     ?: throw Exception("获取远程直播源失败: 响应体为空")
             }
         } catch (ex: Exception) {
