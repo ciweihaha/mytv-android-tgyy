@@ -99,6 +99,16 @@ fun LeanbackMainContent(
         }
     )
 
+    // 收藏名单只转一次记下来：原来传给面板的是一句“每次取都现转成不可变
+    // 列表”，经典面板每按一次遥控挪焦点、父界面一刷新就调它一次，等于
+    // 每按一次键就把整份收藏名单复制一遍，复制完只拿去跟旧名单比对是
+    // 不是同一份；现在名单本身变了才重转，增减收藏会换一个新名单对象、
+    // 重组时重新转，不会记旧。普通面板那边只在打开收藏或点收藏按钮时
+    // 才取，也顺带直接拿记好的这一份
+    val iptvFavoriteImmutableList = remember(settingsViewModel.iptvChannelFavoriteList) {
+        settingsViewModel.iptvChannelFavoriteList.toImmutableList()
+    }
+
     // 播放界面是否正持有焦点（含子节点）：只在失焦时才补请求焦点，
     // 不再每 100ms 都调一次 requestFocus（已聚焦时是空操作）；循环
     // 本身保留作重试——焦点可能在动画中途抢不到，下轮再试才能粘住
@@ -263,7 +273,7 @@ fun LeanbackMainContent(
                             LeanbackToastState.I.showToast("已收藏: ${it.channelName}")
                         }
                     },
-                    iptvFavoriteListProvider = { settingsViewModel.iptvChannelFavoriteList.toImmutableList() },
+                    iptvFavoriteListProvider = { iptvFavoriteImmutableList },
                     iptvFavoriteListVisibleProvider = { settingsViewModel.iptvChannelFavoriteListVisible },
                     onIptvFavoriteListVisibleChange = {
                         settingsViewModel.iptvChannelFavoriteListVisible = it
@@ -290,7 +300,7 @@ fun LeanbackMainContent(
                             LeanbackToastState.I.showToast("已收藏: ${it.channelName}")
                         }
                     },
-                    iptvFavoriteListProvider = { settingsViewModel.iptvChannelFavoriteList.toImmutableList() },
+                    iptvFavoriteListProvider = { iptvFavoriteImmutableList },
                     iptvFavoriteListVisibleProvider = { settingsViewModel.iptvChannelFavoriteListVisible },
                     onIptvFavoriteListVisibleChange = {
                         settingsViewModel.iptvChannelFavoriteListVisible = it
