@@ -235,6 +235,10 @@ private fun LeanbackClassicPanelEpgDayItem(
 ) {
     val day = dayProvider()
 
+    // 日期字符串只切一次记下来：原来每次组合都在标题里现切一次，
+    // 焦点一动、日期栏里每个项都要重切一份；日期不变切出来的结果也不会变
+    val dayParts = remember(day) { day.split(" ") }
+
     val focusRequester = remember { FocusRequester() }
     val isSelected by remember(currentDayProvider()) { derivedStateOf { day == currentDayProvider() } }
     var isFocused by remember { mutableStateOf(false) }
@@ -265,21 +269,19 @@ private fun LeanbackClassicPanelEpgDayItem(
             onClick = {},
             headlineContent = {
                 Column {
-                    val key = day.split(" ")
-
                     Text(
                         text = when (day) {
                             todayProvider() -> "今天"
                             tomorrowProvider() -> "明天"
                             dayAfterTomorrowProvider() -> "后天"
-                            else -> key[0]
+                            else -> dayParts[0]
                         },
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
                     )
 
                     Text(
-                        text = key[1],
+                        text = dayParts[1],
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
                     )
