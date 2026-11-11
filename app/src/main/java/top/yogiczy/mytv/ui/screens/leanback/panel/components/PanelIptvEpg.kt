@@ -98,6 +98,13 @@ fun LeanbackPanelIptvEpgDialog(
                             // 取时间正好跨过节目边界、选中和图标对不上
                             val isLive = programme.isLive()
 
+                            // 时间串只拼一次记下来：原来每次组合都在标题上方现拼一次
+                            // “开始 ~ 结束”，焦点一动、每条节目行重组一次就重拼一次；
+                            // 开始结束时间不变，拼出来的串也不会变，节目变了才重拼
+                            val timeText = remember(programme) {
+                                "${timeFormat.format(programme.startAt)}  ~ ${timeFormat.format(programme.endAt)}"
+                            }
+
                             LaunchedEffect(Unit) {
                                 if (isLive && !hasFocused) {
                                     hasFocused = true
@@ -130,10 +137,8 @@ fun LeanbackPanelIptvEpgDialog(
                                         )
                                     },
                                     overlineContent = {
-                                        val start = timeFormat.format(programme.startAt)
-                                        val end = timeFormat.format(programme.endAt)
                                         Text(
-                                            text = "$start  ~ $end",
+                                            text = timeText,
                                             style = MaterialTheme.typography.labelMedium,
                                             modifier = Modifier.alpha(0.8f),
                                         )
