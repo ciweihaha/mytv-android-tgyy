@@ -69,8 +69,11 @@ private fun PanelPlayerInfoNetSpeed(
     // 网速格式器记住复用：面板开着时网速每秒变一次、每次重组都新建一个
     // DecimalFormat 是纯浪费；只在主线程重组里用，无线程安全问题
     val speedFormat = remember { DecimalFormat("#.#") }
+    // KB 这一档原来是整数除法：157 轮把算式修对后，网速不到 1KB/s
+    // 时算出来是几百没错，但这里一除又截回 0，屏幕上还是 0KB/s；
+    // 和 MB 那档一样改成浮点除、留一位小数，不到 1KB/s 显示 0.5KB/s
     Text(
-        text = if (netSpeed < 1024 * 999) "网速：${netSpeed / 1024}KB/s"
+        text = if (netSpeed < 1024 * 999) "网速：${speedFormat.format(netSpeed / 1024f)}KB/s"
         else "网速：${speedFormat.format(netSpeed / 1024 / 1024f)}MB/s",
         modifier = modifier,
     )
