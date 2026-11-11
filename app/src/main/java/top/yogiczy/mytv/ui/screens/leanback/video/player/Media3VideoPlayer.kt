@@ -346,6 +346,8 @@ class LeanbackMedia3VideoPlayer(
     }
 
     override fun pause() {
+        // 先走基类默认实现取消断流计时（见基类 pause），再停播放器
+        super.pause()
         videoPlayer.pause()
     }
 

@@ -37,7 +37,16 @@ abstract class LeanbackVideoPlayer(
 
     abstract fun play()
 
-    abstract fun pause()
+    /**
+     * 暂停：默认实现只取消断流计时。暂停后播放位置不再前进，不取消的话，
+     * 位置冻住满一个加载超时（默认 15 秒）就会触发断流、重新准备同一条
+     * 流；按 Home 退后台后每 15 秒重复准备一次，白白耗电耗网。回到前台
+     * 恢复播放后位置一动计时又会重新开始，不会漏判真正的断流
+     */
+    open fun pause() {
+        cutoffTimeoutJob?.cancel()
+        cutoffTimeoutJob = null
+    }
 
     abstract fun setVideoSurfaceView(surfaceView: SurfaceView)
 
@@ -95,11 +104,14 @@ abstract class LeanbackVideoPlayer(
         onMetadataListeners.forEach { it(metadata) }
     }
 
-    protected fun triggerCurrentPosition(newPosition: Long) {
+    protected fun triggerCurrentPosition(
+        newPosition: Long,
+        timeoutMs: Long = SP.videoPlayerLoadTimeout,
+    ) {
         if (currentPosition != newPosition) {
             cutoffTimeoutJob?.cancel()
             cutoffTimeoutJob = coroutineScope.launch {
-                delay(SP.videoPlayerLoadTimeout)
+                delay(timeoutMs)
                 onCutoffListeners.forEach { it() }
             }
         }
