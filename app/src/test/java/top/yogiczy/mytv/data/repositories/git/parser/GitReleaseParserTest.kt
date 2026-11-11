@@ -65,6 +65,28 @@ class GithubGitReleaseParserTest {
     }
 
     @Test
+    fun `tv prefixed tag is stripped to plain version`() = runBlocking {
+        // 上游最新 release 的 tag 是 "tv2.2.7"：只去小写 v 会留成
+        // "tv2.2.7"，三处显示又各拼一个 v，最后显示成 "vtv2.2.7"
+        val data = """
+            {
+              "tag_name": "tv2.2.7",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-2.2.7.apk",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/tv2.2.7/mytv-2.2.7.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals("2.2.7", result.version)
+    }
+
+    @Test
     fun `picks the apk asset when it is not first`() = runBlocking {
         val data = """
             {
