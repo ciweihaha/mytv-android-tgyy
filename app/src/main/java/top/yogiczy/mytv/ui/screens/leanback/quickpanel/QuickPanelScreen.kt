@@ -206,11 +206,14 @@ private fun LeanbackQuickPanelActionVideoAspectRatio(
             }
         },
         onSelect = {
+            // 四档循环和设置页“全局画面比例”同一顺序：原始→16:9→4:3→自动拉伸→原始；
+            // 原先自动拉伸按完跳回 16:9，“原始”是默认档却按一次就再也回不去，
+            // 只能进设置页改回来
             onChangeVideoPlayerAspectRatio(
                 when (videoPlayerAspectRatioProvider()) {
                     SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> SP.VideoPlayerAspectRatio.FOUR_THREE
                     SP.VideoPlayerAspectRatio.FOUR_THREE -> SP.VideoPlayerAspectRatio.AUTO
-                    SP.VideoPlayerAspectRatio.AUTO -> SP.VideoPlayerAspectRatio.SIXTEEN_NINE
+                    SP.VideoPlayerAspectRatio.AUTO -> SP.VideoPlayerAspectRatio.ORIGINAL
                     SP.VideoPlayerAspectRatio.ORIGINAL -> SP.VideoPlayerAspectRatio.SIXTEEN_NINE
                 }
             )
