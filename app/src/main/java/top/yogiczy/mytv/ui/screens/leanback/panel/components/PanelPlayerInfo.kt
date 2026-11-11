@@ -48,6 +48,15 @@ fun LeanbackPanelPlayerInfo(
     }
 }
 
+/**
+ * 分辨率拼串：宽高任一边是 0 即未知——元数据还没到（刚切台、首帧未到）
+ * 时 Metadata 里宽高都是 0，原先这里直接拼成“0×0”，看着像坏了；
+ * 播放器信息浮层（VideoPlayerMetadata）同一处早就是“未知”，
+ * 这里跟它保持一致。顶层函数方便单元测试直接调用。
+ */
+internal fun formatResolution(width: Int, height: Int): String =
+    if (width == 0 || height == 0) "未知" else "${width}×${height}"
+
 @Composable
 private fun PanelPlayerInfoResolution(
     modifier: Modifier = Modifier,
@@ -56,7 +65,7 @@ private fun PanelPlayerInfoResolution(
     val resolution = resolutionProvider()
 
     Text(
-        text = "分辨率：${resolution.first}×${resolution.second}",
+        text = "分辨率：${formatResolution(resolution.first, resolution.second)}",
         modifier = modifier,
     )
 }
