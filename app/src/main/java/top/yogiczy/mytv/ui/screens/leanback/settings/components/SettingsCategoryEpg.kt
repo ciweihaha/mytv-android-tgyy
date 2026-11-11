@@ -23,6 +23,7 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.SP
+import top.yogiczy.mytv.utils.nextHourStep
 
 @Composable
 fun LeanbackSettingsCategoryEpg(
@@ -58,7 +59,7 @@ fun LeanbackSettingsCategoryEpg(
                 trailingContent = "${settingsViewModel.epgRefreshTimeThreshold}小时",
                 onSelected = {
                     settingsViewModel.epgRefreshTimeThreshold =
-                        (settingsViewModel.epgRefreshTimeThreshold + 1) % 12
+                        nextHourStep(settingsViewModel.epgRefreshTimeThreshold, 12)
                 },
                 onLongSelected = {
                     settingsViewModel.epgRefreshTimeThreshold = 0

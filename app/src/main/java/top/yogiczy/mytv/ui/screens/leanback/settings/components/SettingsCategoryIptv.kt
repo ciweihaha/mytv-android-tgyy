@@ -24,6 +24,7 @@ import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.utils.humanizeMs
+import top.yogiczy.mytv.utils.nextHourStepMs
 
 @Composable
 fun LeanbackSettingsCategoryIptv(
@@ -95,7 +96,7 @@ fun LeanbackSettingsCategoryIptv(
                 trailingContent = settingsViewModel.iptvSourceCacheTime.humanizeMs(),
                 onSelected = {
                     settingsViewModel.iptvSourceCacheTime =
-                        (settingsViewModel.iptvSourceCacheTime + 1 * 1000 * 60 * 60) % (1000 * 60 * 60 * 24)
+                        nextHourStepMs(settingsViewModel.iptvSourceCacheTime, 24)
                 },
                 onLongSelected = {
                     settingsViewModel.iptvSourceCacheTime = 0

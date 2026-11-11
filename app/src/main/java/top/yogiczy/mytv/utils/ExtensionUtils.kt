@@ -39,6 +39,17 @@ fun Long.humanizeMs(): String {
     }
 }
 
+// 小时步进：设置页里“节目单刷新时间阈值”和“直播源缓存时间”两项原来各写了一份
+// 短按加 1 小时、到顶回 0——一个存小时数（0~11 小时）、一个存毫秒数（0~23 小时），
+// 算法一样、单位和上限不同；以后改步进只改这一处。长按回 0 两处仍各写一个 0，不动。
+// 毫秒那档能走的值都是整小时（默认 24 小时、步进结果、长按 0），先除成小时再算，
+// 结果和原来直接在毫秒上加取余一模一样，包括默认 24 小时按一下变 1 小时。
+fun nextHourStep(currentHours: Int, maxHours: Int): Int =
+    (currentHours + 1) % maxHours
+
+fun nextHourStepMs(currentMs: Long, maxHours: Int): Long =
+    nextHourStep((currentMs / 3_600_000).toInt(), maxHours) * 3_600_000L
+
 fun String.isIPv6(): Boolean {
     // host：scheme 之后、第一个 / 之前
     val host = substringAfter("://", this).substringBefore("/")

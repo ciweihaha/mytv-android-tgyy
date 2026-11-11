@@ -102,3 +102,24 @@ class IsIPv6Test {
         assertFalse("".isIPv6())
     }
 }
+
+class NextHourStepTest {
+    @Test
+    fun `hour value steps by one and wraps at max`() {
+        // 节目单刷新时间阈值：原来是 (v + 1) % 12，默认 2
+        assertEquals(1, nextHourStep(0, 12))
+        assertEquals(3, nextHourStep(2, 12))
+        assertEquals(0, nextHourStep(11, 12))
+    }
+
+    @Test
+    fun `millisecond value steps by one hour and wraps at max`() {
+        // 直播源缓存时间：原来是 (v + 1小时) % 24小时
+        val hourMs = 3_600_000L
+        assertEquals(hourMs, nextHourStepMs(0, 24))
+        assertEquals(4 * hourMs, nextHourStepMs(3 * hourMs, 24))
+        assertEquals(0, nextHourStepMs(23 * hourMs, 24))
+        // 默认就是 24 小时：原来 (24小时 + 1小时) % 24小时 = 1小时
+        assertEquals(hourMs, nextHourStepMs(24 * hourMs, 24))
+    }
+}
