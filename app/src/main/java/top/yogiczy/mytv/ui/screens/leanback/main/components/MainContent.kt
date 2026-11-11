@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.AppGlobal
 import top.yogiczy.mytv.data.entities.EpgList
+import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
@@ -107,6 +108,23 @@ fun LeanbackMainContent(
     // 才取，也顺带直接拿记好的这一份
     val iptvFavoriteImmutableList = remember(settingsViewModel.iptvChannelFavoriteList) {
         settingsViewModel.iptvChannelFavoriteList.toImmutableList()
+    }
+
+    // 收藏开关只写一份共用：原来普通面板和经典面板各写了一份一模一样的
+    // 收藏/取消收藏逻辑（开关没开直接返回、否则按频道名增减名单并弹提示），
+    // 两份改一处容易漏另一处；现在抽成一个共用的回调，两处都传它。
+    // 原来两处 return@面板名只是提前退出本回调，这里改成开关没开就不做，
+    // 和原来等价；开关开着时的增减名单与提示一字不改
+    val onIptvFavoriteToggle: (Iptv) -> Unit = { iptv ->
+        if (settingsViewModel.iptvChannelFavoriteEnable) {
+            if (settingsViewModel.iptvChannelFavoriteList.contains(iptv.channelName)) {
+                settingsViewModel.iptvChannelFavoriteList -= iptv.channelName
+                LeanbackToastState.I.showToast("取消收藏: ${iptv.channelName}")
+            } else {
+                settingsViewModel.iptvChannelFavoriteList += iptv.channelName
+                LeanbackToastState.I.showToast("已收藏: ${iptv.channelName}")
+            }
+        }
     }
 
     // 播放界面是否正持有焦点（含子节点）：只在失焦时才补请求焦点，
@@ -262,17 +280,7 @@ fun LeanbackMainContent(
                     videoPlayerMetadataProvider = { videoPlayerState.metadata },
                     showProgrammeProgressProvider = { settingsViewModel.uiShowEpgProgrammeProgress },
                     onIptvSelected = { mainContentState.changeCurrentIptv(it) },
-                    onIptvFavoriteToggle = {
-                        if (!settingsViewModel.iptvChannelFavoriteEnable) return@LeanbackPanelScreen
-
-                        if (settingsViewModel.iptvChannelFavoriteList.contains(it.channelName)) {
-                            settingsViewModel.iptvChannelFavoriteList -= it.channelName
-                            LeanbackToastState.I.showToast("取消收藏: ${it.channelName}")
-                        } else {
-                            settingsViewModel.iptvChannelFavoriteList += it.channelName
-                            LeanbackToastState.I.showToast("已收藏: ${it.channelName}")
-                        }
-                    },
+                    onIptvFavoriteToggle = onIptvFavoriteToggle,
                     iptvFavoriteListProvider = { iptvFavoriteImmutableList },
                     iptvFavoriteListVisibleProvider = { settingsViewModel.iptvChannelFavoriteListVisible },
                     onIptvFavoriteListVisibleChange = {
@@ -289,17 +297,7 @@ fun LeanbackMainContent(
                     currentIptvProvider = { mainContentState.currentIptv },
                     showProgrammeProgressProvider = { settingsViewModel.uiShowEpgProgrammeProgress },
                     onIptvSelected = { mainContentState.changeCurrentIptv(it) },
-                    onIptvFavoriteToggle = {
-                        if (!settingsViewModel.iptvChannelFavoriteEnable) return@LeanbackClassicPanelScreen
-
-                        if (settingsViewModel.iptvChannelFavoriteList.contains(it.channelName)) {
-                            settingsViewModel.iptvChannelFavoriteList -= it.channelName
-                            LeanbackToastState.I.showToast("取消收藏: ${it.channelName}")
-                        } else {
-                            settingsViewModel.iptvChannelFavoriteList += it.channelName
-                            LeanbackToastState.I.showToast("已收藏: ${it.channelName}")
-                        }
-                    },
+                    onIptvFavoriteToggle = onIptvFavoriteToggle,
                     iptvFavoriteListProvider = { iptvFavoriteImmutableList },
                     iptvFavoriteListVisibleProvider = { settingsViewModel.iptvChannelFavoriteListVisible },
                     onIptvFavoriteListVisibleChange = {
