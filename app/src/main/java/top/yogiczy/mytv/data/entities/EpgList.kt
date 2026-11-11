@@ -69,12 +69,19 @@ data class EpgList(
      * 台名字写法和节目单不一样（直播源“CCTV综合”、节目单“CCTV-1 综合”），
      * 原来全显示“无节目”，按 id 能找回它们的节目单；id 对上后还要名字
      * 复核通过才认（见 isSameEpgChannelName），上游 id 标错的台不贴错节目单。
+     * 复核拿显示名也算一次：tvg-name 是纯 id（如 "cctv1"）的源，拿它去
+     * 对节目单名永远对不上、id 兜底等于没开；显示名（"CCTV-1 综合"）和
+     * 节目单名是同一套叫法，对得上才是同一台。复核本身仍是严格相等
+     * （isSameEpgChannelName 一字不动），海南/湖南、4K/8K 的拦法还在。
      */
     fun epgFor(iptv: Iptv): Epg? {
         byChannel[iptv.channelName]?.let { return it }
         if (iptv.tvgId.isBlank()) return null
         val byId = byChannelId[iptv.tvgId] ?: return null
-        return byId.takeIf { isSameEpgChannelName(iptv.channelName, it.channel) }
+        return byId.takeIf {
+            isSameEpgChannelName(iptv.channelName, it.channel) ||
+                isSameEpgChannelName(iptv.name, it.channel)
+        }
     }
 
     /**

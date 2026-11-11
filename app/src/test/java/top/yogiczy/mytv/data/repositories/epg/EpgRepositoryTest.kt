@@ -42,4 +42,40 @@ class EpgRepositoryTest {
         assertFalse(File(tempFolder.root, "epg.json").exists())
         assertTrue(File(tempFolder.root, "iptv.txt").exists())
     }
+
+    @Test
+    fun `keepEpgChannel keeps channel when display-name matches`() {
+        val filter = setOf("CCTV-1 综合", "cctv1")
+
+        assertTrue(keepEpgChannel("cctv1", "CCTV-1 综合", filter))
+    }
+
+    @Test
+    fun `keepEpgChannel keeps channel when only id matches`() {
+        // tvg-name 是纯 id 的源：过滤集里只有 "cctv1"，display-name
+        // "CCTV-1 综合" 对不上；id 对上也留，否则解析时整台被滤掉
+        val filter = setOf("cctv1")
+
+        assertTrue(keepEpgChannel("cctv1", "CCTV-1 综合", filter))
+    }
+
+    @Test
+    fun `keepEpgChannel drops channel when neither matches`() {
+        val filter = setOf("cctv1")
+
+        assertFalse(keepEpgChannel("cctv2", "CCTV-2 财经", filter))
+    }
+
+    @Test
+    fun `keepEpgChannel keeps all when filter is empty`() {
+        assertTrue(keepEpgChannel("cctv1", "CCTV-1 综合", emptySet()))
+    }
+
+    @Test
+    fun `keepEpgChannel drops channel without id or display-name`() {
+        val filter = setOf("cctv1")
+
+        assertFalse(keepEpgChannel(null, "CCTV-1 综合", filter))
+        assertFalse(keepEpgChannel("cctv1", null, filter))
+    }
 }

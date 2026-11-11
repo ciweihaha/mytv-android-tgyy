@@ -49,6 +49,18 @@ class EpgListTest {
     }
 
     @Test
+    fun `falls back to tvg-id when tvg-name is a bare id`() {
+        // tvg-name 是纯 id（"cctv1"）的源：拿它对节目单名 "CCTV-1 综合"
+        // 永远对不上，id 兜底等于没开；显示名和节目单名是同一套叫法，
+        // 拿显示名复核一次就能认出来
+        val epgList = EpgList(listOf(liveEpg("CCTV-1 综合", "cctv1")))
+        val iptv = Iptv(name = "CCTV-1 综合", channelName = "cctv1", tvgId = "cctv1")
+
+        assertEquals("正在播", epgList.currentProgrammes(iptv)?.now?.title)
+        assertEquals("CCTV-1 综合", epgList.epgFor(iptv)?.channel)
+    }
+
+    @Test
     fun `id match with unrelated names is rejected`() {
         // 上游把海南卫视的 id 写成了湖南卫视备的 id（hnws2）：只按 id 认会
         // 把湖南卫视备的节目单贴到海南卫视上；名字对不上就宁可不贴

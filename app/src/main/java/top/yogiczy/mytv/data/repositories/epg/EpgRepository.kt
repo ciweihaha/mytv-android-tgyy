@@ -65,6 +65,24 @@ internal fun parseEpgTimeFallback(time: String): Long {
 }
 
 /**
+ * 节目单 XML 里一个频道要不要留：display-name 在直播源的频道名里，
+ * 或 id 在直播源的 tvg-id 里。tvg-name 是纯 id（如 "cctv1"）的源，
+ * 只按 display-name 比会把所有频道都滤掉、节目单全丢；id 对上也留，
+ * 查节目单时 epgFor 还会再按名复核一次，不会贴错台。过滤集为空
+ * （没传过滤条件）时全留，和原来一致。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun keepEpgChannel(
+    channelId: String?,
+    channelName: String?,
+    filteredChannels: Set<String>,
+): Boolean {
+    if (channelId == null || channelName == null) return false
+    if (filteredChannels.isEmpty()) return true
+    return filteredChannels.contains(channelName) || filteredChannels.contains(channelId)
+}
+
+/**
  * 判断两个时间戳是否在同一天（默认时区）：拿年份＋年内第几天比，
  * 与按 "yyyy-MM-dd" 格式化后比字符串是同一个意思。
  * 这里不用 SimpleDateFormat：它不是线程安全的，而调用方跑在
@@ -159,9 +177,7 @@ class EpgRepository : FileCacheRepository("epg.json") {
                             innerEvent = parser.next()
                         }
 
-                        if (channelId != null && channelName != null &&
-                            (filteredChannelSet.isEmpty() || filteredChannelSet.contains(channelName))
-                        ) {
+                        if (keepEpgChannel(channelId, channelName, filteredChannelSet)) {
                             channelNames[channelId] = channelName
                             // 与原先 `epgMap[id] = Epg(...)` 的语义一致：重复的 channel
                             // 标签会重置该频道的节目列表

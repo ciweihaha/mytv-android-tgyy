@@ -94,7 +94,13 @@ class LeanbackMainViewModel : ViewModel() {
             emit(
                 epgRepository.getEpgList(
                     xmlUrl = SP.epgXmlUrl,
-                    filteredChannels = iptvGroupList.iptvList.map { it.channelName },
+                    // 过滤条件把频道名和 tvg-id 都带上：tvg-name 是纯 id
+                    // （如 "cctv1"）的源，只传频道名时解析那步按 display-name
+                    // 一个都对不上、节目单直接被滤空；id 也进过滤集后，
+                    // display-name 或 id 任一对上就留（见 keepEpgChannel）
+                    filteredChannels = iptvGroupList.iptvList.flatMap {
+                        listOf(it.channelName, it.tvgId)
+                    }.filter { it.isNotBlank() },
                     refreshTimeThreshold = SP.epgRefreshTimeThreshold,
                 )
             )
