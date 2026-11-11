@@ -15,6 +15,18 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
+import java.text.DecimalFormat
+
+/**
+ * 比特率（bps）换算成 kbps 显示：原来是整数除法 videoBitrate / 1024，
+ * 高码率流只差不到 1 kbps 看不出来，低码率流直接错一位——900 bps 的
+ * 流显示成“0 kbps”（看着像坏了，虽然只有正好 0 才算未知），1500 bps
+ * 显示成“1 kbps”（实际 1.5）。和面板网速同一套写法：浮点除、留一位
+ * 小数，1024/2048 这种整除的还是显示“1 kbps”“2 kbps”，末尾的 0 不留。
+ * 顶层函数方便单元测试直接调用；0 仍由调用处按“未知”处理，这里不管。
+ */
+internal fun formatVideoBitrateKbps(bitrate: Int): String =
+    "${DecimalFormat("#.#").format(bitrate / 1024f)} kbps"
 
 /**
  * 0（或空串）即未知：第 76 轮把 Media3 的 NO_VALUE（-1）归一成了
@@ -58,7 +70,7 @@ fun LeanbackVideoPlayerMetadata(
                     Text(
                         "比特率: ${
                             if (metadata.videoBitrate == 0) "未知"
-                            else "${metadata.videoBitrate / 1024} kbps"
+                            else formatVideoBitrateKbps(metadata.videoBitrate)
                         }"
                     )
                 }
