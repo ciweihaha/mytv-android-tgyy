@@ -35,10 +35,13 @@ object Constants {
     const val EPG_REFRESH_TIME_THRESHOLD = 2 // 不到2点不刷新
 
     /**
-     * Git最新版本信息
+     * Git最新版本信息：查本 fork 的 releases。上游最新 release 还是
+     * 2024 年的 tv2.2.7，比已装的 2.2.8 还旧，查上游的话应用内更新
+     * 永远报无更新，本 fork 发的新版一个也推不到电视上；上游万一
+     * 再发新版，还会把缺了本 fork 改动的包当更新推给用户
      */
     const val GIT_RELEASE_LATEST_URL =
-        "https://api.github.com/repos/yaoxieyoulei/mytv-android/releases/latest"
+        "https://api.github.com/repos/ciweihaha/mytv-android-tgyy/releases/latest"
 
     /**
      * GitHub加速代理地址

@@ -7,6 +7,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.yogiczy.mytv.data.utils.Constants
+import top.yogiczy.mytv.utils.compareVersion
 
 class GithubGitReleaseParserTest {
     private val parser = GithubGitReleaseParser()
@@ -269,6 +271,44 @@ class GitReleaseParserSelectTest {
                 "https://api.github.com/repos/yaoxieyoulei/mytv-android/releases/latest"
             ) is GithubGitReleaseParser
         )
+    }
+
+    @Test
+    fun `selects github parser for the fork update url`() {
+        // 更新检查地址必须指本 fork：上游最新 release 是 2024 年的
+        // tv2.2.7，比已装的 2.2.8 还旧，查上游永远报无更新
+        assertTrue(Constants.GIT_RELEASE_LATEST_URL.contains("ciweihaha/mytv-android-tgyy"))
+        assertTrue(
+            GitReleaseParser.selectParser(Constants.GIT_RELEASE_LATEST_URL)
+                is GithubGitReleaseParser
+        )
+    }
+
+    @Test
+    fun `parses a fork release with v-prefixed tag and fork asset name`() = runBlocking {
+        val data = """
+            {
+              "tag_name": "v2.2.9",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-android-2.2.9.apk",
+                  "browser_download_url": "https://github.com/ciweihaha/mytv-android-tgyy/releases/download/v2.2.9/mytv-android-2.2.9.apk",
+                  "size": 6440504
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = GithubGitReleaseParser().parse(data)
+
+        assertEquals("2.2.9", result.version)
+        assertEquals(
+            "https://mirror.ghproxy.com/https://github.com/ciweihaha/mytv-android-tgyy/releases/download/v2.2.9/mytv-android-2.2.9.apk",
+            result.downloadUrl,
+        )
+        assertEquals(6440504L, result.downloadSize)
+        assertTrue(result.version.compareVersion("2.2.8") > 0)
     }
 
     @Test
