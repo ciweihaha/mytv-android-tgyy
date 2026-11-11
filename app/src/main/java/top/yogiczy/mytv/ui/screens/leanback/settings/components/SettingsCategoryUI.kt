@@ -89,15 +89,10 @@ fun LeanbackSettingsCategoryUI(
                     SP.UiTimeShowMode.EVERY_HOUR -> "整点前后${timeShowRangeSeconds}s显示时间"
                     SP.UiTimeShowMode.HALF_HOUR -> "半点前后${timeShowRangeSeconds}s显示时间"
                 },
-                trailingContent = when (settingsViewModel.uiTimeShowMode) {
-                    SP.UiTimeShowMode.HIDDEN -> "隐藏"
-                    SP.UiTimeShowMode.ALWAYS -> "常显"
-                    SP.UiTimeShowMode.EVERY_HOUR -> "整点"
-                    SP.UiTimeShowMode.HALF_HOUR -> "半点"
-                },
+                trailingContent = settingsViewModel.uiTimeShowMode.label,
                 onSelected = {
                     settingsViewModel.uiTimeShowMode =
-                        SP.UiTimeShowMode.entries.let { it[(it.indexOf(settingsViewModel.uiTimeShowMode) + 1) % it.size] }
+                        settingsViewModel.uiTimeShowMode.next()
                 },
             )
         }

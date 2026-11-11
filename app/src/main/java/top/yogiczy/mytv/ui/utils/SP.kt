@@ -281,18 +281,31 @@ object SP {
         )
         set(value) = sp.edit().putInt(KEY.VIDEO_PLAYER_ASPECT_RATIO.name, value.value).apply()
 
-    enum class UiTimeShowMode(val value: Int) {
+    /**
+     * 时间显示模式：短名字（隐藏 / 常显 / 整点 / 半点）原来只在设置页
+     * “界面”里写了一份 when，点一下换下一档又在旁边按 entries 下标
+     * 现算——和画面比例第 165 轮之前一个毛病。名字和下一档都挂在
+     * 模式自己身上，设置页只调它；以后加一档或改名只改这一处。
+     * 循环顺序就是声明顺序：隐藏→常显→整点→半点→隐藏。
+     * 下面那份长的说明（不显示时间 / 总是显示时间 / 整点前后几秒…）
+     * 带动态秒数、字不一样，仍留在设置页不动。
+     */
+    enum class UiTimeShowMode(val value: Int, val label: String) {
         /** 隐藏 */
-        HIDDEN(0),
+        HIDDEN(0, "隐藏"),
 
         /** 常显 */
-        ALWAYS(1),
+        ALWAYS(1, "常显"),
 
         /** 整点 */
-        EVERY_HOUR(2),
+        EVERY_HOUR(2, "整点"),
 
         /** 半点 */
-        HALF_HOUR(3);
+        HALF_HOUR(3, "半点");
+
+        /** 下一档：按声明顺序循环，到头回第一档 */
+        fun next(): UiTimeShowMode =
+            entries[(ordinal + 1) % entries.size]
 
         companion object {
             fun fromValue(value: Int): UiTimeShowMode {
