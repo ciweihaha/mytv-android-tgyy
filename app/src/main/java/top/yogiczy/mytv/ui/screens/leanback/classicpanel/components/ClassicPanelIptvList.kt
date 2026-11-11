@@ -199,7 +199,10 @@ private fun LeanbackClassicPanelIptvItem(
                         }
                     }
                     .handleLeanbackKeyEvents(
-                        key = iptv.hashCode(),
+                        // 点按检测只在键变了时重建：键是频道本身，频道换了才
+                        // 重建、点按回调跟上新频道；原来是哈希值，两个不同
+                        // 频道哈希撞了就不重建，点的还是旧频道的回调、会播错台
+                        key = iptv,
                         onSelect = {
                             if (isFocused) onSelected()
                             else focusRequester.requestFocus()
