@@ -91,8 +91,15 @@ fun LeanbackPanelIptvEpgDialog(
                             var isFocused by remember { mutableStateOf(false) }
                             val focusRequester = remember { FocusRequester() }
 
+                            // “正在播吗”只算一次记下来：原来同一条节目每次组合
+                            // 要算三遍——首次聚焦判断、选中状态、播放小图标各
+                            // 算一次，每遍都重新取一次当前时间；同一轮组合里
+                            // 三遍结果必然相同，记下来三处共用，还避免三遍
+                            // 取时间正好跨过节目边界、选中和图标对不上
+                            val isLive = programme.isLive()
+
                             LaunchedEffect(Unit) {
-                                if (programme.isLive() && !hasFocused) {
+                                if (isLive && !hasFocused) {
                                     hasFocused = true
                                     focusRequester.requestFocus()
                                 }
@@ -114,7 +121,7 @@ fun LeanbackPanelIptvEpgDialog(
                                         focusedContainerColor = MaterialTheme.colorScheme.onBackground,
                                         selectedContainerColor = Color.Transparent,
                                     ),
-                                    selected = programme.isLive(),
+                                    selected = isLive,
                                     onClick = { },
                                     headlineContent = {
                                         Text(
@@ -132,7 +139,7 @@ fun LeanbackPanelIptvEpgDialog(
                                         )
                                     },
                                     trailingContent = {
-                                        if (programme.isLive()) {
+                                        if (isLive) {
                                             Icon(
                                                 Icons.Default.PlayArrow,
                                                 contentDescription = "playing",
