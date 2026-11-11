@@ -5,7 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import okhttp3.Request
 import org.xmlpull.v1.XmlPullParser
 import top.yogiczy.mytv.data.entities.Epg
 import top.yogiczy.mytv.data.entities.EpgList
@@ -13,6 +12,7 @@ import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.repositories.FileCacheRepository
 import top.yogiczy.mytv.data.repositories.epg.fetcher.EpgFetcher
+import top.yogiczy.mytv.data.utils.buildGetRequest
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.utils.Logger
 import java.io.StringReader
@@ -262,7 +262,7 @@ private class EpgXmlRepository : FileCacheRepository("epg.xml") {
     private suspend fun fetchXml(url: String): String = withContext(Dispatchers.IO) {
         log.d("获取远程节目单xml: $url")
 
-        val request = Request.Builder().url(url).build()
+        val request = buildGetRequest(url, "节目单地址")
 
         try {
             // 响应体全路径都关：原来只有成功读流那条路关了 body（解码层

@@ -2,13 +2,13 @@ package top.yogiczy.mytv.data.repositories.iptv
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.Request
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroup
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.data.repositories.FileCacheRepository
 import top.yogiczy.mytv.data.repositories.iptv.parser.IptvParser
+import top.yogiczy.mytv.data.utils.buildGetRequest
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.utils.Logger
 
@@ -24,7 +24,7 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
     private suspend fun fetchSource(sourceUrl: String) = withContext(Dispatchers.IO) {
         log.d("获取远程直播源: $sourceUrl")
 
-        val request = Request.Builder().url(sourceUrl).build()
+        val request = buildGetRequest(sourceUrl, "直播源地址")
 
         try {
             // 响应体全路径都关：原来只有成功读 body 那条路关了（string()
