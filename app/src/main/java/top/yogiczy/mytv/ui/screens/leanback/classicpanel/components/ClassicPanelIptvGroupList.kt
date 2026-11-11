@@ -49,6 +49,24 @@ import top.yogiczy.mytv.utils.initialScrollIndex
  */
 internal fun classicPanelGroupKey(index: Int, name: String): String = "$index:$name"
 
+/**
+ * 分组列表里“这两行是不是同一个分组”：必须按引用比，不能按值比——
+ * IptvGroup 是 data class，源里一个空的同名“我的收藏”分组按值算和
+ * 假分组一模一样，按值比时点中源分组那一行，假分组那一行也会同时
+ * 显示选中、初始焦点也会两行都抢；列表里的每行、当前选中、初始分组
+ * 都是同一份列表里的对象，按引用比才分得清。顶层函数方便单元测试直接调用。
+ */
+internal fun isSameClassicPanelGroup(a: IptvGroup, b: IptvGroup): Boolean = a === b
+
+/**
+ * 分组在列表里的下标：同样按引用找，不能用 indexOf——indexOf 按值比，
+ * 初始分组是源里那个空的同名“我的收藏”分组时，会先撞上排在第 0 位的
+ * 假分组，初始滚动位置就错停在最上面；找不到时回 -1，和 indexOf 一样，
+ * 调用处 initialScrollIndex(-1) 会夹回 0。
+ */
+internal fun classicPanelGroupIndex(list: IptvGroupList, group: IptvGroup): Int =
+    list.indexOfFirst { it === group }
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun LeanbackClassicPanelIptvGroupList(
@@ -66,7 +84,7 @@ fun LeanbackClassicPanelIptvGroupList(
     // 列表里的下标，算完只在第一次建列表状态时用一次，之后滚动位置
     // 由列表状态自己记住；只在直播源变了时重算
     val initialGroupIdx = remember(iptvGroupList) {
-        initialScrollIndex(iptvGroupList.indexOf(initialIptvGroup))
+        initialScrollIndex(classicPanelGroupIndex(iptvGroupList, initialIptvGroup))
     }
     val listState = rememberLazyListState(initialGroupIdx)
 
@@ -102,12 +120,12 @@ fun LeanbackClassicPanelIptvGroupList(
         itemsIndexed(iptvGroupList, key = { index, iptvGroup ->
             classicPanelGroupKey(index, iptvGroup.name)
         }) { _, iptvGroup ->
-            val isSelected by remember { derivedStateOf { iptvGroup == focusedIptvGroup } }
+            val isSelected by remember { derivedStateOf { isSameClassicPanelGroup(iptvGroup, focusedIptvGroup) } }
 
             LeanbackClassicPanelIptvGroupItem(
                 iptvGroupProvider = { iptvGroup },
                 isSelectedProvider = { isSelected },
-                initialFocusedProvider = { iptvGroup == initialIptvGroup },
+                initialFocusedProvider = { isSameClassicPanelGroup(iptvGroup, initialIptvGroup) },
                 onFocused = {
                     focusedIptvGroup = it
                     onIptvGroupFocused(it)
