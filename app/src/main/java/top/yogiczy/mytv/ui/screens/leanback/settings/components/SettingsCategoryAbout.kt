@@ -71,7 +71,7 @@ fun LeanbackSettingsCategoryAbout(
             )
 
             LeanbackQrcodeDialog(
-                text = Constants.APP_REPO,
+                textProvider = { Constants.APP_REPO },
                 description = "扫码前往代码仓库",
                 showDialogProvider = { showQrDialog },
                 onDismissRequest = { showQrDialog = false },

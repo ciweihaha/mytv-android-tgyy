@@ -141,7 +141,7 @@ fun LeanbackSettingsSourceHistoryDialog(
                         )
 
                         LeanbackQrcodeDialog(
-                            text = HttpServer.serverUrl,
+                            textProvider = { HttpServer.serverUrl },
                             description = "扫码前往设置页面",
                             showDialogProvider = { showDialog },
                             onDismissRequest = { showDialog = false },

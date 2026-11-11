@@ -56,7 +56,7 @@ fun LeanbackQrcode(
 @Composable
 fun LeanbackQrcodeDialog(
     modifier: Modifier = Modifier,
-    text: String,
+    textProvider: () -> String = { "" },
     description: String? = null,
     showDialogProvider: () -> Boolean = { false },
     onDismissRequest: () -> Unit = {},
@@ -69,7 +69,13 @@ fun LeanbackQrcodeDialog(
             confirmButton = { description?.let { Text(text = description) } },
             text = {
                 LeanbackQrcode(
-                    text = text,
+                    // 二维码文字只在弹窗打开时才取：原来是调用方每次组合就
+                    // 把字符串算好传进来，设置页每个列表项都挂着一个这样
+                    // 的弹窗（平时根本不打开），每按一次遥控挪焦点、每
+                    // 个列表项重组一次，就要把本机网卡枚举一遍现算一次
+                    // 局域网地址；改成打开时才取，IP 会变时现算的语义
+                    // 不变（每次打开都重新取），平时不再白算
+                    text = textProvider(),
                     modifier = Modifier
                         .width(240.dp)
                         .height(240.dp),
