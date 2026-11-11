@@ -142,9 +142,11 @@ class LeanbackMainContentState(
         }
 
         _currentIptvUrlIdx = if (urlIdx == null) {
-            // 优先从记忆中选择可播放的域名
+            // 优先从记忆中选择可播放的域名：域名表只从设置里读一次记下来，
+            // 原来每比一条地址就重读一次，一个台有多条备用地址时就重复读好几次
+            val playableHosts = SP.iptvPlayableHostList
             max(0, _currentIptv.urlList.indexOfFirst {
-                SP.iptvPlayableHostList.contains(getUrlHost(it))
+                playableHosts.contains(getUrlHost(it))
             })
         } else {
             (urlIdx + _currentIptv.urlList.size) % _currentIptv.urlList.size
@@ -178,6 +180,8 @@ fun rememberLeanbackMainContentState(
     )
 }
 
+// 取地址的域名只切一次：原来先按 "://" 切一次、再按 "/" 切一次，
+// 两次切分各建一份临时列表；一次截取结果完全一样
 private fun getUrlHost(url: String): String {
-    return url.split("://").getOrElse(1) { "" }.split("/").firstOrNull() ?: url
+    return url.substringAfter("://", "").substringBefore("/")
 }
