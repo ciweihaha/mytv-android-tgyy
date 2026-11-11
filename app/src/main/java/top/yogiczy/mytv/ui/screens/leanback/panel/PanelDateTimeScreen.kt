@@ -26,6 +26,7 @@ import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.SP
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * 整点 / 半点模式共用的“靠近周期起点吗”判断：原来两个分支各写了一份
@@ -35,7 +36,16 @@ import java.util.Locale
  * 或周期结束前 30 秒内。
  */
 internal fun isNearPeriodBoundary(timestamp: Long, periodMs: Long): Boolean {
-    val remainder = timestamp % periodMs
+    // 取余要按本地墙上时间算：时间戳是 UTC，整点/半点是本地时间；
+    // 半小时时区（印度 +5:30、伊朗 +3:30、尼泊尔 +5:45 等）下直接
+    // 拿 UTC 时间戳取余，窗口整个错开半小时/45 分钟——当地整点时不
+    // 显示，半点时反而显示。加上此时刻的本地偏移（含夏令时）再取余，
+    // 窗口就落在本地整点/半点上；整小时时区偏移是周期的整倍数，结果
+    // 和原来一模一样。floorMod：1970 年之前的时间戳加偏移仍为负时，
+    // 普通 % 会出负余数
+    val remainder = Math.floorMod(
+        timestamp + TimeZone.getDefault().getOffset(timestamp), periodMs
+    )
     return remainder <= Constants.UI_TIME_SHOW_RANGE + 1000 ||
         remainder >= periodMs - Constants.UI_TIME_SHOW_RANGE
 }
