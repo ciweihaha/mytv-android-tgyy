@@ -197,26 +197,12 @@ private fun LeanbackQuickPanelActionVideoAspectRatio(
     // 会把自动拉伸认成 16:9（标题永远不显示自动拉伸），在 4:3 屏幕上按到
     // 4:3 就卡住、再按还是 4:3，回不去 16:9
     LeanbackQuickPanelButton(
-        titleProvider = {
-            "画面比例 " + when (videoPlayerAspectRatioProvider()) {
-                SP.VideoPlayerAspectRatio.ORIGINAL -> "原始"
-                SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> "16:9"
-                SP.VideoPlayerAspectRatio.FOUR_THREE -> "4:3"
-                SP.VideoPlayerAspectRatio.AUTO -> "自动拉伸"
-            }
-        },
+        titleProvider = { "画面比例 " + videoPlayerAspectRatioProvider().label },
         onSelect = {
             // 四档循环和设置页“全局画面比例”同一顺序：原始→16:9→4:3→自动拉伸→原始；
             // 原先自动拉伸按完跳回 16:9，“原始”是默认档却按一次就再也回不去，
             // 只能进设置页改回来
-            onChangeVideoPlayerAspectRatio(
-                when (videoPlayerAspectRatioProvider()) {
-                    SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> SP.VideoPlayerAspectRatio.FOUR_THREE
-                    SP.VideoPlayerAspectRatio.FOUR_THREE -> SP.VideoPlayerAspectRatio.AUTO
-                    SP.VideoPlayerAspectRatio.AUTO -> SP.VideoPlayerAspectRatio.ORIGINAL
-                    SP.VideoPlayerAspectRatio.ORIGINAL -> SP.VideoPlayerAspectRatio.SIXTEEN_NINE
-                }
-            )
+            onChangeVideoPlayerAspectRatio(videoPlayerAspectRatioProvider().next())
         },
     )
 }

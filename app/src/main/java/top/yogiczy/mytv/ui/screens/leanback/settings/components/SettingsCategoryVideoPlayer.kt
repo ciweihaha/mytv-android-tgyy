@@ -29,17 +29,10 @@ fun LeanbackSettingsCategoryVideoPlayer(
         item {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "全局画面比例",
-                trailingContent = when (settingsViewModel.videoPlayerAspectRatio) {
-                    SP.VideoPlayerAspectRatio.ORIGINAL -> "原始"
-                    SP.VideoPlayerAspectRatio.SIXTEEN_NINE -> "16:9"
-                    SP.VideoPlayerAspectRatio.FOUR_THREE -> "4:3"
-                    SP.VideoPlayerAspectRatio.AUTO -> "自动拉伸"
-                },
+                trailingContent = settingsViewModel.videoPlayerAspectRatio.label,
                 onSelected = {
                     settingsViewModel.videoPlayerAspectRatio =
-                        SP.VideoPlayerAspectRatio.entries.let {
-                            it[(it.indexOf(settingsViewModel.videoPlayerAspectRatio) + 1) % it.size]
-                        }
+                        settingsViewModel.videoPlayerAspectRatio.next()
                 },
             )
         }

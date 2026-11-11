@@ -320,18 +320,29 @@ object SP {
         }
     }
 
-    enum class VideoPlayerAspectRatio(val value: Int) {
+    /**
+     * 画面比例：中文名和“下一档”原来在快捷面板和设置页各写了一份——
+     * 两处 when 的分支一字不差，循环顺序也各写一遍（快捷面板写死
+     * when、设置页按 entries 下标算），以后加一档或改名容易只改一处、
+     * 两边走样。名字和下一档都挂在档位自己身上，两处只调它。
+     * 循环顺序就是声明顺序：原始→16:9→4:3→自动拉伸→原始。
+     */
+    enum class VideoPlayerAspectRatio(val value: Int, val label: String) {
         /** 原始 */
-        ORIGINAL(0),
+        ORIGINAL(0, "原始"),
 
         /** 16:9 */
-        SIXTEEN_NINE(1),
+        SIXTEEN_NINE(1, "16:9"),
 
         /** 4:3 */
-        FOUR_THREE(2),
+        FOUR_THREE(2, "4:3"),
 
         /** 自动拉伸 */
-        AUTO(3);
+        AUTO(3, "自动拉伸");
+
+        /** 下一档：按声明顺序循环，到头回第一档 */
+        fun next(): VideoPlayerAspectRatio =
+            entries[(ordinal + 1) % entries.size]
 
         companion object {
             fun fromValue(value: Int): VideoPlayerAspectRatio {
