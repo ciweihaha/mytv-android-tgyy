@@ -27,7 +27,7 @@ import kotlinx.collections.immutable.persistentListOf
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
 import top.yogiczy.mytv.ui.utils.HttpServer
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
-import kotlin.math.max
+import top.yogiczy.mytv.utils.initialScrollIndex
 
 /**
  * 历史源对话框（直播源 / 节目单共用）：原来两份对话框除了标题、
@@ -64,7 +64,7 @@ fun LeanbackSettingsSourceHistoryDialog(
                 // 列表状态必须 remember：原先每次重组都新建，滚动位置会被重置
                 val listState = remember(sourceHistory, currentSource) {
                     LazyListState(
-                        max(0, sourceHistory.indexOf(currentSource) - 2),
+                        initialScrollIndex(sourceHistory.indexOf(currentSource)),
                     )
                 }
 

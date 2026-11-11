@@ -123,3 +123,37 @@ class NextHourStepTest {
         assertEquals(hourMs, nextHourStepMs(24 * hourMs, 24))
     }
 }
+
+/**
+ * 列表初始滚动位置：第 170 轮把全 App 8 处一模一样的
+ * max(0, 下标 - 2) 抽成了共用的 initialScrollIndex——当前项上方留
+ * 两行，打开列表就能看到上下文。这里验收抽出来的那份算出来和原来
+ * 写死的算式一模一样：中间减 2、开头夹到 0、找不到（-1）也回 0。
+ */
+class InitialScrollIndexTest {
+    @Test
+    fun `middle index leaves two rows above`() {
+        assertEquals(3, initialScrollIndex(5))
+        assertEquals(8, initialScrollIndex(10))
+        assertEquals(0, initialScrollIndex(2))
+    }
+
+    @Test
+    fun `first rows clamp to zero`() {
+        assertEquals(0, initialScrollIndex(1))
+        assertEquals(0, initialScrollIndex(0))
+    }
+
+    @Test
+    fun `missing index goes to first row`() {
+        // 下标 -1（当前项不在列表里）：原来 max(0, -1 - 2) 取 0
+        assertEquals(0, initialScrollIndex(-1))
+    }
+
+    @Test
+    fun `custom above count is honored`() {
+        assertEquals(5, initialScrollIndex(5, above = 0))
+        assertEquals(1, initialScrollIndex(1, above = 0))
+        assertEquals(0, initialScrollIndex(-1, above = 0))
+    }
+}

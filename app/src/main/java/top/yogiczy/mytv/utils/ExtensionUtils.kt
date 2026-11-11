@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import kotlin.math.max
 
 /**
  * 取包信息：API 33 起 getPackageInfo(String, Int) 已废弃，
@@ -49,6 +50,11 @@ fun nextHourStep(currentHours: Int, maxHours: Int): Int =
 
 fun nextHourStepMs(currentMs: Long, maxHours: Int): Long =
     nextHourStep((currentMs / 3_600_000).toInt(), maxHours) * 3_600_000L
+
+// 列表初始滚动位置：全 App 8 处都是同一条算式——当前项下标减 2 再夹到 0，
+// 让当前项上方留两行，打开列表就能看到上下文；下标 -1（当前项不在列表里）
+// 减完也是负数，同样夹回 0，就是第一行。以后改“留几行”只改这一处。
+fun initialScrollIndex(index: Int, above: Int = 2): Int = max(0, index - above)
 
 fun String.isIPv6(): Boolean {
     // host：scheme 之后、第一个 / 之前

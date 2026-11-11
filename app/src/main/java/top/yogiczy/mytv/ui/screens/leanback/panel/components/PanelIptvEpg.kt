@@ -37,9 +37,9 @@ import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.utils.initialScrollIndex
 import java.text.SimpleDateFormat
 import java.util.Locale
-import kotlin.math.max
 
 /**
  * 节目单弹窗里左右键切频道：原来普通面板频道列表和收藏列表各写了一份
@@ -81,7 +81,7 @@ fun LeanbackPanelIptvEpgDialog(
                 // 滚动位置会被重置回初始下标；只在节目单本身变化时重建
                 val listState = remember(epg) {
                     LazyListState(
-                        max(0, epg.programmes.indexOfFirst { it.isLive() } - 2)
+                        initialScrollIndex(epg.programmes.indexOfFirst { it.isLive() })
                     )
                 }
 

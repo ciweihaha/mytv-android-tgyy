@@ -39,8 +39,8 @@ import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.utils.initialScrollIndex
 import top.yogiczy.mytv.utils.isIPv6
-import kotlin.math.max
 import kotlin.system.measureTimeMillis
 
 @Composable
@@ -65,7 +65,7 @@ fun LeanbackQuickPanelIptvChannelsDialog(
             text = {
                 var hasFocused by remember { mutableStateOf(false) }
 
-                val listState = rememberLazyListState(max(0, iptvUrlIdx - 2))
+                val listState = rememberLazyListState(initialScrollIndex(iptvUrlIdx))
 
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.isScrollInProgress }

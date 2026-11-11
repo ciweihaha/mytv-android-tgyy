@@ -45,10 +45,10 @@ import top.yogiczy.mytv.data.entities.EpgProgramme.Companion.isLive
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.utils.initialScrollIndex
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlin.math.max
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -96,10 +96,10 @@ fun LeanbackClassicPanelEpgList(
         val days = remember(programmesGroup) { programmesGroup.keys.toList() }
 
         val programmesListState = remember(programmes) {
-            LazyListState(max(0, programmes.indexOfFirst { it.isLive() } - 2))
+            LazyListState(initialScrollIndex(programmes.indexOfFirst { it.isLive() }))
         }
         val daysListState = remember(programmesGroup) {
-            LazyListState(max(0, programmesGroup.keys.indexOf(currentDay) - 2))
+            LazyListState(initialScrollIndex(programmesGroup.keys.indexOf(currentDay)))
         }
 
         LaunchedEffect(programmesListState) {

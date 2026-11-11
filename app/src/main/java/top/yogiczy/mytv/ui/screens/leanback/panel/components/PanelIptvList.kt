@@ -26,7 +26,7 @@ import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.ui.rememberLeanbackChildPadding
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
-import kotlin.math.max
+import top.yogiczy.mytv.utils.initialScrollIndex
 
 @Composable
 fun LeanbackPanelIptvList(
@@ -54,7 +54,7 @@ fun LeanbackPanelIptvList(
     // 普通面板的分组列表和经典面板的分组列表早就是这么做的，这里是普通面板里
     // 还没收的同类写法
     val initialIptvIdx = remember(iptvList) {
-        max(0, iptvList.indexOf(currentIptvProvider()) - 2)
+        initialScrollIndex(iptvList.indexOf(currentIptvProvider()))
     }
     val listState = rememberLazyListState(initialIptvIdx)
     val childPadding = rememberLeanbackChildPadding()

@@ -47,6 +47,7 @@ import top.yogiczy.mytv.data.entities.IptvGroup
 import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.utils.initialScrollIndex
 import kotlin.math.max
 
 @Composable
@@ -96,7 +97,7 @@ fun LeanbackClassicPanelIptvList(
     val listState = remember(iptvGroupProvider()) {
         LazyListState(
             if (hasFocused) 0
-            else max(0, iptvList.indexOf(initialIptv) - 2)
+            else initialScrollIndex(iptvList.indexOf(initialIptv))
         )
     }
 
