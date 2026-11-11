@@ -42,7 +42,7 @@ internal fun nextCutoffStreak(
 
 @Stable
 class LeanbackMainContentState(
-    coroutineScope: CoroutineScope,
+    private val coroutineScope: CoroutineScope,
     private val videoPlayerState: LeanbackVideoPlayerState,
     private val iptvGroupList: IptvGroupList,
 ) : Loggable() {
@@ -97,14 +97,7 @@ class LeanbackMainContentState(
             ?: iptvGroupList.firstOrNull()?.iptvList?.firstOrNull() ?: Iptv())
 
         videoPlayerState.onReady {
-            coroutineScope.launch {
-                val name = _currentIptv.name
-                val urlIdx = _currentIptvUrlIdx
-                delay(Constants.UI_TEMP_PANEL_SCREEN_SHOW_DURATION)
-                if (name == _currentIptv.name && urlIdx == _currentIptvUrlIdx) {
-                    _isTempPanelVisible = false
-                }
-            }
+            hideTempPanelAfterDelay()
 
             // 记忆可播放的域名
             if (_currentIptv.urlList.isNotEmpty()) {
@@ -140,6 +133,22 @@ class LeanbackMainContentState(
                 handleCurrentUrlFailed(reportErrorIfLast = true)
             } else {
                 changeCurrentIptv(_currentIptv, _currentIptvUrlIdx)
+            }
+        }
+    }
+
+    /**
+     * 切台提示条 1.5 秒后自动隐藏：正常频道在播放器就绪后起计时；无地址的
+     * 频道不调播放器、没有就绪回调，也要在这里起计时——否则提示条一直挂
+     * 在屏幕上不消失。到期时仍是同一频道才隐藏，半路切走的不动
+     */
+    private fun hideTempPanelAfterDelay() {
+        coroutineScope.launch {
+            val name = _currentIptv.name
+            val urlIdx = _currentIptvUrlIdx
+            delay(Constants.UI_TEMP_PANEL_SCREEN_SHOW_DURATION)
+            if (name == _currentIptv.name && urlIdx == _currentIptvUrlIdx) {
+                _isTempPanelVisible = false
             }
         }
     }
@@ -201,9 +210,11 @@ class LeanbackMainContentState(
         SP.iptvLastIptvIdx = iptvGroupList.iptvIdx(_currentIptv)
 
         // 无可用播放地址的频道（如不支持的源格式返回的 m3u/tvbox 提示条目）：
-        // 只切换显示，不调用播放器——否则 urlList[0] 越界崩溃
+        // 只切换显示，不调用播放器——否则 urlList[0] 越界崩溃；不调播放器
+        // 就没有就绪回调，这里直接给提示条起计时，不然它一直不消失
         if (iptv.urlList.isEmpty()) {
             _currentIptvUrlIdx = 0
+            hideTempPanelAfterDelay()
             return
         }
 
