@@ -91,7 +91,10 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
             return result
         } catch (ex: Exception) {
             log.e("获取直播源失败", ex)
-            throw Exception(ex)
+            // 直接原样抛：再包一层 Exception(ex) 会让消息变成
+            // "java.lang.Exception: 获取远程直播源失败，请检查网络连接"，
+            // 错误页原样显示这条消息，用户看到的是一串类名前缀
+            throw ex
         }
     }
 }
