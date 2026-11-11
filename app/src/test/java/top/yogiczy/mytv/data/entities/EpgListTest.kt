@@ -60,6 +60,18 @@ class EpgListTest {
     }
 
     @Test
+    fun `id match with only digits differing is rejected`() {
+        // 节目单里 "CCTV-4K 超高清"（cctv4k）和 "CCTV-8K 超高清"（cctv8k）
+        // 去掉数字后都变成 "cctvk超高清"：只按去数字后的名字复核会把 4K 的
+        // 节目单贴到 8K 上；数字串 4 对 8 对不上就宁可不贴
+        val epgList = EpgList(listOf(liveEpg("CCTV-4K 超高清", "cctv8k")))
+        val iptv = Iptv(name = "CCTV8K超高清", channelName = "CCTV8K超高清", tvgId = "cctv8k")
+
+        assertNull(epgList.epgFor(iptv))
+        assertNull(epgList.currentProgrammes(iptv))
+    }
+
+    @Test
     fun `returns null when channel has no tvg-id and name does not match`() {
         val epgList = EpgList(listOf(liveEpg("CCTV-1 综合", "cctv1")))
         val iptv = Iptv(name = "凤凰中文", channelName = "凤凰中文", tvgId = "")
@@ -84,5 +96,7 @@ class EpgListTest {
         assertFalse(isSameEpgChannelName("海南卫视", "湖南卫视备"))
         assertFalse(isSameEpgChannelName("CCTV综合", "CCTV财经"))
         assertFalse(isSameEpgChannelName("1", "2"))
+        // 只差数字的台：4K 和 8K 去数字后名字一模一样，数字串对不上就不能算同一个台
+        assertFalse(isSameEpgChannelName("CCTV8K超高清", "CCTV-4K 超高清"))
     }
 }

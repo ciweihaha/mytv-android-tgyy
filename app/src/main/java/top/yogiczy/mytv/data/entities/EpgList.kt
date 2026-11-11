@@ -11,6 +11,11 @@ import java.util.Locale
  * id 写成了湖南卫视备的 id（hnws2），只按 id 认会把湖南卫视备的节目单
  * 贴到海南卫视上；名字对不上就宁可不贴（和原来一样显示无节目），也不
  * 贴错台。归一化后是空串（如名字只剩数字）不算相同，避免“1”和“2”撞到一起。
+ * 数字串也要对得上：只去数字比时“CCTV-4K 超高清”和“CCTV-8K 超高清”
+ * 都变成“cctvk超高清”，会被当成同一个台——上游一旦把 4K 的 id 标成
+ * 8K（海南卫视的 id 被标错就有先例），复核就拦不住、错台的节目单直接
+ * 贴过去。数字串相等、或一边没有数字（“CCTV综合”对“CCTV-1 综合”）
+ * 才算对上；两边都有数字且不一样（如 4 对 8）就按不同台处理。
  * 顶层函数方便单元测试直接调用。
  */
 internal fun isSameEpgChannelName(m3uName: String, epgName: String): Boolean {
@@ -19,7 +24,10 @@ internal fun isSameEpgChannelName(m3uName: String, epgName: String): Boolean {
             .filterNot { it.isDigit() || it.isWhitespace() || it == '-' || it == '+' }
     val first = normalized(m3uName)
     val second = normalized(epgName)
-    return first.isNotEmpty() && first == second
+    if (first.isEmpty() || first != second) return false
+    val firstDigits = m3uName.filter { it.isDigit() }
+    val secondDigits = epgName.filter { it.isDigit() }
+    return firstDigits.isEmpty() || secondDigits.isEmpty() || firstDigits == secondDigits
 }
 
 @Immutable
