@@ -96,9 +96,13 @@ private fun rememberNetSpeed(): Long {
                 val nowTimeStamp = System.currentTimeMillis()
                 // 系统时间被往回调时两时刻可能相同甚至倒挂：除零会崩溃，
                 // 负数会算出负网速——只在时间正常前进时更新
+                // 先乘后除：两边都是 Long，先除会把每毫秒的零头截掉再乘 1000，
+                // 一秒流量不到 1KB 时直接算成 0，平时也固定少算将近 1KB/s；
+                // 先乘 1000 再除，结果一样但零头保留；一秒流量不过几 MB，
+                // 乘 1000 远到不了 Long 上限，不会溢出
                 val elapsed = nowTimeStamp - lastTimeStamp
                 if (elapsed > 0) {
-                    netSpeed = (nowTotalRxBytes - lastTotalRxBytes) / elapsed * 1000
+                    netSpeed = (nowTotalRxBytes - lastTotalRxBytes) * 1000 / elapsed
                 }
                 lastTimeStamp = nowTimeStamp
                 lastTotalRxBytes = nowTotalRxBytes
