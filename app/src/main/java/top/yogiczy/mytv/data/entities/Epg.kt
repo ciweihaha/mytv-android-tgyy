@@ -35,15 +35,21 @@ data class Epg(
          * 目”，明明很快就有节目要播；这时把最近的下一个节目带上（正在
          * 播放仍是空）。节目单顺序不保证按时间排（XML 原样解析），按开
          * 始时间取最小的那个，不依赖列表顺序；所有节目都播完了才回 null
+         * 正在播时也一样：下一个节目按时间取，不拿列表里正在播那条的
+         * 下一条——顺序一乱，下邻居可能是已播完的、也可能是很久以后
+         * 的。取开始时间在当前节目结束时刻之后、最早的那一档；都没
+         * 有时再退一步，取还没开始的最早那档（节目时间有重叠的脏数
+         * 据也能带上）
          */
         fun Epg.currentProgrammes(): EpgProgrammeCurrent? {
             val now = System.currentTimeMillis()
             val index = programmes.indexOfFirst { it.isLive() }
             if (index >= 0) {
-                return EpgProgrammeCurrent(
-                    now = programmes[index],
-                    next = programmes.getOrNull(index + 1),
-                )
+                val current = programmes[index]
+                val next = programmes.filter { it.startAt >= current.endAt }
+                    .minByOrNull { it.startAt }
+                    ?: programmes.filter { it.startAt > now }.minByOrNull { it.startAt }
+                return EpgProgrammeCurrent(now = current, next = next)
             }
 
             val next = programmes.filter { it.startAt > now }.minByOrNull { it.startAt }
