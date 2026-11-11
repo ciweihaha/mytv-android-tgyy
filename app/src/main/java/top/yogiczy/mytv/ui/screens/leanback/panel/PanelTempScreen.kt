@@ -37,6 +37,14 @@ fun LeanbackPanelTempScreen(
 ) {
     val childPadding = rememberLeanbackChildPadding()
 
+    // 当前节目只算一次记下来：原来同一轮组合要算两遍——频道信息
+    // 里拿“正在播/稍后播”算一遍，进度条拿当前节目进度又算一遍；
+    // 每遍都要按频道名查表、再把当天节目单扫一遍找正在播的那条，
+    // 还各取一次当前时间；同一轮组合里两遍结果必然相同，记下来
+    // 两处共用，还避免两遍取时间正好跨过节目边界、信息和进度条
+    // 对不上（一个说在播 A、进度条却是 B 的进度）
+    val currentProgrammes = currentProgrammesProvider()
+
     Box(modifier = modifier.fillMaxSize()) {
         LeanbackPanelChannelNo(
             channelNoProvider = { channelNoProvider().toString().padStart(2, '0') },
@@ -54,10 +62,9 @@ fun LeanbackPanelTempScreen(
                         .sizeIn(maxWidth = 400.dp),
                     iptvProvider = currentIptvProvider,
                     iptvUrlIdxProvider = currentIptvUrlIdxProvider,
-                    currentProgrammesProvider = currentProgrammesProvider,
+                    currentProgrammesProvider = { currentProgrammes },
                 )
 
-                val currentProgrammes = currentProgrammesProvider()
                 if (showProgrammeProgressProvider() && currentProgrammes?.now != null) {
                     Box(
                         modifier = Modifier
