@@ -53,6 +53,12 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // 单元测试跑在本机 JVM 上，android.jar 里的 Log 等方法是桩，
+        // 默认一调就抛错；让桩返回默认值，生产代码里的日志调用在测
+        // 试里不再炸。只影响测试，不影响打包出来的 App
+        unitTests.isReturnDefaultValues = true
+    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
