@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.ImmutableList
@@ -125,6 +126,13 @@ private fun LeanbackMonitorFpsPreview() {
     }
 }
 
+/** FPS 柱状图一次性算好的尺寸：柱宽、柱间距、最大高度（单位 px） */
+private data class FpsBarGeometry(
+    val barWidth: Float,
+    val barSpacing: Float,
+    val maxBarHeight: Float,
+)
+
 @Composable
 private fun LeanbackMonitorFpsBar(
     modifier: Modifier = Modifier,
@@ -132,14 +140,25 @@ private fun LeanbackMonitorFpsBar(
 ) {
     val fpsList = fpsListProvider()
 
+    // 画布固定 140x40dp：柱宽、间距、最大高度只随屏幕密度算一次记下来，
+    // 每次画图直接用，不再每次画都现查密度、现除一次
+    val density = LocalDensity.current
+    val barGeometry = remember(density) {
+        with(density) {
+            FpsBarGeometry(
+                barWidth = 140.dp.toPx() / 60,
+                barSpacing = 2.dp.toPx(),
+                maxBarHeight = 40.dp.toPx(),
+            )
+        }
+    }
+
     Canvas(
         modifier = modifier
             .width(140.dp)
             .height(40.dp),
     ) {
-        val barWidth = size.width / 60 // 每个柱状条的宽度
-        val barSpacing = 2.dp.toPx() // 柱状条之间的间距
-        val maxBarHeight = size.height // 柱状图的最大高度
+        val (barWidth, barSpacing, maxBarHeight) = barGeometry
 
         for (i in fpsList.indices) {
             val fps = fpsList[i]
