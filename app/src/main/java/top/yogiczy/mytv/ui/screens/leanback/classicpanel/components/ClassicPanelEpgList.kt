@@ -50,6 +50,18 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+/**
+ * 经典面板节目单默认选哪天：今天有节目就选今天；今天那天没节目时
+ * （节目单过期、只剩前几天的，或源只给了从明天起的数据），原来写死
+ * 今天，节目列表按当天取不到就显示空白、右侧日期栏也没有选中项，
+ * 明明有节目却要用户自己先点一天才看得到。现在回落到有节目的第一天，
+ * 至少先看到内容；今天有节目时行为和原来一字不变。日期栏的键是
+ * groupBy 按节目顺序拼的，第一天就是最早有节目的那天。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun initialEpgDay(days: List<String>, today: String): String =
+    if (today in days) today else days.firstOrNull() ?: today
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun LeanbackClassicPanelEpgList(
@@ -66,7 +78,17 @@ fun LeanbackClassicPanelEpgList(
         val programmesGroup = remember(epg) {
             epg.programmes.groupBy { dateFormat.format(it.startAt) }
         }
-        var currentDay by remember(programmesGroup) { mutableStateOf(dateFormat.format(System.currentTimeMillis())) }
+        // 日期栏的日期列表也只拼一次记下来：原来每次组合都把分组的键
+        // 再拼成一份新列表，焦点一动就拼一遍
+        val days = remember(programmesGroup) { programmesGroup.keys.toList() }
+
+        // 默认选哪天：今天有节目就选今天；今天那天没节目时回落到有节目
+        // 的第一天（见 initialEpgDay），节目列表不再显示空白
+        var currentDay by remember(programmesGroup) {
+            mutableStateOf(
+                initialEpgDay(days, dateFormat.format(System.currentTimeMillis()))
+            )
+        }
         val programmes = remember(currentDay, programmesGroup) {
             programmesGroup.getOrElse(currentDay) { emptyList() }
         }
@@ -91,10 +113,6 @@ fun LeanbackClassicPanelEpgList(
             }
             Triple(dayString(0), dayString(1), dayString(2))
         }
-        // 日期栏的日期列表也只拼一次记下来：原来每次组合都把分组的键
-        // 再拼成一份新列表，焦点一动就拼一遍
-        val days = remember(programmesGroup) { programmesGroup.keys.toList() }
-
         val programmesListState = remember(programmes) {
             LazyListState(initialScrollIndex(programmes.indexOfFirst { it.isLive() }))
         }
