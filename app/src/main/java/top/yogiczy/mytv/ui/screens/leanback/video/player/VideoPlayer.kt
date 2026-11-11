@@ -162,6 +162,13 @@ abstract class LeanbackVideoPlayer(
                 PlaybackException("UNSUPPORTED_TYPE", 10002)
             val LOAD_TIMEOUT =
                 PlaybackException("LOAD_TIMEOUT", 10003)
+
+            /**
+             * 断流：位置一直不前进。主界面同一条线路短时间内反复断流时
+             * 用它报错误，不再无上限重备
+             */
+            val CUTOFF =
+                PlaybackException("CUTOFF", 10004)
         }
     }
 
