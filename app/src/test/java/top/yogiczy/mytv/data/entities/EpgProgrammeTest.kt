@@ -2,6 +2,7 @@ package top.yogiczy.mytv.data.entities
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.EpgProgramme.Companion.isLive
@@ -56,5 +57,19 @@ class EpgProgrammeTest {
 
         assertFalse(programme.isLive())
         assertEquals(0f, programme.progress(), 0f)
+    }
+
+    @Test
+    fun `identical programmes at different indices have different keys`() {
+        // 源里同一条节目被写了两遍：只按内容设键会撞键让列表崩掉
+        val first = EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻联播")
+        val second = EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻联播")
+        assertNotEquals(epgProgrammeKey(0, first), epgProgrammeKey(1, second))
+    }
+
+    @Test
+    fun `same programme at same index has same key`() {
+        val programme = EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻联播")
+        assertEquals(epgProgrammeKey(3, programme), epgProgrammeKey(3, programme))
     }
 }

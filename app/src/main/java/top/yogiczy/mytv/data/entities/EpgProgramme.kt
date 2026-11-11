@@ -40,3 +40,14 @@ data class EpgProgramme(
         }
     }
 }
+
+/**
+ * 节目单列表的唯一键：开始、结束、标题都一样的重复节目（节目单源里
+ * 同一条节目被写了两遍）只按内容设键会撞键、列表直接崩掉；下标是
+ * 列表里的位置，同一份列表里不会重复。普通面板和经典面板的节目单
+ * 列表都用这一份；两处列表状态都在节目单变了时重建，下标键在同一
+ * 轮列表里是稳定的。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun epgProgrammeKey(index: Int, programme: EpgProgramme): String =
+    "$index-${programme.startAt}-${programme.endAt}-${programme.title}"

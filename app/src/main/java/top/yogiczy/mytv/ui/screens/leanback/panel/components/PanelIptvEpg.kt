@@ -26,7 +26,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.Epg
@@ -35,6 +35,7 @@ import top.yogiczy.mytv.data.entities.EpgProgramme.Companion.isLive
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvList
+import top.yogiczy.mytv.data.entities.epgProgrammeKey
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.utils.initialScrollIndex
@@ -96,12 +97,14 @@ fun LeanbackPanelIptvEpgDialog(
                     contentPadding = PaddingValues(vertical = 4.dp),
                 ) {
                     if (epg.programmes.isNotEmpty()) {
-                        items(
+                        itemsIndexed(
                             epg.programmes,
-                            // 用节目内容作 key：原先用 hashCode()，不同节目可能哈希
-                            // 碰撞导致列表复用错行；内容相同的重复节目本就是同一条
-                            key = { "${it.startAt}-${it.endAt}-${it.title}" },
-                        ) { programme ->
+                            // 下标 + 节目内容作 key：原先只用节目内容，不同节目
+                            // 可能哈希碰撞、内容相同的重复节目（源里同一条
+                            // 节目被写了两遍）会撞键让列表直接崩掉；下标是
+                            // 列表里的位置，同一份列表里不会重复
+                            key = { index, it -> epgProgrammeKey(index, it) },
+                        ) { _, programme ->
                             var isFocused by remember { mutableStateOf(false) }
                             val focusRequester = remember { FocusRequester() }
 

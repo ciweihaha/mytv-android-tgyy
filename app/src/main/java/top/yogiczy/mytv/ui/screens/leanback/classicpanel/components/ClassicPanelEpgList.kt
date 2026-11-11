@@ -37,12 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.tv.material3.ListItemDefaults
 import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yogiczy.mytv.data.entities.Epg
 import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgramme.Companion.isLive
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
+import top.yogiczy.mytv.data.entities.epgProgrammeKey
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.utils.initialScrollIndex
@@ -147,7 +149,13 @@ fun LeanbackClassicPanelEpgList(
                         }
                     },
             ) {
-                items(programmes, key = { it }) { programme ->
+                itemsIndexed(
+                    programmes,
+                    // 下标 + 节目内容作 key：只按节目对象设键，源里同一条
+                    // 节目被写了两遍时会撞键让列表直接崩掉；下标是列表
+                    // 里的位置，同一份列表里不会重复
+                    key = { index, it -> epgProgrammeKey(index, it) },
+                ) { _, programme ->
                     LeanbackClassicPanelEpgItem(
                         epgProgrammeProvider = { programme },
                     )
