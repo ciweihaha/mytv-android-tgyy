@@ -34,11 +34,25 @@ import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgramme.Companion.isLive
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.entities.Iptv
+import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.max
+
+/**
+ * 节目单弹窗里左右键切频道：原来普通面板频道列表和收藏列表各写了一份
+ * 一模一样的“按频道找下标、加减 1、再夹住不越界”，只差左还是右；
+ * 现在抽成一份共用的，两边只传 -1 / +1。行为和原来一字没变：
+ * 到头再按左、到尾再按右都停在原地；列表为空时不动；当前频道
+ * 不在列表里时（下标 -1），左边 max(0, -2) 取 0、右边 min(末尾, 0)
+ * 取 0，都是回到第一个。
+ */
+internal fun IptvList.epgNeighbor(current: Iptv, delta: Int): Iptv {
+    if (isEmpty()) return current
+    return this[(indexOf(current) + delta).coerceIn(0, size - 1)]
+}
 
 @Composable
 fun LeanbackPanelIptvEpgDialog(

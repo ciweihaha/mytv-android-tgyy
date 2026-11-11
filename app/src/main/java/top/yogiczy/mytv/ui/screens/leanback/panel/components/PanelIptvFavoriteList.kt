@@ -38,7 +38,6 @@ import top.yogiczy.mytv.ui.rememberLeanbackChildPadding
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import kotlin.math.max
-import kotlin.math.min
 
 @Composable
 fun LeanbackPanelIptvFavoriteList(
@@ -156,16 +155,10 @@ fun LeanbackPanelIptvFavoriteList(
         modifier = Modifier
             .handleLeanbackKeyEvents(
                 onLeft = {
-                    // 列表为空时下标越界：对话框打开后列表理论上不会变空，但守卫一下
-                    if (iptvList.isNotEmpty()) {
-                        currentShowEpgIptv = iptvList[max(0, iptvList.indexOf(currentShowEpgIptv) - 1)]
-                    }
+                    currentShowEpgIptv = iptvList.epgNeighbor(currentShowEpgIptv, -1)
                 },
                 onRight = {
-                    if (iptvList.isNotEmpty()) {
-                        currentShowEpgIptv =
-                            iptvList[min(iptvList.size - 1, iptvList.indexOf(currentShowEpgIptv) + 1)]
-                    }
+                    currentShowEpgIptv = iptvList.epgNeighbor(currentShowEpgIptv, +1)
                 },
             ),
         onUserAction = onUserAction,
