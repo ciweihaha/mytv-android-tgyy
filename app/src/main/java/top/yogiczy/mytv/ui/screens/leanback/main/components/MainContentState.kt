@@ -40,6 +40,15 @@ internal fun nextCutoffStreak(
     return kept to (kept.size > maxCutoffs)
 }
 
+/**
+ * 这次失败的是不是最后一条线路：不是时切下一条、新的 prepare 会在就
+ * 绪后给提示条起计时；是时不会再调播放器、没有就绪回调，提示条必须
+ * 在失败处理里自己起计时，否则一直挂在屏幕上、盖在报错屏上面。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun isLastUrlFailed(failedUrlIdx: Int, urlCount: Int): Boolean =
+    failedUrlIdx >= urlCount - 1
+
 @Stable
 class LeanbackMainContentState(
     private val coroutineScope: CoroutineScope,
@@ -168,11 +177,18 @@ class LeanbackMainContentState(
         // 失败的线路；切线路时内部已删过失败那条，这里再删一次
         // 同一值（Set 去重，无害），末条失败时则由这里删
         val failedUrlIdx = _currentIptvUrlIdx
-        if (failedUrlIdx < _currentIptv.urlList.size - 1) {
+        if (!isLastUrlFailed(failedUrlIdx, _currentIptv.urlList.size)) {
             changeCurrentIptv(_currentIptv, failedUrlIdx + 1)
-        } else if (reportErrorIfLast && _currentIptv.urlList.isNotEmpty()) {
-            val cutoff = LeanbackVideoPlayer.PlaybackException.CUTOFF
-            videoPlayerState.error = "${cutoff.errorCodeName}(${cutoff.errorCode})"
+        } else {
+            if (reportErrorIfLast && _currentIptv.urlList.isNotEmpty()) {
+                val cutoff = LeanbackVideoPlayer.PlaybackException.CUTOFF
+                videoPlayerState.error = "${cutoff.errorCodeName}(${cutoff.errorCode})"
+            }
+            // 末条线路也失败了：不会再调播放器、没有就绪回调，提示条
+            // 不在这里起计时就一直挂在屏幕上、盖在报错屏上面；切台或
+            // 换线时新的 prepare 会再起自己的计时，这里的计时只认当初
+            // 那条线路，半路切走了不会把新台的提示条提前藏掉
+            hideTempPanelAfterDelay()
         }
 
         // 从记忆中删除不可播放的域名
