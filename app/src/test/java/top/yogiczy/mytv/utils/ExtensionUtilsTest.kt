@@ -84,6 +84,9 @@ class IsIPv6Test {
         assertTrue("http://[2001:db8::1]:8080/live".isIPv6())
         assertTrue("https://[::1]/x".isIPv6())
         assertTrue("[2001:db8::1]".isIPv6())
+        // 方括号里的 IPv4 映射形也认（裸写那条路早就能认，这边原来漏了点）
+        assertTrue("http://[::ffff:192.168.0.1]:8080/live".isIPv6())
+        assertTrue("[::ffff:192.168.0.1]".isIPv6())
     }
 
     @Test

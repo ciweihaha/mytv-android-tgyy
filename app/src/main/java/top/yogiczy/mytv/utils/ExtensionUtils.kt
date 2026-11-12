@@ -98,10 +98,11 @@ fun String.isIPv6(): Boolean {
     // 裸判也被账号里的字母搅黄，IPv6 的台会被标成 IPV4
     val host = substringAfter("://", this).substringBefore("/").substringAfterLast("@")
     if (host.startsWith("[")) {
-        // [2001:db8::1] 或 [2001:db8::1]:8080：取括号内判断
+        // [2001:db8::1] 或 [2001:db8::1]:8080：取括号内判断；IPv4
+        // 映射形 [::ffff:192.168.0.1] 里带点，和裸写那条路保持一致
         val inner = host.substringAfter("[").substringBefore("]")
         return inner.contains(":") &&
-            inner.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' }
+            inner.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == ':' || it == '.' }
     }
     // 裸 IPv6（M3U 里常见的不带方括号写法，如 2408:8207::1:8080）：
     // host 里至少两个冒号，且只含十六进制、冒号、点（IPv4 映射形如 ::ffff:192.168.0.1）；
