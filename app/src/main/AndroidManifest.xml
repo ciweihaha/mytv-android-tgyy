@@ -85,8 +85,9 @@
         </receiver>
 
         <!-- 开机拉起服务：BOOT_COMPLETED 到达时由 BootReceiver 起这个前台
-             服务，再由服务拉起主界面。exported 必须为 true，否则系统广播
-             发不到应用内的 Receiver -->
+             服务，再由服务拉起主界面。本服务只由应用内自己的接收器用
+             显式 Intent 启动，不对外暴露，所以 exported 保持 false；
+             需要导出的是上面的 BootReceiver（系统广播要发进来）。-->
         <service
             android:name=".BootLaunchService"
             android:exported="false"
