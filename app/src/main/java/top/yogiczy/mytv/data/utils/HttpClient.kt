@@ -20,6 +20,14 @@ val sharedHttpClient: OkHttpClient by lazy {
 }
 
 /**
+ * 地址格式错：单独成类、方便调用方认出来——格式错重试多少次都一样，
+ * 直播源与节目单拉取的重试点名跳过它，报错立刻显示，不用等 10 次
+ * 重试（每次隔 3 秒）跑完；网络错仍是普通 Exception，照常重试
+ */
+class InvalidSourceUrlException(message: String, cause: Throwable? = null) :
+    Exception(message, cause)
+
+/**
  * 建 GET 请求：直播源/节目单地址是用户在设置页或网页端手输的，缺协议、
  * 带空格都可能是畸形地址；Request.Builder().url() 在这种地址上抛
  * IllegalArgumentException。原先建请求那行在 try 外、异常原样上抛，
@@ -32,6 +40,6 @@ fun buildGetRequest(url: String, label: String): Request {
     return try {
         Request.Builder().url(url).build()
     } catch (ex: IllegalArgumentException) {
-        throw Exception("${label}格式不正确，请检查地址：$url", ex)
+        throw InvalidSourceUrlException("${label}格式不正确，请检查地址：$url", ex)
     }
 }

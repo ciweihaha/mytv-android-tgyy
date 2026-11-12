@@ -33,6 +33,17 @@ class HttpClientTest {
     }
 
     @Test
+    fun `buildGetRequest throws InvalidSourceUrlException for a bad url`() {
+        // 格式错单独成类：调用方靠类型认出来、跳过重试，立刻报错
+        try {
+            buildGetRequest("live.ciweihaha.win/live.m3u", "直播源地址")
+            fail("expected InvalidSourceUrlException for a url without scheme")
+        } catch (ex: InvalidSourceUrlException) {
+            assertTrue(ex.message?.contains("直播源地址格式不正确") == true)
+        }
+    }
+
+    @Test
     fun `buildGetRequest rejects blank and space-containing urls`() {
         for (bad in listOf("", "   ", "http://exa mple.com/live.m3u")) {
             try {

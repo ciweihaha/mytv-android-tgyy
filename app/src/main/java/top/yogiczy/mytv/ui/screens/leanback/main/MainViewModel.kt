@@ -19,6 +19,7 @@ import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
+import top.yogiczy.mytv.data.utils.InvalidSourceUrlException
 import top.yogiczy.mytv.ui.utils.SP
 
 /**
@@ -35,6 +36,15 @@ internal fun shouldApplyEpgFailure(
     currentState: LeanbackMainUiState,
     readyState: LeanbackMainUiState.Ready,
 ): Boolean = currentState === readyState
+
+/**
+ * 这次失败要不要重试：地址格式错重试多少次都一样（地址是读进来的那
+ * 一份，改地址会走 refresh() 另起新一轮），直接不重试、报错立刻显示，
+ * 不用等 10 次重试（每次隔 3 秒）跑完；网络错等其他错照常重试。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldRetryLoadFailure(cause: Throwable): Boolean =
+    cause !is InvalidSourceUrlException
 
 class LeanbackMainViewModel : ViewModel() {
     private val iptvRepository = IptvRepository()
@@ -79,7 +89,9 @@ class LeanbackMainViewModel : ViewModel() {
                 )
             )
         }
-            .retryWhen { _, attempt ->
+            .retryWhen { cause, attempt ->
+                // 地址格式错不重试：重试多少次都一样，报错立刻显示
+                if (!shouldRetryLoadFailure(cause)) return@retryWhen false
                 if (attempt >= Constants.HTTP_RETRY_COUNT) return@retryWhen false
 
                 // 只有当前这轮才写状态：旧轮次的拉取是阻塞调用、取消后
@@ -140,7 +152,12 @@ class LeanbackMainViewModel : ViewModel() {
                 )
             )
         }
-            .retry(Constants.HTTP_RETRY_COUNT) { delay(Constants.HTTP_RETRY_INTERVAL); true }
+            .retry(Constants.HTTP_RETRY_COUNT) { cause ->
+                // 地址格式错不重试：重试多少次都一样，节目单直接记空
+                if (!shouldRetryLoadFailure(cause)) return@retry false
+                delay(Constants.HTTP_RETRY_INTERVAL)
+                true
+            }
             .catch {
                 // 节目单失败只记空节目单：直接在这里写回空节目单，不再
                 // emit 后走 map——map 里会把刚删掉的历史地址又加回去，
