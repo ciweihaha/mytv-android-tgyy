@@ -13,7 +13,26 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.dp
+import top.yogiczy.mytv.utils.Logger
 import kotlin.math.absoluteValue
+
+private val inputLog = Logger.create("LeanbackInput")
+
+/**
+ * 交互回调兜底：遥控按键、触摸点按、滑动手势的回调里抛异常时记一条
+ * 日志（设置 → 日志可看），不让异常扩散出去崩掉整个应用——电视/
+ * 平板上一次点击或按键不该因为回调里的偶发异常就闪退。只接
+ * Exception，Error（内存溢出等）照常抛出，不掩盖真正致命的问题。
+ * 普通函数（不 inline）：inline 函数体不能访问文件私有的 inputLog。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun safeLeanbackInvoke(action: () -> Unit) {
+    try {
+        action()
+    } catch (e: Exception) {
+        inputLog.e("交互回调异常", e)
+    }
+}
 
 /**
  * 确定键：遥控器中间 OK 键与键盘回车。确定键不移动焦点，消费按下
@@ -64,7 +83,7 @@ fun Modifier.handleLeanbackKeyEvents(
                     // 长按在按下重复时触发一次，消费掉：防止松开时又触发一次点按
                     val longTap = onKeyLongTap[it.nativeKeyEvent.keyCode]
                     if (longTap != null) {
-                        longTap()
+                        safeLeanbackInvoke(longTap)
                         true
                     } else {
                         false
@@ -80,10 +99,11 @@ fun Modifier.handleLeanbackKeyEvents(
                     // 点按在这里触发，消费掉：已处理的键不再往下漏到
                     // Activity/系统兜底处理——原来这里永远返回 false，
                     // 处理过的确定键一路漏下去，荣耀电视上会被系统当成
-                    // 返回、直接退出应用
+                    // 返回、直接退出应用。回调抛异常也照样消费（见
+                    // safeLeanbackInvoke），不让它漏下去被当成退出
                     val tap = onKeyTap[it.nativeKeyEvent.keyCode]
                     if (tap != null) {
-                        tap()
+                        safeLeanbackInvoke(tap)
                         true
                     } else {
                         false
@@ -217,9 +237,9 @@ fun Modifier.handleLeanbackDragGestures(
                     val velocityY = verticalTracker.calculateVelocity().y
                     val speedPx = speedThreshold.toPx()
                     if (velocityY > speedPx) {
-                        onSwipeDown()
+                        safeLeanbackInvoke(onSwipeDown)
                     } else if (velocityY < -speedPx) {
-                        onSwipeUp()
+                        safeLeanbackInvoke(onSwipeUp)
                     }
                 }
             },
@@ -239,9 +259,9 @@ fun Modifier.handleLeanbackDragGestures(
                     val velocityX = horizontalTracker.calculateVelocity().x
                     val speedPx = speedThreshold.toPx()
                     if (velocityX > speedPx) {
-                        onSwipeRight()
+                        safeLeanbackInvoke(onSwipeRight)
                     } else if (velocityX < -speedPx) {
-                        onSwipeLeft()
+                        safeLeanbackInvoke(onSwipeLeft)
                     }
                 }
             },
@@ -289,9 +309,9 @@ fun Modifier.handleLeanbackKeyEvents(
     ),
 ).pointerInput(key) {
     detectTapGestures(
-        onTap = { onSelect?.invoke() },
-        onLongPress = { onLongSelect?.invoke() },
-        onDoubleTap = { onSettings?.invoke() },
+        onTap = { safeLeanbackInvoke { onSelect?.invoke() } },
+        onLongPress = { safeLeanbackInvoke { onLongSelect?.invoke() } },
+        onDoubleTap = { safeLeanbackInvoke { onSettings?.invoke() } },
     )
 }
 

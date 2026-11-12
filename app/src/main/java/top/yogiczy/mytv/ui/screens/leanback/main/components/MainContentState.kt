@@ -118,9 +118,10 @@ class LeanbackMainContentState(
         videoPlayerState.onReady {
             hideTempPanelAfterDelay()
 
-            // 记忆可播放的域名
-            if (_currentIptv.urlList.isNotEmpty()) {
-                SP.iptvPlayableHostList += getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            // 记忆可播放的域名：下标按 getOrNull 取，万一下标和频道对不上
+            // 就跳过这一次记忆，不越界崩溃
+            _currentIptv.urlList.getOrNull(_currentIptvUrlIdx)?.let {
+                SP.iptvPlayableHostList += getUrlHost(it)
             }
         }
 
@@ -201,9 +202,10 @@ class LeanbackMainContentState(
             hideTempPanelAfterDelay()
         }
 
-        // 从记忆中删除不可播放的域名
-        if (_currentIptv.urlList.isNotEmpty()) {
-            SP.iptvPlayableHostList -= getUrlHost(_currentIptv.urlList[failedUrlIdx])
+        // 从记忆中删除不可播放的域名：下标按 getOrNull 取，万一下标和
+        // 频道对不上就跳过，不越界崩溃
+        _currentIptv.urlList.getOrNull(failedUrlIdx)?.let {
+            SP.iptvPlayableHostList -= getUrlHost(it)
         }
     }
 
@@ -227,9 +229,10 @@ class LeanbackMainContentState(
         if (iptv == _currentIptv && urlIdx == null) return
 
         if (iptv == _currentIptv && urlIdx != _currentIptvUrlIdx) {
-            // 仅当旧频道有播放地址时才处理域名记忆（无地址的提示条目没有 urlList[0]）
-            if (_currentIptv.urlList.isNotEmpty()) {
-                SP.iptvPlayableHostList -= getUrlHost(_currentIptv.urlList[_currentIptvUrlIdx])
+            // 仅当旧频道有播放地址时才处理域名记忆（无地址的提示条目没有 urlList[0]）；
+            // 下标按 getOrNull 取，万一对不上就跳过，不越界崩溃
+            _currentIptv.urlList.getOrNull(_currentIptvUrlIdx)?.let {
+                SP.iptvPlayableHostList -= getUrlHost(it)
             }
         }
 

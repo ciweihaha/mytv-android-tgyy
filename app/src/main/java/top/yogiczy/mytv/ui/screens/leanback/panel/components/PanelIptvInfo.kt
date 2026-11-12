@@ -22,6 +22,14 @@ import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.utils.isIPv6
 
+/**
+ * 线路下标夹住：下标正常时和原来一模一样；万一下标和频道对不上
+ * （换源、切台竞态、旧数据），也不越界崩溃。地址列表为空时返回 0。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun safeIptvUrlIdx(urlCount: Int, urlIdx: Int): Int =
+    if (urlCount <= 0) 0 else urlIdx.coerceIn(0, urlCount - 1)
+
 @Composable
 fun LeanbackPanelIptvInfo(
     modifier: Modifier = Modifier,
@@ -32,6 +40,12 @@ fun LeanbackPanelIptvInfo(
     val iptv = iptvProvider()
     val iptvUrlIdx = iptvUrlIdxProvider()
     val currentProgrammes = currentProgrammesProvider()
+
+    // 线路下标先夹住再用：下面两处（线路号角标、IPV4/IPV6 角标）原来
+    // 直接拿下标取地址，只防了地址列表为空、没防下标本身越界；下标
+    // 正常时夹住后的结果和原来一模一样
+    val safeUrlIdx = safeIptvUrlIdx(iptv.urlList.size, iptvUrlIdx)
+    val currentUrl = iptv.urlList.getOrNull(safeUrlIdx)
 
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -65,16 +79,17 @@ fun LeanbackPanelIptvInfo(
                     // 多线路标识
                     if (iptv.urlList.size > 1) {
                         Text(
-                            text = "${iptvUrlIdx + 1}/${iptv.urlList.size}",
+                            text = "${safeUrlIdx + 1}/${iptv.urlList.size}",
                             modifier = textModifier,
                         )
                     }
 
                     // ipv4、iptv6标识：无播放地址的提示条目没有 urlList[0]，
-                    // 直接下标取会越界崩溃（换台到这类频道时临时面板/频道面板都会渲染这里）
-                    if (iptv.urlList.isNotEmpty()) {
+                    // 直接下标取会越界崩溃（换台到这类频道时临时面板/频道面板都会渲染这里）；
+                    // 下标越界时 getOrNull 返回 null，角标直接不显示
+                    if (currentUrl != null) {
                         Text(
-                            text = if (iptv.urlList[iptvUrlIdx].isIPv6()) "IPV6" else "IPV4",
+                            text = if (currentUrl.isIPv6()) "IPV6" else "IPV4",
                             modifier = textModifier,
                         )
                     }
