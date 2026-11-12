@@ -113,9 +113,13 @@ fun LeanbackPanelIptvFavoriteList(
                 bottom = childPadding.bottom,
             ),
         ) {
-            // 按频道对象设 key：取消收藏让列表缩短时，焦点与记住的状态
-            // 跟着频道走；同名频道可能来自不同分组，不能只用 channelName
-            itemsIndexed(iptvList, key = { _, iptv -> iptv }) { index, iptv ->
+            // 按“频道名 + 首个播放地址”设 key：取消收藏让列表缩短时，
+            // 焦点与记住的状态跟着频道走；同名频道可能来自不同分组，
+            // 不能只用 channelName，拼上地址才唯一。不能用频道对象
+            // 本身作 key：Lazy 列表保存状态时要把 key 存进 Bundle，
+            // Iptv 不是 Parcelable/Serializable，会抛
+            // IllegalArgumentException 直接闪退。
+            itemsIndexed(iptvList, key = { _, iptv -> "${iptv.name}|${iptv.urlList.firstOrNull().orEmpty()}" }) { index, iptv ->
                 LeanbackPanelIptvItem(
                     modifier = if (index < favoriteListSize) {
                         Modifier.handleLeanbackKeyEvents(onUp = { onClose() })

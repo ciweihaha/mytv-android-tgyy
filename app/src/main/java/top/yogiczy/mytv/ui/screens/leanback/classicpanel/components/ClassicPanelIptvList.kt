@@ -116,7 +116,11 @@ fun LeanbackClassicPanelIptvList(
             .width(220.dp)
             .background(MaterialTheme.colorScheme.background.copy(0.8f)),
     ) {
-        itemsIndexed(iptvList, key = { _, iptv -> iptv }) { index, iptv ->
+        // 按频道名（String）设 key：列表缩短时焦点与记住的状态跟着频道
+        // 走。不能用频道对象本身作 key：Lazy 列表保存状态时要把 key
+        // 存进 Bundle，Iptv 不是 Parcelable/Serializable，会抛
+        // IllegalArgumentException 直接闪退。同组内频道名唯一。
+        itemsIndexed(iptvList, key = { _, iptv -> iptv.name }) { index, iptv ->
             val isSelected by remember { derivedStateOf { iptv == focusedIptv } }
             val initialFocused by remember {
                 derivedStateOf { !hasFocused && iptv == initialIptv }
