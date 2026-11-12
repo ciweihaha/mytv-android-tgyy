@@ -63,6 +63,16 @@ internal fun keepCurrentIfBlank(newValue: String, currentValue: String): String 
     newValue.ifBlank { currentValue }
 
 /**
+ * 网页端“推送链接”按钮强制刷新某一路缓存的信号：按钮把对应
+ * cachedAt 字段置 0 再提交，服务端读到 0 就清掉那路缓存、重载。
+ * 字段缺失（老页面、只改 UA 的推送）或非 0 值都不强制。服务端
+ * 原先完全不读这两个字段：同链接重推时地址没变、不断定为变化，
+ * 既不清缓存也不重载，按钮的强制刷新意图是死的。
+ * 顶层函数与 HttpServer 对象无关，方便单元测试直接调用。
+ */
+internal fun isForceRefreshCache(cachedAt: Long): Boolean = cachedAt == 0L
+
+/**
  * 局域网地址候选：address 是某网卡上的地址，isPointToPoint 表示所属
  * 网卡是否为点对点接口（VPN 的 tun 接口通常是点对点）。
  */
@@ -286,17 +296,24 @@ object HttpServer : Loggable() {
             SP.videoPlayerUserAgent,
         )
 
+        // “推送链接”按钮把 cachedAt 置 0 表示强制刷新：同链接重推也
+        // 要清缓存重载；字段缺失（老页面、只改 UA）时 optLong 回 -1，不强制
+        val forceIptvRefresh =
+            isForceRefreshCache(jsonObject.optLong("iptvSourceCachedAt", -1L))
+        val forceEpgRefresh =
+            isForceRefreshCache(jsonObject.optLong("epgXmlCachedAt", -1L))
+
         var sourceChanged = false
         var valuesChanged = false
 
-        if (SP.iptvSourceUrl != iptvSourceUrl) {
+        if (SP.iptvSourceUrl != iptvSourceUrl || forceIptvRefresh) {
             SP.iptvSourceUrl = iptvSourceUrl
             IptvRepository().clearCache()
             sourceChanged = true
             valuesChanged = true
         }
 
-        if (SP.epgXmlUrl != epgXmlUrl) {
+        if (SP.epgXmlUrl != epgXmlUrl || forceEpgRefresh) {
             SP.epgXmlUrl = epgXmlUrl
             EpgRepository().clearCache()
             sourceChanged = true
