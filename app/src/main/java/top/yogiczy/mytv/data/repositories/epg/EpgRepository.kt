@@ -37,6 +37,17 @@ internal fun decodeEpgListOrNull(json: String?): EpgList? {
 }
 
 /**
+ * 未到刷新时间点时能不能直接用缓存返回：缓存能解开就用它（源文件一般
+ * 覆盖多天，凌晨时段的节目多半在里面）；没缓存（首次启动、清过缓存）
+ * 或缓存解不开时返回 null，调用方不等时间点直接走刷新——原先没缓存
+ * 直接给空节目单，0 点到阈值（默认 2 点）之间首次启动或清过缓存后
+ * 一直显示“无节目”，要等阈值过了才恢复；拉一次比空着强。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun cachedEpgBeforeThreshold(cachedJson: String?): EpgList? =
+    decodeEpgListOrNull(cachedJson)
+
+/**
  * 节目单时间的兜底解析：主解析只认 `yyyyMMddHHmmss Z`（`20261112080000 +0800`），
  * 但部分源的写法不一样——时区直接贴在秒后面（`20261112080000+0800`）、
  * 时区带冒号（`20261112080000 +08:00`）、或干脆不写时区（`20261112080000`），
@@ -251,16 +262,15 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 // 未到时间点不拉取，但缓存的节目单仍可用（源文件一般覆盖
                 // 多天，凌晨时段的节目多半在里面）：有缓存就返回缓存，
                 // 别直接给空——原先每天 0 点到阈值（默认 2 点）之间完全
-                // 没有节目信息
-                val cachedJson = getCachedData()
-                if (cachedJson.isNullOrBlank()) return@withContext EpgList()
-                val cached = decodeEpgListOrNull(cachedJson)
+                // 没有节目信息。没缓存（首次启动、清过缓存）或缓存解不
+                // 开时不等时间点、直接走下面的刷新：不拉就一直是空节目
+                // 单，要等阈值过了才恢复；拉一次比空着强
+                val cached = cachedEpgBeforeThreshold(getCachedData())
                 if (cached != null) {
                     log.d("未到时间点，不刷新节目单，沿用缓存")
                     return@withContext cached
                 }
-                // 缓存损坏或与当前结构对不上：不等时间点，直接走下面的刷新
-                log.w("节目单缓存无法解析，跳过等待直接刷新")
+                log.w("节目单缓存不可用，跳过等待直接刷新")
             }
 
             val xmlJson = getOrRefresh({ lastModified, _ ->

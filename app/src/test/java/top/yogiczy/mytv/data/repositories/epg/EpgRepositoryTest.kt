@@ -1,12 +1,19 @@
 package top.yogiczy.mytv.data.repositories.epg
 
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import top.yogiczy.mytv.AppGlobal
+import top.yogiczy.mytv.data.entities.Epg
+import top.yogiczy.mytv.data.entities.EpgProgramme
+import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import java.io.File
 
 class EpgRepositoryTest {
@@ -77,5 +84,41 @@ class EpgRepositoryTest {
 
         assertFalse(keepEpgChannel(null, "CCTV-1 综合", filter))
         assertFalse(keepEpgChannel("cctv1", null, filter))
+    }
+
+    @Test
+    fun `no cache before threshold means refresh not empty epg`() {
+        // 未到刷新时间点、又没缓存（首次启动、清过缓存）时返回 null，
+        // 调用方不等时间点直接走刷新；原先直接给空节目单，0 点到
+        // 阈值（默认 2 点）之间一直显示“无节目”
+        assertNull(cachedEpgBeforeThreshold(null))
+        assertNull(cachedEpgBeforeThreshold(""))
+        assertNull(cachedEpgBeforeThreshold("   "))
+    }
+
+    @Test
+    fun `corrupt cache before threshold means refresh not empty epg`() {
+        assertNull(cachedEpgBeforeThreshold("not json"))
+        assertNull(cachedEpgBeforeThreshold("""[{"channel":"CCTV-1""""))
+    }
+
+    @Test
+    fun `usable cache before threshold is returned as-is`() {
+        val json = Json.encodeToString(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻"))
+                    )
+                )
+            )
+        )
+
+        val cached = cachedEpgBeforeThreshold(json)
+
+        assertEquals(1, cached?.size)
+        assertEquals("CCTV-1", cached?.first()?.channel)
+        assertEquals("新闻", cached?.first()?.programmes?.first()?.title)
     }
 }
