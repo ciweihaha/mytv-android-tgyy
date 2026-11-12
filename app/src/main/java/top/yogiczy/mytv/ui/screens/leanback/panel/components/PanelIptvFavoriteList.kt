@@ -113,13 +113,23 @@ fun LeanbackPanelIptvFavoriteList(
                 bottom = childPadding.bottom,
             ),
         ) {
-            // 按“频道名 + 首个播放地址”设 key：取消收藏让列表缩短时，
-            // 焦点与记住的状态跟着频道走；同名频道可能来自不同分组，
-            // 不能只用 channelName，拼上地址才唯一。不能用频道对象
+            // 按频道全部内容设 key：取消收藏让列表缩短时，焦点与记住的
+            // 状态跟着频道走。不能只用频道名：同名频道可能来自不同
+            // 分组；也不能只拼首个播放地址：两个分组里的同名频道首个
+            // 地址可能相同（同一条主线路）、其余地址不同——收藏按名
+            // 筛完只去重完全相同的条目（favoriteIptvList 的 distinct），
+            // 这种“同名同首地址、其余地址不同”的两条都会留下，拼首
+            // 地址会撞键让列表直接崩掉。拼上全部四个字段后，列表里
+            // 任意两条不完全相同的频道 key 一定不同。不能用频道对象
             // 本身作 key：Lazy 列表保存状态时要把 key 存进 Bundle，
             // Iptv 不是 Parcelable/Serializable，会抛
             // IllegalArgumentException 直接闪退。
-            itemsIndexed(iptvList, key = { _, iptv -> "${iptv.name}|${iptv.urlList.firstOrNull().orEmpty()}" }) { index, iptv ->
+            itemsIndexed(
+                iptvList,
+                key = { _, iptv ->
+                    "${iptv.name}|${iptv.channelName}|${iptv.tvgId}|${iptv.urlList.joinToString("|")}"
+                },
+            ) { index, iptv ->
                 LeanbackPanelIptvItem(
                     modifier = if (index < favoriteListSize) {
                         Modifier.handleLeanbackKeyEvents(onUp = { onClose() })
