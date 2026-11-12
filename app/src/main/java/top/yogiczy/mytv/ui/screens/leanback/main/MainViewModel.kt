@@ -49,6 +49,16 @@ internal fun shouldApplyEpgFailure(
 internal fun shouldRetryLoadFailure(cause: Throwable): Boolean =
     cause !is InvalidSourceUrlException && cause !is EmptyIptvSourceException
 
+/**
+ * 拉取失败后要不要把这个地址从历史里删掉：历史只是设置页里点选的
+ * 快捷列表，用户还能手动逐条删；网络一抖（比如 WiFi 断几秒）就把
+ * 好地址删掉，用户下次只能重新手输。地址本身有问题的失败（格式错、
+ * 源里没频道）才删——这种地址留着也没用。判断与要不要重试是同一条
+ * 界线，直接复用。顶层函数方便单元测试直接调用。
+ */
+internal fun shouldRemoveFailedUrlFromHistory(cause: Throwable): Boolean =
+    !shouldRetryLoadFailure(cause)
+
 class LeanbackMainViewModel : ViewModel() {
     private val iptvRepository = IptvRepository()
     private val epgRepository = EpgRepository()
@@ -111,7 +121,11 @@ class LeanbackMainViewModel : ViewModel() {
             .catch {
                 if (generation == refreshGeneration) {
                     _uiState.value = LeanbackMainUiState.Error(it.message)
-                    SP.iptvSourceUrlHistoryList -= SP.iptvSourceUrl
+                    // 只有地址本身有问题的失败才从历史里删：网络抖一下
+                    // 就失败时地址本身没问题，留着下次还能从历史里点
+                    if (shouldRemoveFailedUrlFromHistory(it)) {
+                        SP.iptvSourceUrlHistoryList -= SP.iptvSourceUrl
+                    }
                 }
             }
             .map {
@@ -170,7 +184,11 @@ class LeanbackMainViewModel : ViewModel() {
                 // 见 shouldApplyEpgFailure
                 if (shouldApplyEpgFailure(_uiState.value, readyState)) {
                     _uiState.value = readyState.copy(epgList = EpgList())
-                    SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
+                    // 只有地址本身有问题的失败才从历史里删：网络抖一下
+                    // 就失败时地址本身没问题，留着下次还能从历史里点
+                    if (shouldRemoveFailedUrlFromHistory(it)) {
+                        SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
+                    }
                 }
             }
             .map { epgList ->

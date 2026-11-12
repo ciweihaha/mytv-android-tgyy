@@ -60,4 +60,24 @@ class MainViewModelTest {
         // 其他 IllegalStateException（不是空源那个）照常重试
         assertTrue(shouldRetryLoadFailure(IllegalStateException("下载响应体为空")))
     }
+
+    @Test
+    fun `failed url is removed from history only on deterministic errors`() {
+        // 地址本身有问题（格式错、源里没频道）才删
+        assertTrue(
+            shouldRemoveFailedUrlFromHistory(
+                InvalidSourceUrlException("直播源地址格式不正确，请检查地址：x")
+            )
+        )
+        assertTrue(
+            shouldRemoveFailedUrlFromHistory(
+                EmptyIptvSourceException("直播源里没有频道，请检查直播源链接")
+            )
+        )
+        // 网络抖一下就失败：地址本身没问题，留着，下次还能从历史里点
+        assertFalse(
+            shouldRemoveFailedUrlFromHistory(Exception("获取远程直播源失败，请检查网络连接"))
+        )
+        assertFalse(shouldRemoveFailedUrlFromHistory(IllegalStateException("下载响应体为空")))
+    }
 }
