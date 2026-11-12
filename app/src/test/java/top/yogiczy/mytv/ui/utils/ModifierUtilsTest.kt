@@ -10,7 +10,7 @@ class ModifierUtilsTest {
     @Test
     fun `只传 onSelect 时点按表只有三个确定键`() {
         var called = 0
-        val onSelect = { called++ }
+        val onSelect: () -> Unit = { called++ }
         val map = leanbackKeyTapMap(onSelect = onSelect, sdkInt = 24)
 
         assertEquals(
