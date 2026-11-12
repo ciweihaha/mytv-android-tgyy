@@ -87,6 +87,27 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `usable programme has real start and end after start`() {
+        assertTrue(isUsableEpgProgramme(EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻")))
+    }
+
+    @Test
+    fun `programme with unparsable times is not usable`() {
+        // 开始、结束解析失败都记 0：弹窗里会显示一条 08:00 ~ 08:00
+        // 的假节目，经典面板还会多出一个 1970 年的日期栏
+        assertFalse(isUsableEpgProgramme(EpgProgramme(startAt = 0, endAt = 0, title = "新闻")))
+        assertFalse(isUsableEpgProgramme(EpgProgramme(startAt = 0, endAt = 2000, title = "新闻")))
+        // 结束是 0、开始在将来时，还可能被当成“稍后播放”挑出来
+        assertFalse(isUsableEpgProgramme(EpgProgramme(startAt = 2000, endAt = 0, title = "新闻")))
+    }
+
+    @Test
+    fun `programme with end not after start is not usable`() {
+        assertFalse(isUsableEpgProgramme(EpgProgramme(startAt = 2000, endAt = 2000, title = "新闻")))
+        assertFalse(isUsableEpgProgramme(EpgProgramme(startAt = 2000, endAt = 1000, title = "新闻")))
+    }
+
+    @Test
     fun `no cache before threshold means refresh not empty epg`() {
         // 未到刷新时间点、又没缓存（首次启动、清过缓存）时返回 null，
         // 调用方不等时间点直接走刷新；原先直接给空节目单，0 点到

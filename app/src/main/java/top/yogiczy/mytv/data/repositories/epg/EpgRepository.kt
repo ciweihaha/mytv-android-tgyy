@@ -48,6 +48,18 @@ internal fun cachedEpgBeforeThreshold(cachedJson: String?): EpgList? =
     decodeEpgListOrNull(cachedJson)
 
 /**
+ * 节目时间能不能用：开始或结束解析失败都记 0（退化节目，progress()
+ * 里也是这么叫的），结束早于等于开始的也是脏数据——这种节目永远
+ * 播不了，还会坏三处显示：节目单弹窗里多一条“08:00 ~ 08:00”的
+ * 假节目；开始时间在将来、结束是 0 的那条还可能被 currentProgrammes()
+ * 当成“稍后播放”挑出来；经典面板按开始时间给节目分组，0 时间那条
+ * 会多出一个 1970 年的日期栏，排在前面时还会当成默认选中的那天。
+ * 解析时直接跳过，别进列表。顶层函数方便单元测试直接调用。
+ */
+internal fun isUsableEpgProgramme(programme: EpgProgramme): Boolean =
+    programme.startAt > 0 && programme.endAt > programme.startAt
+
+/**
  * 节目单时间的兜底解析：主解析只认 `yyyyMMddHHmmss Z`（`20261112080000 +0800`），
  * 但部分源的写法不一样——时区直接贴在秒后面（`20261112080000+0800`）、
  * 时区带冒号（`20261112080000 +08:00`）、或干脆不写时区（`20261112080000`），
@@ -224,13 +236,16 @@ class EpgRepository : FileCacheRepository("epg.json") {
                         }
 
                         if (title != null) {
-                            channelProgrammes[channelId]?.add(
-                                EpgProgramme(
-                                    startAt = parseTime(startTime),
-                                    endAt = parseTime(stopTime),
-                                    title = title,
-                                )
+                            val programme = EpgProgramme(
+                                startAt = parseTime(startTime),
+                                endAt = parseTime(stopTime),
+                                title = title,
                             )
+                            // 时间退化的节目（解析失败记 0、结束早于等于
+                            // 开始）不进列表，见 isUsableEpgProgramme
+                            if (isUsableEpgProgramme(programme)) {
+                                channelProgrammes[channelId]?.add(programme)
+                            }
                         }
                     }
                 }
