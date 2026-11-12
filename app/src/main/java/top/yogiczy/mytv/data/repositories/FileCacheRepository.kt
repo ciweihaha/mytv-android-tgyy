@@ -83,7 +83,15 @@ abstract class FileCacheRepository(
 
         if (data.isNullOrBlank()) {
             try {
-                data = refreshOp()
+                val refreshed = refreshOp()
+                // 空结果不算刷新成功：服务器回 200 空体时不抛错，原先
+                // 会把好缓存直接盖成空，旧数据再也拿不回来；现在按刷
+                // 新失败走，下面的旧缓存顶上。三个调用点（直播源原文、
+                // 节目单原文、节目单解析结果）里空串都不是合法数据：
+                // 直播源空串解析出 0 个频道直接报错，节目单原文空串
+                // 解析出空列表，解析结果最少也是 "[]"
+                if (refreshed.isBlank()) throw Exception("刷新结果为空")
+                data = refreshed
                 setCacheData(data)
             } catch (ex: Exception) {
                 // 刷新失败时用旧缓存顶上（若有）：源服务器临时故障也不至于
