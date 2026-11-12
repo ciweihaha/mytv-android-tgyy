@@ -303,7 +303,10 @@ class EpgRepository : FileCacheRepository("epg.json") {
             }
         } catch (ex: Exception) {
             log.e("获取节目单失败", ex)
-            throw Exception(ex)
+            // 直接原样抛：再包一层 Exception(ex) 会让消息变成
+            // "java.lang.Exception: 获取远程节目单xml失败，请检查网络连接"，
+            // 和直播源那边（IptvRepository）的写法一致
+            throw ex
         }
     }
 }

@@ -23,7 +23,11 @@ import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 @Stable
 class LeanbackVideoPlayerState(
     private val instance: LeanbackVideoPlayer,
-    private val defaultAspectRatioProvider: () -> Float? = { null },
+    // var 而不是 val：provider 可能捕获组合局部的 configuration（屏幕尺寸，
+    // “自动拉伸”按它算比例），remember 只在首次组合建 state，之后重组
+    // 若不更新，旋转后仍按首次的屏幕尺寸拉伸；remember 函数每次重组
+    // 都把最新的 provider 赋进来（见下），这里只是存、调用时才求值
+    var defaultAspectRatioProvider: () -> Float? = { null },
 ) {
     /** 视频宽高比 */
     var aspectRatio by mutableFloatStateOf(16f / 9f)
@@ -132,6 +136,11 @@ fun rememberLeanbackVideoPlayerState(
             defaultAspectRatioProvider = defaultAspectRatioProvider,
         )
     }
+    // 每次重组都把最新的 provider 赋进来：remember 只建一次 state，
+    // 调用方（MainContent）的 provider 捕获了当时的 configuration，
+    // 旋转后重组若不更新，“自动拉伸”会一直按旧屏幕尺寸算比例；
+    // 只是换一个 lambda 引用，不触发重组、不影响播放器实例
+    state.defaultAspectRatioProvider = defaultAspectRatioProvider
 
     DisposableEffect(Unit) {
         state.initialize()
