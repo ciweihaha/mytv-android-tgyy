@@ -2,15 +2,21 @@
     <h1>我的电视</h1>
 <div align="center">
 
-![GitHub repo size](https://img.shields.io/github/repo-size/yaoxieyoulei/mytv-android)
-![GitHub Repo stars](https://img.shields.io/github/stars/yaoxieyoulei/mytv-android)
-![GitHub all releases](https://img.shields.io/github/downloads/yaoxieyoulei/mytv-android/total)
+![GitHub repo size](https://img.shields.io/github/repo-size/ciweihaha/mytv-android-tgyy)
+![GitHub Repo stars](https://img.shields.io/github/stars/ciweihaha/mytv-android-tgyy)
+![GitHub all releases](https://img.shields.io/github/downloads/ciweihaha/mytv-android-tgyy/total)
 
 </div>
     <p>使用Android原生开发的视频播放软件</p>
 </div>
 
-> 维护说明：本仓库是 yaoxieyoulei/mytv-android 的 fork，上游最后更新于 2025-09-06，已停更；本仓库持续维护，当前比上游多 270 个提交，是实际主线。
+## 维护状态
+
+> **本仓库是上游 [yaoxieyoulei/mytv-android](https://github.com/yaoxieyoulei/mytv-android) 的 fork，现为实际维护主线。**
+>
+> - 上游已归档（Archived），不再维护：上游 `main` 最后提交为 2025-01-09，全仓最后一次活动为 2025-09-05（`feature/ui` 分支）。
+> - 本 fork 自 2026-11-09 起持续维护：截至 2026-11-12，本仓库 `main` 已领先上游 `main` 269 个提交、落后 0 个提交。
+> - 最新正式版为 [v2.2.12](https://github.com/ciweihaha/mytv-android-tgyy/releases/tag/v2.2.12)（2026-11-12 发布）。请以本仓库的 Release 为准，不要再向上游提 Issue / PR。
 
 ## 使用
 
