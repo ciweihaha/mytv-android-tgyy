@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.repositories.epg.EpgRepository
+import top.yogiczy.mytv.data.repositories.iptv.EmptyIptvSourceException
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.data.utils.InvalidSourceUrlException
@@ -40,11 +41,13 @@ internal fun shouldApplyEpgFailure(
 /**
  * 这次失败要不要重试：地址格式错重试多少次都一样（地址是读进来的那
  * 一份，改地址会走 refresh() 另起新一轮），直接不重试、报错立刻显示，
- * 不用等 10 次重试（每次隔 3 秒）跑完；网络错等其他错照常重试。
- * 顶层函数方便单元测试直接调用。
+ * 不用等 10 次重试（每次隔 3 秒）跑完；直播源里没频道也一样——拉到
+ * 的内容解析前已写进缓存，第 2 到第 10 次重试读到的都是同一份缓存、
+ * 解析出同样的 0 个频道（只有缓存时间设成 0 时才会每次重新拉）；
+ * 网络错等其他错照常重试。顶层函数方便单元测试直接调用。
  */
 internal fun shouldRetryLoadFailure(cause: Throwable): Boolean =
-    cause !is InvalidSourceUrlException
+    cause !is InvalidSourceUrlException && cause !is EmptyIptvSourceException
 
 class LeanbackMainViewModel : ViewModel() {
     private val iptvRepository = IptvRepository()

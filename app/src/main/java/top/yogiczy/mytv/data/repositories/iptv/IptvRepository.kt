@@ -106,12 +106,23 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
 }
 
 /**
+ * 直播源里一个频道都没有：单独成类、方便调用方认出来——和地址格式错
+ * 一样，重试多少次都一样：拉到的内容在解析前已经写进缓存（时间戳随之
+ * 刷新），第 2 到第 10 次重试读到的都是同一份缓存、解析出同样的
+ * 0 个频道；只有缓存时间设成 0 时才会每次重新拉，且源文件要在 30 秒
+ * 内恰好修好才赶得上。报错立刻显示，错误页有手动重试按钮和换源二维
+ * 码，恢复的路还在。继承 IllegalStateException，老调用方按
+ * IllegalStateException 接的逻辑不受影响。
+ */
+class EmptyIptvSourceException(message: String) : IllegalStateException(message)
+
+/**
  * 直播源里一个频道都没有时报错：空文件、或精简模式把台全筛掉了。
  * 顶层函数方便单元测试直接调用。
  */
 internal fun checkIptvGroupListNotEmpty(groupList: IptvGroupList, simplified: Boolean) {
     if (groupList.sumOf { it.iptvList.size } == 0) {
-        throw IllegalStateException(
+        throw EmptyIptvSourceException(
             if (simplified) "精简后没有频道：该直播源里没有央视或卫视台，请关闭精简模式或换源"
             else "直播源里没有频道，请检查直播源链接"
         )

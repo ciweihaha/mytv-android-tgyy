@@ -3,6 +3,7 @@ package top.yogiczy.mytv.ui.screens.leanback.main
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.yogiczy.mytv.data.repositories.iptv.EmptyIptvSourceException
 import top.yogiczy.mytv.data.utils.InvalidSourceUrlException
 
 class MainViewModelTest {
@@ -40,8 +41,23 @@ class MainViewModelTest {
     }
 
     @Test
+    fun `empty source error is not retried`() {
+        // 直播源里没频道：拉到的内容解析前已写进缓存，重试读到的都是
+        // 同一份缓存、解析出同样的 0 个频道，报错立刻显示
+        assertFalse(
+            shouldRetryLoadFailure(EmptyIptvSourceException("直播源里没有频道，请检查直播源链接"))
+        )
+        assertFalse(
+            shouldRetryLoadFailure(
+                EmptyIptvSourceException("精简后没有频道：该直播源里没有央视或卫视台，请关闭精简模式或换源")
+            )
+        )
+    }
+
+    @Test
     fun `network and other errors are still retried`() {
         assertTrue(shouldRetryLoadFailure(Exception("获取远程直播源失败，请检查网络连接")))
-        assertTrue(shouldRetryLoadFailure(IllegalStateException("直播源里没有频道，请检查直播源链接")))
+        // 其他 IllegalStateException（不是空源那个）照常重试
+        assertTrue(shouldRetryLoadFailure(IllegalStateException("下载响应体为空")))
     }
 }

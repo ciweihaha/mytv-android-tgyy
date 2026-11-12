@@ -25,6 +25,20 @@ class IptvRepositoryTest {
     }
 
     @Test
+    fun `empty group list throws EmptyIptvSourceException`() {
+        assertThrows(EmptyIptvSourceException::class.java) {
+            checkIptvGroupListNotEmpty(IptvGroupList(), simplified = false)
+        }
+    }
+
+    @Test
+    fun `empty group list after simplify throws EmptyIptvSourceException`() {
+        assertThrows(EmptyIptvSourceException::class.java) {
+            checkIptvGroupListNotEmpty(IptvGroupList(), simplified = true)
+        }
+    }
+
+    @Test
     fun `groups with no channels throw`() {
         assertThrows(IllegalStateException::class.java) {
             checkIptvGroupListNotEmpty(
