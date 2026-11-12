@@ -70,4 +70,20 @@ class LeanbackVideoPlayerStateTest {
         state.applyDefaultAspectRatio()
         assertEquals(4f / 3f, state.aspectRatio, 0.001f)
     }
+
+    @Test
+    fun `replacing the aspect ratio provider takes effect on the next apply`() {
+        // provider 捕获组合局部的 configuration（屏幕尺寸）：“自动拉伸”
+        // 按它算比例；旋转后重组传进来新的 provider，换上后下一次
+        // apply 就要按新尺寸算，而不是一直用首次组合时那份
+        val state = LeanbackVideoPlayerState(FakeVideoPlayer()) { 16f / 9f }
+        state.initialize()
+
+        state.applyDefaultAspectRatio()
+        assertEquals(16f / 9f, state.aspectRatio, 0.001f)
+
+        state.defaultAspectRatioProvider = { 4f / 3f }
+        state.applyDefaultAspectRatio()
+        assertEquals(4f / 3f, state.aspectRatio, 0.001f)
+    }
 }
