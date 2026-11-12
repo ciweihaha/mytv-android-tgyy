@@ -33,9 +33,14 @@ fun LeanbackSettingsCategoryLog(
         // 按入库编号设 key：时间+标签+内容在同一毫秒里可能重复，
         // 两条一模一样的日志会撞键让列表直接崩掉
         items(historySorted, key = { it.id }) {
+            // 有原因的日志把原因也显示出来：原来只显示 message，
+            // 闪退报告（存在 cause 里的完整堆栈）只在局域网接口能看到，
+            // 设置页上只能看到“上次启动发生闪退”、看不到崩在哪——
+            // CrashHandler 的注释说两个地方都能看到，这里把它补上
             LeanbackSettingsCategoryListItem(
                 headlineContent = "${it.level.toString()[0]} ${it.tag}",
-                supportingContent = it.message,
+                supportingContent = it.message +
+                    (it.cause?.let { cause -> "\n$cause" } ?: ""),
                 trailingContent = timeFormat.format(it.time),
             )
         }
