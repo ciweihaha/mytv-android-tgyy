@@ -17,8 +17,17 @@ abstract class FileCacheRepository(
 
     private suspend fun getCacheData(): String? = withContext(Dispatchers.IO) {
         val file = getCacheFile()
-        if (file.exists()) file.readText()
-        else null
+        if (!file.exists()) return@withContext null
+        // 读不到就按无缓存处理：换源时清缓存（删文件）可能正好撞上另一路
+        // 正在读缓存，exists() 与 readText() 之间文件被删会抛错；读失败
+        // 不是数据问题，不应让整次加载失败——返回 null 走刷新那条路，
+        // 刷新失败的兜底里还会再读一次旧缓存
+        try {
+            file.readText()
+        } catch (ex: Exception) {
+            log.w("读取缓存失败，按无缓存处理", ex)
+            null
+        }
     }
 
     /**
