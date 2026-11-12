@@ -6,9 +6,14 @@ class M3uIptvParser : IptvParser {
 
     override fun isSupport(url: String, data: String): Boolean {
         // 部分编辑器（Windows 记事本等）保存的 M3U 带 UTF-8 BOM，或首行有
-        // 空行：先去掉 BOM 与前导空白再判断，否则有效源会被判成不支持格式；
+        // 空行：先跳过 BOM 与前导空白再判断，否则有效源会被判成不支持格式；
         // 有些生成器写小写 #extm3u，同样认
-        return data.trimStart('\uFEFF', ' ', '\t', '\r', '\n').startsWith("#EXTM3U", ignoreCase = true)
+        // 不拷贝判断：原先 trimStart 会把整串（大源几 MB）拷一份再判断；
+        // 只找第一个非空白/BOM 字符的偏移，再用 regionMatches 在原串上
+        // 判断，语义与原来完全一致
+        val start = data.indexOfFirst { it !in LEADING_TRIM_CHARS }
+        if (start < 0) return false
+        return data.regionMatches(start, "#EXTM3U", 0, "#EXTM3U".length, ignoreCase = true)
     }
 
     override suspend fun parse(data: String): IptvGroupList {
@@ -91,6 +96,9 @@ class M3uIptvParser : IptvParser {
     }
 
     companion object {
+        // isSupport 跳过的前导字符：UTF-8 BOM 与空白，与原先 trimStart 的字符集一致
+        private val LEADING_TRIM_CHARS = charArrayOf('\uFEFF', ' ', '\t', '\r', '\n')
+
         // 正则只编译一次：原先每条 #EXTINF 行都 new 两个 Regex，大源很浪费。
         // 属性名不区分大小写：#EXTINF 本身已有生成器写小写（见 isSupport），
         // 同样有源把属性写成 TVG-NAME / Tvg-Name；区分大小写时 tvg-name、
