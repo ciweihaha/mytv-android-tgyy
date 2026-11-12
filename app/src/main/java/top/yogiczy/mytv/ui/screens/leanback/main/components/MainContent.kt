@@ -54,6 +54,7 @@ import top.yogiczy.mytv.ui.screens.leanback.video.rememberLeanbackVideoPlayerSta
 import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.ui.utils.handleLeanbackDragGestures
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.ui.utils.safeLeanbackInvoke
 
 @Composable
 fun LeanbackMainContent(
@@ -374,7 +375,9 @@ fun LeanbackBackPressHandledArea(
     modifier = Modifier
         .onPreviewKeyEvent {
             if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                onBackPressed()
+                // 返回回调同样包兜底：主界面每次按返回都走这里，回调里偶发
+                // 异常不该让整个应用闪退；抛异常也照样消费，不漏下去被当成退出
+                safeLeanbackInvoke(onBackPressed)
                 true
             } else {
                 false
