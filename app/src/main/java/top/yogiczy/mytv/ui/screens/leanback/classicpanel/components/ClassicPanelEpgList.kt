@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -185,6 +186,24 @@ fun LeanbackClassicPanelEpgList(
                     }
                 }
             }
+        }
+    } else {
+        // 当前频道没有节目单时也给一句提示：原来这里整列是空的，按右键
+        // 展开节目单却什么都没有，用户分不清是没加载出来还是本来就没有；
+        // 普通面板的节目单弹窗同样情况显示“当前频道暂无节目”，这边和它一致
+        Column(
+            modifier = modifier
+                .fillMaxHeight()
+                .width(240.dp)
+                .background(MaterialTheme.colorScheme.background.copy(0.7f))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "当前频道暂无节目",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
