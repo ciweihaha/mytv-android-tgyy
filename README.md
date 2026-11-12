@@ -92,7 +92,7 @@
 ## 说明
 
 - 主要解决 [my_tv](https://github.com/yaoxieyoulei/my_tv)（flutter）在低端设备上播放（4k）视频卡顿掉帧
-- 仅支持Android5及以上
+- 仅支持Android 7.0 及以上
 - 网络环境必须支持IPV6（默认订阅源）
 - 只在自家电视上测过，其他电视稳定性未知
 
