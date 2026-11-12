@@ -86,6 +86,36 @@ class FileCacheRepositoryTest {
     }
 
     @Test
+    fun `unreadable cache file reads as no cache`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        // 缓存位置上是个目录：exists() 为真、readText() 抛错，模拟换源
+        // 清缓存正好撞上另一路正在读缓存
+        assertTrue(tempFolder.newFolder("test.txt").isDirectory)
+
+        assertEquals(null, repo.cached())
+    }
+
+    @Test
+    fun `unreadable cache does not block refresh attempt`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        assertTrue(tempFolder.newFolder("test.txt").isDirectory)
+
+        var refreshAttempted = false
+        try {
+            // 读缓存失败不应拦住刷新：刷新操作必须跑一次；写缓存会因
+            // 目录占位失败而抛错（那是另一回事），这里只断言刷新跑过
+            repo.load(0) {
+                refreshAttempted = true
+                "fresh data"
+            }
+        } catch (_: Exception) {
+            // 写缓存失败时抛错是预期内的，不影响本用例的断言
+        }
+
+        assertTrue(refreshAttempted)
+    }
+
+    @Test
     fun `concurrent refreshes never leave mixed content`() = runBlocking {
         val repo = TestCacheRepo("test.txt")
         // 每个刷新写 200KB 的单一字符：直接 writeText 并发写会交叉
