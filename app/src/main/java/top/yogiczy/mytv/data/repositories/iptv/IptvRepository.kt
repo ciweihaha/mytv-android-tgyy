@@ -66,22 +66,28 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
                 fetchSource(sourceUrl)
             }
 
-            val parser = IptvParser.instances.first { it.isSupport(sourceUrl, sourceData) }
-            val groupList = parser.parse(sourceData)
-            // 只数个数不用先拼一份全量列表：原先 flatMap 把全部频道先拷
-            // 一份再数，频道上千时白白多一份大列表
-            log.i("解析直播源完成：${groupList.size}个分组，${groupList.sumOf { it.iptvList.size }}个频道")
+            // 解析是纯 CPU 计算：调用方在 viewModelScope（主线程），大直播源下
+            // 格式判断 + 正则解析 + 精简过滤要跑上百毫秒，界面卡顿；挪到
+            // Default 线程池，写法与节目单解析（EpgRepository.parseFromXml）
+            // 一致。只换执行线程，返回结果、错误行为不变
+            val result = withContext(Dispatchers.Default) {
+                val parser = IptvParser.instances.first { it.isSupport(sourceUrl, sourceData) }
+                val groupList = parser.parse(sourceData)
+                // 只数个数不用先拼一份全量列表：原先 flatMap 把全部频道先拷
+                // 一份再数，频道上千时白白多一份大列表
+                log.i("解析直播源完成：${groupList.size}个分组，${groupList.sumOf { it.iptvList.size }}个频道")
 
-            val result = if (simplify) {
-                IptvGroupList(groupList.map { group ->
-                    IptvGroup(
-                        name = group.name, iptvList = IptvList(group.iptvList.filter { iptv ->
-                            simplifyTest(iptv)
-                        })
-                    )
-                }.filter { it.iptvList.isNotEmpty() })
-            } else {
-                groupList
+                if (simplify) {
+                    IptvGroupList(groupList.map { group ->
+                        IptvGroup(
+                            name = group.name, iptvList = IptvList(group.iptvList.filter { iptv ->
+                                simplifyTest(iptv)
+                            })
+                        )
+                    }.filter { it.iptvList.isNotEmpty() })
+                } else {
+                    groupList
+                }
             }
 
             // 空源直接报错：原来解析出 0 个频道也进 Ready，主界面黑屏、
