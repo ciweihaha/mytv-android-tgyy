@@ -16,7 +16,7 @@
 >
 > - 上游已归档（Archived），不再维护：上游 `main` 最后提交为 2025-01-09，全仓最后一次活动为 2025-09-05（`feature/ui` 分支）。
 > - 本 fork 自 2026-11-09 起持续维护：截至 2026-11-12，本仓库 `main` 已领先上游 `main` 269 个提交、落后 0 个提交。
-> - 最新正式版为 [v2.2.15](https://github.com/ciweihaha/mytv-android-tgyy/releases/tag/v2.2.15)（2026-11-12 发布）。请以本仓库的 Release 为准，不要再向上游提 Issue / PR。
+> - 最新正式版为 [v2.2.16](https://github.com/ciweihaha/mytv-android-tgyy/releases/tag/v2.2.16)（2026-11-13 发布）。请以本仓库的 Release 为准，不要再向上游提 Issue / PR。
 
 ## 使用
 
