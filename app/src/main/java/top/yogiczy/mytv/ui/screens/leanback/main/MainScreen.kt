@@ -207,11 +207,20 @@ private fun LeanbackMainSettingsHandle(
     val focusRequester = remember { FocusRequester() }
     var showSettings by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    // 设置页关掉后把焦点要回来：设置页打开时自己抢了焦点，关掉后焦
+    // 点不会自己回来（和主界面那边循环补焦点一个道理）；只在关着的
+    // 时候要，打开时设置页自己会抢，不抢它的
+    LaunchedEffect(showSettings) {
+        if (!showSettings) focusRequester.requestFocus()
     }
 
-    LeanbackBackPressHandledArea(onBackPressed = onBackPressed) {
+    // 返回键先关设置页、再走退出确认：和主界面那边（MainContent）
+    // 同一个做法。原来直接走退出确认，加载/失败页上打开设置页后，
+    // 返回键关不掉设置页——按一次弹“再按一次退出”、再按就直接退
+    // 出应用，想回失败页按确定重试只能先退出重进
+    LeanbackBackPressHandledArea(onBackPressed = {
+        if (showSettings) showSettings = false else onBackPressed()
+    }) {
         Box(
             modifier = modifier
                 .focusRequester(focusRequester)
