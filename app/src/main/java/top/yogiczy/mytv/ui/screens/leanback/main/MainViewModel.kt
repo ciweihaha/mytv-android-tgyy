@@ -30,6 +30,11 @@ class LeanbackMainViewModel : ViewModel() {
 
     private var refreshJob: Job? = null
 
+    // 刷新代号：每次 refresh() 加一。直播源与节目单拉取都是阻塞式网络
+    // 调用（execute() 不响应取消），旧轮次取消后仍可能跑完；写状态前
+    // 先对代号，过期轮次的结果一律丢弃，不盖掉新一轮的状态
+    private var refreshGeneration = 0
+
     init {
         refresh()
     }
@@ -41,14 +46,15 @@ class LeanbackMainViewModel : ViewModel() {
      */
     fun refresh() {
         refreshJob?.cancel()
+        val generation = ++refreshGeneration
         refreshJob = viewModelScope.launch {
             _uiState.value = LeanbackMainUiState.Loading()
-            refreshIptv()
-            refreshEpg()
+            refreshIptv(generation)
+            refreshEpg(generation)
         }
     }
 
-    private suspend fun refreshIptv() {
+    private suspend fun refreshIptv(generation: Int) {
         flow {
             emit(
                 iptvRepository.getIptvGroupList(
@@ -61,24 +67,38 @@ class LeanbackMainViewModel : ViewModel() {
             .retryWhen { _, attempt ->
                 if (attempt >= Constants.HTTP_RETRY_COUNT) return@retryWhen false
 
-                _uiState.value =
-                    LeanbackMainUiState.Loading("获取远程直播源(${attempt + 1}/${Constants.HTTP_RETRY_COUNT})...")
+                // 只有当前这轮才写状态：旧轮次的拉取是阻塞调用、取消后
+                // 仍可能跑完，重试提示晚于新一轮到达时，会把新源已就
+                // 绪的状态盖回加载中；节目单那步的快照也对不上、结果
+                // 被丢弃，界面就一直卡在加载转圈上
+                if (generation == refreshGeneration) {
+                    _uiState.value =
+                        LeanbackMainUiState.Loading("获取远程直播源(${attempt + 1}/${Constants.HTTP_RETRY_COUNT})...")
+                }
                 delay(Constants.HTTP_RETRY_INTERVAL)
                 true
             }
             .catch {
-                _uiState.value = LeanbackMainUiState.Error(it.message)
-                SP.iptvSourceUrlHistoryList -= SP.iptvSourceUrl
+                if (generation == refreshGeneration) {
+                    _uiState.value = LeanbackMainUiState.Error(it.message)
+                    SP.iptvSourceUrlHistoryList -= SP.iptvSourceUrl
+                }
             }
             .map {
-                _uiState.value = LeanbackMainUiState.Ready(iptvGroupList = it)
-                SP.iptvSourceUrlHistoryList += SP.iptvSourceUrl
+                if (generation == refreshGeneration) {
+                    _uiState.value = LeanbackMainUiState.Ready(iptvGroupList = it)
+                    SP.iptvSourceUrlHistoryList += SP.iptvSourceUrl
+                }
                 it
             }
             .collect()
     }
 
-    private suspend fun refreshEpg() {
+    private suspend fun refreshEpg(generation: Int) {
+        // 已是过期轮次：直播源那步的写状态已被代号拦下，这里也直接
+        // 跳过，别拿新源的频道单多拉一次节目单
+        if (generation != refreshGeneration) return
+
         // 节目单开关原来没人读：关了照样拉节目单；这里真正按开关走。
         // refresh() 已把 Ready 的 epgList 重置为空，跳过即保持无节目单
         if (!SP.epgEnable) return
