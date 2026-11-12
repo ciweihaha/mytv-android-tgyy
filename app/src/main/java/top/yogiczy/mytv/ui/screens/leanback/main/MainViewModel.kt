@@ -21,6 +21,21 @@ import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.utils.SP
 
+/**
+ * 节目单失败的收尾（写空节目单、删历史地址）要不要执行：只在状态还
+ * 是当初那份 Ready 快照时才做。直播源那路失败时删地址包在代号检查
+ * 里、节目单这路成功时加地址也包在同一检查里，唯独失败时删地址没
+ * 包——过期轮次的节目单拉取是阻塞调用、取消后照样跑完，还要重试
+ * 10 次、每次隔 3 秒，拖到新一轮都成功了才报失败，这时删掉的是当前
+ * 正在用的好地址（新一轮成功时刚把它加回历史）。引用相等才算同一份
+ * 快照：内容相同但不是同一份对象时（新一轮的 Ready）也不执行。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldApplyEpgFailure(
+    currentState: LeanbackMainUiState,
+    readyState: LeanbackMainUiState.Ready,
+): Boolean = currentState === readyState
+
 class LeanbackMainViewModel : ViewModel() {
     private val iptvRepository = IptvRepository()
     private val epgRepository = EpgRepository()
@@ -130,11 +145,13 @@ class LeanbackMainViewModel : ViewModel() {
                 // 节目单失败只记空节目单：直接在这里写回空节目单，不再
                 // emit 后走 map——map 里会把刚删掉的历史地址又加回去，
                 // 坏地址永远删不掉；直播源那路失败时 catch 不发数据、
-                // map 不跑，删除是生效的，这里与它对齐
-                if (_uiState.value === readyState) {
+                // map 不跑，删除是生效的，这里与它对齐。删地址也要包在
+                // 同一检查里：过期轮次的失败不能删当前正在用的地址，
+                // 见 shouldApplyEpgFailure
+                if (shouldApplyEpgFailure(_uiState.value, readyState)) {
                     _uiState.value = readyState.copy(epgList = EpgList())
+                    SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
                 }
-                SP.epgXmlUrlHistoryList -= SP.epgXmlUrl
             }
             .map { epgList ->
                 // 状态已不是当初那份 Ready（中途又刷新了）：旧结果直接
