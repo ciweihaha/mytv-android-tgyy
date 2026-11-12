@@ -27,4 +27,20 @@ class HttpServerSettingsTest {
             keepCurrentIfBlank("http://example.com/b.m3u", "http://example.com/a.m3u")
         )
     }
+
+    @Test
+    fun `force refresh when cachedAt is zero`() {
+        assertEquals(true, isForceRefreshCache(0L))
+    }
+
+    @Test
+    fun `no force refresh when cachedAt is missing`() {
+        // 字段缺失时服务端用 -1 兜底：老页面、只改 UA 的推送不强制刷新
+        assertEquals(false, isForceRefreshCache(-1L))
+    }
+
+    @Test
+    fun `no force refresh when cachedAt is a real timestamp`() {
+        assertEquals(false, isForceRefreshCache(1_700_000_000_000L))
+    }
 }
