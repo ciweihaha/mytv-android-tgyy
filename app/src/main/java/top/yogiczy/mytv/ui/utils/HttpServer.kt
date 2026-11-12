@@ -221,10 +221,16 @@ object HttpServer : Loggable() {
     ) {
         wrapResponse(response).apply {
             setContentType(contentType)
-            // 读完就关流：原先 openRawResource 拿到的流读完没关，每次打开
-            // 网页（首页、样式、脚本各一次）都漏一个文件描述符，要等回收
-            // 才释放；use 保证读完（包括读一半抛错）就关
-            send(context.resources.openRawResource(id).use { it.readBytes().decodeToString() })
+            // 字节直发：原先 readBytes().decodeToString() 再 send(String)，
+            // 非 UTF-8 字节会被替换成 U+FFFD——index_js.js 里 dayjs 的
+            // zh-cn 语言包是 GBK 编码的中文（星期日/星期一……），解码
+            // 后全变成替换字符；send(String, byte[]) 原样送达，不经过
+            // 字符编解码（androidasync 的 send(String) 内部也是先按
+            // UTF-8 编码再调这个 byte[] 版本）。读完就关流：原先
+            // openRawResource 拿到的流读完没关，每次打开网页（首页、
+            // 样式、脚本各一次）都漏一个文件描述符，要等回收才释放；
+            // use 保证读完（包括读一半抛错）就关
+            send(contentType, context.resources.openRawResource(id).use { it.readBytes() })
         }
     }
 

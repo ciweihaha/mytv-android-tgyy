@@ -119,6 +119,62 @@ class GithubGitReleaseParserTest {
     }
 
     @Test
+    fun `null browser_download_url fails with a clear error instead of a bogus null url`() {
+        // JsonNull 也是 JsonPrimitive，content 是字面量 "null"：直接取
+        // content 会拼出 "https://mirror.ghproxy.com/null" 当下载地址，
+        // 下载失败时只报网络错；contentOrNull 才能走到预期的报错
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": null,
+                  "size": 25800000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
+        assertEquals("APK 附件没有下载地址", error.message)
+    }
+
+    @Test
+    fun `asset with null name is skipped instead of crashing the check`() = runBlocking {
+        // 名字为 null 的附件不是 APK：跳过它、选后面的真 APK，
+        // 而不是让整个更新检查抛错
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": null,
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/unknown",
+                  "size": 128
+                },
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+                  "size": 25800000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(
+            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+            result.downloadUrl,
+        )
+    }
+
+    @Test
     fun `empty assets fails instead of downloading the wrong file`() {
         val data = """
             {
