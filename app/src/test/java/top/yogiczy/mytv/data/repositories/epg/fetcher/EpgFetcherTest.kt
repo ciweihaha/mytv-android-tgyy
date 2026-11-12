@@ -102,4 +102,31 @@ class EpgFetcherTest {
 
         assertEquals("", result)
     }
+
+    @Test
+    fun `leading BOM is stripped from plain xml body`() {
+        val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
+
+        val result = defaultFetcher.fetch(responseWithBody(("\uFEFF" + xml).toResponseBody()))
+
+        assertEquals(xml, result)
+    }
+
+    @Test
+    fun `leading BOM is stripped from gzipped body`() {
+        val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
+
+        val result = gzFetcher.fetch(responseWithBody(gzip("\uFEFF" + xml).toResponseBody()))
+
+        assertEquals(xml, result)
+    }
+
+    @Test
+    fun `BOM in the middle is left alone`() {
+        val xml = "<tv><channel id=\"c1\" />\uFEFF</tv>"
+
+        val result = defaultFetcher.fetch(responseWithBody(xml.toResponseBody()))
+
+        assertEquals(xml, result)
+    }
 }

@@ -46,6 +46,12 @@ interface EpgFetcher {
          * 现只读前 2 字节判 gzip 魔数就流式解压，压缩过的那份不再整
          * 份落内存（解压出的那份仍要整份成串，这是 fetch 返回 String
          * 的接口决定的，彻底流式要改解析器接口，另议）
+         *
+         * 去掉开头的 UTF-8 BOM（EF BB BF，解码后是 \uFEFF）：解析器
+         * 走 StringReader 那条路不跳 BOM，带 `<?xml` 声明的源会在
+         * "PI must not start with xml" 上抛错（KXml 按列号卡声明位置，
+         * BOM 先占了一列）、整个节目单加载失败；字节流那条路本来就
+         * 跳 BOM，这里去掉一个开头的即可
          */
         fun decodeBody(response: Response): String {
             val stream = response.body?.byteStream() ?: return ""
@@ -54,11 +60,12 @@ interface EpgFetcher {
                 val first = buffered.read()
                 val second = buffered.read()
                 buffered.reset()
-                if (first == 0x1F && second == 0x8B) {
+                val text = if (first == 0x1F && second == 0x8B) {
                     GZIPInputStream(buffered).use { it.readBytes().toString(Charsets.UTF_8) }
                 } else {
                     buffered.readBytes().toString(Charsets.UTF_8)
                 }
+                text.removePrefix("\uFEFF")
             }
         }
     }
