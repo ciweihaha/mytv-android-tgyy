@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".MyTVApplication"
@@ -74,13 +76,21 @@
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </receiver>
+
+        <!-- 开机拉起服务：BOOT_COMPLETED 到达时由 BootReceiver 起这个前台
+             服务，再由服务拉起主界面。exported 必须为 true，否则系统广播
+             发不到应用内的 Receiver -->
+        <service
+            android:name=".BootLaunchService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

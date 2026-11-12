@@ -220,11 +220,10 @@ private fun LeanbackMainSettingsHandle(
                     onSettings = {
                         showSettings = true
                     },
-                    onSelect = {
-                        // 设置页打开时确定键归设置项：预览按键事件会先到
-                        // 这里，不加守卫会在设置里按确定也触发重试
-                        if (!showSettings) onRetry?.invoke()
-                    },
+                    // 设置页打开时确定键归设置项：外层不注册 onSelect，
+                    // 事件漏下去给设置项；注册了会在外层消费掉，设置项收不到
+                    // （handleLeanbackKeyEvents 只收录传了回调的键）
+                    onSelect = if (!showSettings) onRetry else null,
                 ),
         ) {
             content()

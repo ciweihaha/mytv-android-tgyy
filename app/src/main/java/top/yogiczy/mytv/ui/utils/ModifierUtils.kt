@@ -30,21 +30,136 @@ fun Modifier.handleLeanbackKeyEvents(
             KeyEvent.ACTION_DOWN -> {
                 if (it.nativeKeyEvent.repeatCount == 0) {
                     keyDownMap[it.nativeKeyEvent.keyCode] = true
+                    // 按下只记状态、不消费：方向键的焦点移动靠框架在按下时处理，
+                    // 消费掉会让列表焦点挪不动
+                    false
                 } else if (it.nativeKeyEvent.repeatCount == 1) {
                     keyDownMap.remove(it.nativeKeyEvent.keyCode)
-                    onKeyLongTap[it.nativeKeyEvent.keyCode]?.invoke()
+                    // 长按在按下重复时触发一次，消费掉：防止松开时又触发一次点按
+                    val longTap = onKeyLongTap[it.nativeKeyEvent.keyCode]
+                    if (longTap != null) {
+                        longTap()
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
                 }
             }
 
             KeyEvent.ACTION_UP -> {
                 if (keyDownMap[it.nativeKeyEvent.keyCode] == true) {
                     keyDownMap.remove(it.nativeKeyEvent.keyCode)
-                    onKeyTap[it.nativeKeyEvent.keyCode]?.invoke()
+                    // 点按在这里触发，消费掉：已处理的键不再往下漏到
+                    // Activity/系统兜底处理——原来这里永远返回 false，
+                    // 处理过的确定键一路漏下去，荣耀电视上会被系统当成
+                    // 返回、直接退出应用
+                    val tap = onKeyTap[it.nativeKeyEvent.keyCode]
+                    if (tap != null) {
+                        tap()
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
                 }
             }
-        }
 
-        false
+            else -> false
+        }
+    }
+}
+
+/**
+ * 遥控按键“点按”映射表（纯函数，方便单元测试）：
+ * 只收录调用方真正传了回调的键——没传的键不进表，事件继续往下传给
+ * 获得焦点的子项或框架处理。原来这里把全部键都收进表、回调默认空
+ * 函数，事件到哪一级都算“处理过”，却又不消费，等于白白占了表。
+ */
+internal fun leanbackKeyTapMap(
+    onLeft: (() -> Unit)? = null,
+    onRight: (() -> Unit)? = null,
+    onUp: (() -> Unit)? = null,
+    onDown: (() -> Unit)? = null,
+    onSelect: (() -> Unit)? = null,
+    onLongSelect: (() -> Unit)? = null,
+    onSettings: (() -> Unit)? = null,
+    onNumber: ((Int) -> Unit)? = null,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+): Map<Int, () -> Unit> = buildMap {
+    onLeft?.let {
+        put(KeyEvent.KEYCODE_DPAD_LEFT, it)
+        if (sdkInt >= Build.VERSION_CODES.N_MR1) {
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT, it)
+        }
+    }
+    onRight?.let {
+        put(KeyEvent.KEYCODE_DPAD_RIGHT, it)
+        if (sdkInt >= Build.VERSION_CODES.N_MR1) {
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT, it)
+        }
+    }
+    onUp?.let {
+        put(KeyEvent.KEYCODE_DPAD_UP, it)
+        put(KeyEvent.KEYCODE_CHANNEL_UP, it)
+        if (sdkInt >= Build.VERSION_CODES.N_MR1) {
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP, it)
+        }
+    }
+    onDown?.let {
+        put(KeyEvent.KEYCODE_DPAD_DOWN, it)
+        put(KeyEvent.KEYCODE_CHANNEL_DOWN, it)
+        if (sdkInt >= Build.VERSION_CODES.N_MR1) {
+            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN, it)
+        }
+    }
+    onSelect?.let {
+        put(KeyEvent.KEYCODE_DPAD_CENTER, it)
+        put(KeyEvent.KEYCODE_ENTER, it)
+        put(KeyEvent.KEYCODE_NUMPAD_ENTER, it)
+    }
+    onSettings?.let {
+        put(KeyEvent.KEYCODE_MENU, it)
+        put(KeyEvent.KEYCODE_SETTINGS, it)
+        put(KeyEvent.KEYCODE_HELP, it)
+        put(KeyEvent.KEYCODE_H, it)
+    }
+    // 键盘 L 键当长按确定用（原有行为保留）
+    onLongSelect?.let { put(KeyEvent.KEYCODE_L, it) }
+    onNumber?.let { number ->
+        for (i in 0..9) {
+            put(KeyEvent.KEYCODE_0 + i) { number(i) }
+        }
+    }
+}
+
+/**
+ * 遥控按键“长按”映射表（纯函数，方便单元测试）：同样只收录真正传了
+ * 回调的键。
+ */
+internal fun leanbackKeyLongTapMap(
+    onLongLeft: (() -> Unit)? = null,
+    onLongRight: (() -> Unit)? = null,
+    onLongUp: (() -> Unit)? = null,
+    onLongDown: (() -> Unit)? = null,
+    onLongSelect: (() -> Unit)? = null,
+): Map<Int, () -> Unit> = buildMap {
+    onLongLeft?.let { put(KeyEvent.KEYCODE_DPAD_LEFT, it) }
+    onLongRight?.let { put(KeyEvent.KEYCODE_DPAD_RIGHT, it) }
+    onLongUp?.let {
+        put(KeyEvent.KEYCODE_DPAD_UP, it)
+        put(KeyEvent.KEYCODE_CHANNEL_UP, it)
+    }
+    onLongDown?.let {
+        put(KeyEvent.KEYCODE_DPAD_DOWN, it)
+        put(KeyEvent.KEYCODE_CHANNEL_DOWN, it)
+    }
+    onLongSelect?.let {
+        put(KeyEvent.KEYCODE_ENTER, it)
+        put(KeyEvent.KEYCODE_NUMPAD_ENTER, it)
+        put(KeyEvent.KEYCODE_DPAD_CENTER, it)
     }
 }
 
@@ -114,77 +229,43 @@ fun Modifier.handleLeanbackDragGestures(
 @Composable
 fun Modifier.handleLeanbackKeyEvents(
     key: Any = Unit,
-    onLeft: () -> Unit = {},
-    onLongLeft: () -> Unit = {},
-    onRight: () -> Unit = {},
-    onLongRight: () -> Unit = {},
-    onUp: () -> Unit = {},
-    onLongUp: () -> Unit = {},
-    onDown: () -> Unit = {},
-    onLongDown: () -> Unit = {},
-    onSelect: () -> Unit = {},
-    onLongSelect: () -> Unit = {},
-    onSettings: () -> Unit = {},
-    onNumber: (Int) -> Unit = {},
+    onLeft: (() -> Unit)? = null,
+    onLongLeft: (() -> Unit)? = null,
+    onRight: (() -> Unit)? = null,
+    onLongRight: (() -> Unit)? = null,
+    onUp: (() -> Unit)? = null,
+    onLongUp: (() -> Unit)? = null,
+    onDown: (() -> Unit)? = null,
+    onLongDown: (() -> Unit)? = null,
+    onSelect: (() -> Unit)? = null,
+    onLongSelect: (() -> Unit)? = null,
+    onSettings: (() -> Unit)? = null,
+    onNumber: ((Int) -> Unit)? = null,
 ) = this then handleLeanbackKeyEvents(
-    // 系统导航键只在 API 25+ 才有：原先这里是 mapOf(...).apply { A to B }，
-    // mapOf 返回的是只读 Map，to 只是生成一个立刻丢弃的 Pair，四个键
-    // 实际一个都没注册上——发出系统导航键的遥控/手柄按方向键在 App 里
-    // 全无反应；改成可变 Map 后 put 才真正生效
-    onKeyTap = mutableMapOf(
-        KeyEvent.KEYCODE_DPAD_LEFT to onLeft,
-        KeyEvent.KEYCODE_DPAD_RIGHT to onRight,
-        KeyEvent.KEYCODE_DPAD_UP to onUp,
-        KeyEvent.KEYCODE_CHANNEL_UP to onUp,
-        KeyEvent.KEYCODE_DPAD_DOWN to onDown,
-        KeyEvent.KEYCODE_CHANNEL_DOWN to onDown,
-
-        KeyEvent.KEYCODE_DPAD_CENTER to onSelect,
-        KeyEvent.KEYCODE_ENTER to onSelect,
-        KeyEvent.KEYCODE_NUMPAD_ENTER to onSelect,
-
-        KeyEvent.KEYCODE_MENU to onSettings,
-        KeyEvent.KEYCODE_SETTINGS to onSettings,
-        KeyEvent.KEYCODE_HELP to onSettings,
-        KeyEvent.KEYCODE_H to onSettings,
-
-        KeyEvent.KEYCODE_L to onLongSelect,
-
-        KeyEvent.KEYCODE_0 to { onNumber(0) },
-        KeyEvent.KEYCODE_1 to { onNumber(1) },
-        KeyEvent.KEYCODE_2 to { onNumber(2) },
-        KeyEvent.KEYCODE_3 to { onNumber(3) },
-        KeyEvent.KEYCODE_4 to { onNumber(4) },
-        KeyEvent.KEYCODE_5 to { onNumber(5) },
-        KeyEvent.KEYCODE_6 to { onNumber(6) },
-        KeyEvent.KEYCODE_7 to { onNumber(7) },
-        KeyEvent.KEYCODE_8 to { onNumber(8) },
-        KeyEvent.KEYCODE_9 to { onNumber(9) },
-    ).apply {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
-            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT, onLeft)
-            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT, onRight)
-            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_UP, onUp)
-            put(KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN, onDown)
-        }
-    },
-    onKeyLongTap = mapOf(
-        KeyEvent.KEYCODE_DPAD_LEFT to onLongLeft,
-        KeyEvent.KEYCODE_DPAD_RIGHT to onLongRight,
-        KeyEvent.KEYCODE_DPAD_UP to onLongUp,
-        KeyEvent.KEYCODE_CHANNEL_UP to onLongUp,
-        KeyEvent.KEYCODE_DPAD_DOWN to onLongDown,
-        KeyEvent.KEYCODE_CHANNEL_DOWN to onLongDown,
-
-        KeyEvent.KEYCODE_ENTER to onLongSelect,
-        KeyEvent.KEYCODE_NUMPAD_ENTER to onLongSelect,
-        KeyEvent.KEYCODE_DPAD_CENTER to onLongSelect,
+    // 回调默认是 null 而不是空函数：没传的键不进映射表，事件继续往下传，
+    // 不会占住里层获得焦点的子项的键（见 leanbackKeyTapMap）
+    onKeyTap = leanbackKeyTapMap(
+        onLeft = onLeft,
+        onRight = onRight,
+        onUp = onUp,
+        onDown = onDown,
+        onSelect = onSelect,
+        onLongSelect = onLongSelect,
+        onSettings = onSettings,
+        onNumber = onNumber,
+    ),
+    onKeyLongTap = leanbackKeyLongTapMap(
+        onLongLeft = onLongLeft,
+        onLongRight = onLongRight,
+        onLongUp = onLongUp,
+        onLongDown = onLongDown,
+        onLongSelect = onLongSelect,
     ),
 ).pointerInput(key) {
     detectTapGestures(
-        onTap = { onSelect() },
-        onLongPress = { onLongSelect() },
-        onDoubleTap = { onSettings() },
+        onTap = { onSelect?.invoke() },
+        onLongPress = { onLongSelect?.invoke() },
+        onDoubleTap = { onSettings?.invoke() },
     )
 }
 

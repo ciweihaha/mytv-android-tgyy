@@ -122,9 +122,9 @@ object SP {
     }
 
     /** ==================== 应用 ==================== */
-    /** 开机自启 */
+    /** 开机自启（默认开：装好不用再进设置翻开关，不想自启再去关） */
     var appBootLaunch: Boolean
-        get() = sp.getBoolean(KEY.APP_BOOT_LAUNCH.name, false)
+        get() = sp.getBoolean(KEY.APP_BOOT_LAUNCH.name, true)
         set(value) = sp.edit().putBoolean(KEY.APP_BOOT_LAUNCH.name, value).apply()
 
     /** 上一次最新版本 */
