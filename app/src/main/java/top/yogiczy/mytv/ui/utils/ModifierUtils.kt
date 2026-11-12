@@ -315,14 +315,19 @@ fun Modifier.handleLeanbackKeyEvents(
     )
 }
 
+/**
+ * 任意用户操作都续期一次（如快捷面板自动关闭计时）：按键、触摸、滑动、
+ * 双击、长按都走这里。回调同样包 safeLeanbackInvoke 兜底——上面几个
+ * 交互处理都包了，这里是漏网的一处；回调里偶发异常不该让整个应用闪退。
+ */
 fun Modifier.handleLeanbackUserAction(onHandle: () -> Unit) =
-    onPreviewKeyEvent { onHandle(); false }
-        .pointerInput(Unit) { detectDragGestures { _, _ -> onHandle() } }
+    onPreviewKeyEvent { safeLeanbackInvoke(onHandle); false }
+        .pointerInput(Unit) { detectDragGestures { _, _ -> safeLeanbackInvoke(onHandle) } }
         .pointerInput(Unit) {
             detectTapGestures(
-                onTap = { onHandle() },
-                onDoubleTap = { onHandle() },
-                onLongPress = { onHandle() },
-                onPress = { onHandle() },
+                onTap = { safeLeanbackInvoke(onHandle) },
+                onDoubleTap = { safeLeanbackInvoke(onHandle) },
+                onLongPress = { safeLeanbackInvoke(onHandle) },
+                onPress = { safeLeanbackInvoke(onHandle) },
             )
         }
