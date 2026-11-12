@@ -12,6 +12,7 @@ import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.repositories.FileCacheRepository
 import top.yogiczy.mytv.data.repositories.epg.fetcher.EpgFetcher
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.buildGetRequest
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.utils.Logger
@@ -335,7 +336,10 @@ private class EpgXmlRepository : FileCacheRepository("epg.xml") {
             // 轮）与 QuickPanel 测速那处 .execute().use 保持一致
             sharedHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw Exception("获取远程节目单xml失败: ${response.code}")
+                    throw HttpStatusException(
+                        response.code,
+                        "获取远程节目单xml失败：服务器返回 ${response.code}，请检查节目单地址"
+                    )
                 }
 
                 val fetcher = EpgFetcher.instances.first { it.isSupport(url) }
@@ -343,6 +347,9 @@ private class EpgXmlRepository : FileCacheRepository("epg.xml") {
                 fetcher.fetch(response)
             }
         } catch (ex: Exception) {
+            // 服务器回了明确状态码就原样抛：不是网络问题，别包成
+            // “请检查网络连接”误导用户去查网络
+            if (ex is HttpStatusException) throw ex
             throw Exception("获取远程节目单xml失败，请检查网络连接", ex)
         }
     }

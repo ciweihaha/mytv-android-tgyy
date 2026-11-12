@@ -20,6 +20,7 @@ import top.yogiczy.mytv.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.data.repositories.iptv.EmptyIptvSourceException
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.InvalidSourceUrlException
 import top.yogiczy.mytv.ui.utils.SP
 
@@ -44,10 +45,17 @@ internal fun shouldApplyEpgFailure(
  * 不用等 10 次重试（每次隔 3 秒）跑完；直播源里没频道也一样——拉到
  * 的内容解析前已写进缓存，第 2 到第 10 次重试读到的都是同一份缓存、
  * 解析出同样的 0 个频道（只有缓存时间设成 0 时才会每次重新拉）；
- * 网络错等其他错照常重试。顶层函数方便单元测试直接调用。
+ * 服务器回了明确状态码也分两类：4xx（除 408 超时、429 限流）是地址
+ * 本身的问题——文件没了、没权限，重试多少次都一样；408/429 与 5xx
+ * 是服务器一时的问题，照常重试。网络错等其他错照常重试。
+ * 顶层函数方便单元测试直接调用。
  */
 internal fun shouldRetryLoadFailure(cause: Throwable): Boolean =
-    cause !is InvalidSourceUrlException && cause !is EmptyIptvSourceException
+    when (cause) {
+        is InvalidSourceUrlException, is EmptyIptvSourceException -> false
+        is HttpStatusException -> cause.code == 408 || cause.code == 429 || cause.code >= 500
+        else -> true
+    }
 
 /**
  * 拉取失败后要不要把这个地址从历史里删掉：历史只是设置页里点选的

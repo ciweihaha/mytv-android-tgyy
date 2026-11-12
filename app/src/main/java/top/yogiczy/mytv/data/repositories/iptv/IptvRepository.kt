@@ -8,6 +8,7 @@ import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.data.repositories.FileCacheRepository
 import top.yogiczy.mytv.data.repositories.iptv.parser.IptvParser
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.buildGetRequest
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.utils.Logger
@@ -34,7 +35,10 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
             // Downloader（第 180 轮）、节目单拉取（第 181 轮）一致
             sharedHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw Exception("获取远程直播源失败: ${response.code}")
+                    throw HttpStatusException(
+                        response.code,
+                        "获取远程直播源失败：服务器返回 ${response.code}，请检查直播源链接"
+                    )
                 }
 
                 response.body?.string()
@@ -42,6 +46,9 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
             }
         } catch (ex: Exception) {
             log.e("获取远程直播源失败", ex)
+            // 服务器回了明确状态码就原样抛：不是网络问题，别包成
+            // “请检查网络连接”误导用户去查网络
+            if (ex is HttpStatusException) throw ex
             throw Exception("获取远程直播源失败，请检查网络连接", ex)
         }
     }

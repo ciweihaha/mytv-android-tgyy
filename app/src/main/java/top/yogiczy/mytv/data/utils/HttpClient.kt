@@ -28,6 +28,14 @@ class InvalidSourceUrlException(message: String, cause: Throwable? = null) :
     Exception(message, cause)
 
 /**
+ * 服务器回了明确的 HTTP 状态码（404/500 等）：不是网络问题，别包成
+ * “请检查网络连接”误导用户去查网络；状态码留在类型里，调用方按
+ * 状态码决定文案与重试——4xx（除 408 超时、429 限流）是地址本身
+ * 的问题，5xx 与 408/429 是服务器一时的问题。
+ */
+class HttpStatusException(val code: Int, message: String) : Exception(message)
+
+/**
  * 建 GET 请求：直播源/节目单地址是用户在设置页或网页端手输的，缺协议、
  * 带空格都可能是畸形地址；Request.Builder().url() 在这种地址上抛
  * IllegalArgumentException。原先建请求那行在 try 外、异常原样上抛，

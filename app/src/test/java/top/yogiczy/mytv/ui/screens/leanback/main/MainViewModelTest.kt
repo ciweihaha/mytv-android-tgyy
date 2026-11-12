@@ -4,6 +4,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.yogiczy.mytv.data.repositories.iptv.EmptyIptvSourceException
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.InvalidSourceUrlException
 
 class MainViewModelTest {
@@ -62,8 +63,25 @@ class MainViewModelTest {
     }
 
     @Test
+    fun `http 4xx errors are not retried`() {
+        // 文件没了、没权限：地址本身的问题，重试多少次都一样
+        assertFalse(shouldRetryLoadFailure(HttpStatusException(404, "服务器返回 404")))
+        assertFalse(shouldRetryLoadFailure(HttpStatusException(403, "服务器返回 403")))
+        assertFalse(shouldRetryLoadFailure(HttpStatusException(400, "服务器返回 400")))
+    }
+
+    @Test
+    fun `http 5xx and transient 4xx are still retried`() {
+        assertTrue(shouldRetryLoadFailure(HttpStatusException(500, "服务器返回 500")))
+        assertTrue(shouldRetryLoadFailure(HttpStatusException(503, "服务器返回 503")))
+        // 408 超时、429 限流是服务器一时的问题，照常重试
+        assertTrue(shouldRetryLoadFailure(HttpStatusException(408, "服务器返回 408")))
+        assertTrue(shouldRetryLoadFailure(HttpStatusException(429, "服务器返回 429")))
+    }
+
+    @Test
     fun `failed url is removed from history only on deterministic errors`() {
-        // 地址本身有问题（格式错、源里没频道）才删
+        // 地址本身有问题（格式错、源里没频道、404）才删
         assertTrue(
             shouldRemoveFailedUrlFromHistory(
                 InvalidSourceUrlException("直播源地址格式不正确，请检查地址：x")
@@ -74,10 +92,14 @@ class MainViewModelTest {
                 EmptyIptvSourceException("直播源里没有频道，请检查直播源链接")
             )
         )
-        // 网络抖一下就失败：地址本身没问题，留着，下次还能从历史里点
+        assertTrue(
+            shouldRemoveFailedUrlFromHistory(HttpStatusException(404, "服务器返回 404"))
+        )
+        // 网络抖一下、服务器一时出错：地址本身没问题，留着，下次还能从历史里点
         assertFalse(
             shouldRemoveFailedUrlFromHistory(Exception("获取远程直播源失败，请检查网络连接"))
         )
         assertFalse(shouldRemoveFailedUrlFromHistory(IllegalStateException("下载响应体为空")))
+        assertFalse(shouldRemoveFailedUrlFromHistory(HttpStatusException(500, "服务器返回 500")))
     }
 }
