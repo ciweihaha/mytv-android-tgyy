@@ -49,6 +49,16 @@ internal fun nextCutoffStreak(
 internal fun isLastUrlFailed(failedUrlIdx: Int, urlCount: Int): Boolean =
     failedUrlIdx >= urlCount - 1
 
+/**
+ * 多线路弹窗里点中正在播的那条线要不要切：点中的就是当前这条时不
+ * 用再准备一次——changeCurrentIptv 会原样再播一遍，画面黑一下重新
+ * 缓冲、切台提示条也跟着闪一下。断流重备那路（同台同线再准备一次）
+ * 不走这里，是直接调 changeCurrentIptv，不受影响。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldSwitchUrlIdx(currentUrlIdx: Int, targetUrlIdx: Int): Boolean =
+    currentUrlIdx != targetUrlIdx
+
 @Stable
 class LeanbackMainContentState(
     private val coroutineScope: CoroutineScope,
