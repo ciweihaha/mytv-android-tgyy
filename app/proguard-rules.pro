@@ -22,10 +22,13 @@
 }
 
 # ---- Media3 FFmpeg extension (app/libs/lib-decoder-ffmpeg-release.aar) ----
-# DefaultRenderersFactory loads the FFmpeg audio/video renderers by class name
-# via reflection (EXTENSION_RENDERER_MODE_ON); keep them explicitly so R8
-# cannot strip the local AAR's classes.
--keep class androidx.media3.exoplayer.ffmpeg.** { *; }
+# DefaultRenderersFactory loads the FFmpeg audio renderer by class name
+# via reflection (EXTENSION_RENDERER_MODE_ON); keep it explicitly so R8
+# cannot strip the local AAR's classes. Note the package is
+# androidx.media3.decoder.ffmpeg (where the AAR's classes actually live,
+# incl. FfmpegAudioRenderer) — NOT androidx.media3.exoplayer.ffmpeg,
+# which does not exist; the old rule kept nothing.
+-keep class androidx.media3.decoder.ffmpeg.** { *; }
 
 # ---- Notes: libraries that ship their own consumer rules ----
 # OkHttp / Okio, Compose (incl. tv-material), Media3 core, lifecycle and
