@@ -318,10 +318,14 @@ fun LeanbackMainContent(
                     videoPlayerState.applyDefaultAspectRatio()
                 },
                 onIptvUrlIdxChange = {
-                    mainContentState.changeCurrentIptv(
-                        iptv = mainContentState.currentIptv,
-                        urlIdx = it,
-                    )
+                    // 点中的就是正在播的那条线时不切：否则原样再播一遍，
+                    // 画面黑一下重新缓冲；断流重备不走这里，不受影响
+                    if (shouldSwitchUrlIdx(mainContentState.currentIptvUrlIdx, it)) {
+                        mainContentState.changeCurrentIptv(
+                            iptv = mainContentState.currentIptv,
+                            urlIdx = it,
+                        )
+                    }
                 },
                 onClearCache = {
                     settingsViewModel.iptvPlayableHostList = emptySet()
