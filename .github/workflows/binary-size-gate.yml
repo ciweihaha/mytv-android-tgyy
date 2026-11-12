@@ -1,0 +1,58 @@
+name: Binary Size Gate
+
+# 防再次变胖：本次推送/合入新增的 blob 超过 5 MB 即失败。
+# APK 只走 Release 资产，永不进 git（历史教训：tv/release/*.apk）。
+# 注意：app/libs/*.aar、*.so 是编译必需依赖，单个均小于 5 MB
+#（lib-decoder-ffmpeg-release.aar 约 2.4 MB），不会被此门禁误伤；
+# 如未来单个依赖超过 5 MB，应改走别的分发方式，而不是放宽门禁。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  binary-size-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 代码迁出（完整历史，用于比对新增 blob）
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: 检查新增 blob 体积（超过 5 MB 即失败）
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIMIT=5242880  # 5 MiB
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          elif [ "${{ github.event_name }}" = "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            RANGE="${{ github.event.before }}..${{ github.event.after }}"
+          else
+            # 手动触发：只检查最新一个提交带入的新 blob
+            if git rev-parse --verify -q HEAD~1 >/dev/null; then
+              RANGE="HEAD~1..HEAD"
+            else
+              RANGE="HEAD"
+            fi
+          fi
+          echo "检查范围：$RANGE"
+          FAIL=0
+          while read -r sha path; do
+            [ -n "$path" ] || continue
+            [ "$(git cat-file -t "$sha")" = "blob" ] || continue
+            size="$(git cat-file -s "$sha")"
+            if [ "$size" -gt "$LIMIT" ]; then
+              echo "::error file=$path::文件 $path 为 $size 字节，超过 5 MB 上限；请改走 Release 资产，不要提交进 git"
+              FAIL=1
+            fi
+          done < <(git rev-list --objects "$RANGE")
+          if [ "$FAIL" -ne 0 ]; then
+            echo "发现超过 5 MB 的新增二进制文件，门禁失败"
+            exit 1
+          fi
+          echo "通过：本次新增 blob 均不大于 5 MB"
