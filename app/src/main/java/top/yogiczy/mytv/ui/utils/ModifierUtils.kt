@@ -15,6 +15,26 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.dp
 import kotlin.math.absoluteValue
 
+/**
+ * 确定键：遥控器中间 OK 键与键盘回车。确定键不移动焦点，消费按下
+ * 不会影响焦点移动；见 [handleLeanbackKeyEvents] 按下消费的说明
+ */
+internal val LEANBACK_SELECT_KEY_CODES = setOf(
+    KeyEvent.KEYCODE_DPAD_CENTER,
+    KeyEvent.KEYCODE_ENTER,
+    KeyEvent.KEYCODE_NUMPAD_ENTER,
+)
+
+/**
+ * 确定键按下是否应该消费（纯函数，方便单元测试）：确定键在点按表
+ * 里（调用方注册了 onSelect）才消费；方向键、菜单键等不在此列——
+ * 方向键的焦点移动靠框架在按下时处理，消费掉会让列表焦点挪不动
+ */
+internal fun shouldConsumeLeanbackSelectKeyDown(
+    keyCode: Int,
+    onKeyTap: Map<Int, () -> Unit>,
+): Boolean = keyCode in LEANBACK_SELECT_KEY_CODES && onKeyTap.containsKey(keyCode)
+
 @Composable
 fun Modifier.handleLeanbackKeyEvents(
     onKeyTap: Map<Int, () -> Unit> = emptyMap(),
@@ -30,9 +50,15 @@ fun Modifier.handleLeanbackKeyEvents(
             KeyEvent.ACTION_DOWN -> {
                 if (it.nativeKeyEvent.repeatCount == 0) {
                     keyDownMap[it.nativeKeyEvent.keyCode] = true
-                    // 按下只记状态、不消费：方向键的焦点移动靠框架在按下时处理，
-                    // 消费掉会让列表焦点挪不动
-                    false
+                    // 确定键在按下时就消费掉：2.2.11 只在抬起时消费，
+                    // 一旦焦点在按下抬起之间挪走（面板开了又关、焦点
+                    // 根本不在视频层），抬起就收不到、事件直接漏到
+                    // Activity/系统，HarmonyOS 智慧屏上会被当成退出。
+                    // 2.2.11 在真机上仍退出，就是这条漏路没堵住
+                    shouldConsumeLeanbackSelectKeyDown(
+                        it.nativeKeyEvent.keyCode,
+                        onKeyTap,
+                    )
                 } else if (it.nativeKeyEvent.repeatCount == 1) {
                     keyDownMap.remove(it.nativeKeyEvent.keyCode)
                     // 长按在按下重复时触发一次，消费掉：防止松开时又触发一次点按

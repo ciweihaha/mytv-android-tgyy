@@ -6,7 +6,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import top.yogiczy.mytv.activities.LeanbackActivity
 
@@ -41,14 +43,18 @@ class BootLaunchService : Service() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
 
-        // 拉起请求已发出（startActivity 是同步 Binder 调用，系统受理后
-        // 再停服务不影响拉起），立即收尾：去掉通知、停掉服务
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // 拉起请求已发出，但开机那一刻系统正忙、启动可能被延迟处理；
+        // 服务别立刻停，留 3 秒让系统在前台服务还活着的情况下把启动
+        // 落定，2.2.11 发完请求就立刻停服务，启动可能还没来得及受理
+        Handler(Looper.getMainLooper()).postDelayed({
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }, STOP_DELAY_MILLIS)
         return START_NOT_STICKY
     }
 
     companion object {
         private const val NOTIFICATION_ID = 1
+        private const val STOP_DELAY_MILLIS = 3_000L
     }
 }

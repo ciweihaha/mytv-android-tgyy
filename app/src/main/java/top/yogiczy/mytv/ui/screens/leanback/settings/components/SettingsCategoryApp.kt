@@ -37,7 +37,11 @@ fun LeanbackSettingsCategoryApp(
         item {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "开机自启",
-                supportingContent = "请确保当前设备支持该功能",
+                // 华为智慧屏（HarmonyOS）默认不让第三方应用自启：这里
+                // 的开关只是第一道，还要在智慧屏管家 → 应用管理 →
+                // 应用启动管理里给本应用开“允许自启动”，否则开机后
+                // 系统根本不会拉起应用
+                supportingContent = "华为智慧屏还需在智慧屏管家 → 应用管理 → 应用启动管理里允许本应用自启动",
                 trailingContent = {
                     Switch(checked = settingsViewModel.appBootLaunch, onCheckedChange = null)
                 },

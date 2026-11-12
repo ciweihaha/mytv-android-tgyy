@@ -85,4 +85,39 @@ class ModifierUtilsTest {
         map[KeyEvent.KEYCODE_9]?.invoke()
         assertEquals(listOf(0, 3, 9), numbers)
     }
+
+    @Test
+    fun `确定键按下就消费_方向键按下不消费`() {
+        // 全屏看直播时按 OK：确定键按下就消费，漏不到 Activity/系统
+        // （2.2.11 只在抬起时消费，焦点在按下抬起之间挪走就漏到系统退出）
+        val tapMap = leanbackKeyTapMap(onSelect = {}, sdkInt = 24)
+        assertTrue(
+            shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_DPAD_CENTER, tapMap)
+        )
+        assertTrue(
+            shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_ENTER, tapMap)
+        )
+        assertTrue(
+            shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_NUMPAD_ENTER, tapMap)
+        )
+
+        // 方向键按下不能消费：焦点移动靠框架在按下时处理
+        val dirMap = leanbackKeyTapMap(onUp = {}, onDown = {}, sdkInt = 24)
+        assertFalse(
+            shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_DPAD_UP, dirMap)
+        )
+        assertFalse(
+            shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_DPAD_DOWN, dirMap)
+        )
+    }
+
+    @Test
+    fun `没注册 onSelect 时确定键按下也不消费`() {
+        // 设置页打开时外层不注册 onSelect：确定键要漏给设置项，消费了
+        // 设置项就收不到。只注册了方向键的表，确定键不在表里
+        val map = leanbackKeyTapMap(onUp = {}, sdkInt = 24)
+        assertFalse(
+            shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_DPAD_CENTER, map)
+        )
+    }
 }

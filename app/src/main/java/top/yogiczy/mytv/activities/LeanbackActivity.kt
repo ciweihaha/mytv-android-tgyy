@@ -4,6 +4,7 @@ import android.app.PictureInPictureParams
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
+import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,10 +24,25 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.HttpServer
+import top.yogiczy.mytv.ui.utils.LEANBACK_SELECT_KEY_CODES
 import top.yogiczy.mytv.ui.utils.SP
 import kotlin.system.exitProcess
 
 class LeanbackActivity : ComponentActivity() {
+    /**
+     * 确定键兜底：Compose 层没消费掉的确定键（当前没有焦点、焦点在
+     * SurfaceView 上等情况）不能再往下漏——2.2.11 只修了 Compose
+     * 层，漏下去的确定键在 HarmonyOS 智慧屏上会被当成退出。
+     * Compose 已处理的（super 返回 true）原样放行，正常按键不受影响
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val handled = super.dispatchKeyEvent(event)
+        if (!handled && event.keyCode in LEANBACK_SELECT_KEY_CODES) {
+            return true
+        }
+        return handled
+    }
+
     override fun onUserLeaveHint() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!SP.uiPipMode) return
@@ -41,6 +57,9 @@ class LeanbackActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 记下本次启动时间：开机重试拉起时用它判断“这次开机后应用
+        // 有没有起来过”，起来过就不重复拉起
+        SP.appLastLaunchAt = System.currentTimeMillis()
         enableEdgeToEdge()
         setContent {
             // 隐藏状态栏、导航栏

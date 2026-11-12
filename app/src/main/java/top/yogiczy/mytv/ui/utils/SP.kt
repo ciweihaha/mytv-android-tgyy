@@ -27,6 +27,9 @@ object SP {
         /** 开机自启 */
         APP_BOOT_LAUNCH,
 
+        /** 应用上一次启动时间（毫秒）：开机重试拉起时判断这次开机后起来过没有 */
+        APP_LAST_LAUNCH_AT,
+
         /** 上一次最新版本 */
         APP_LAST_LATEST_VERSION,
 
@@ -126,6 +129,11 @@ object SP {
     var appBootLaunch: Boolean
         get() = sp.getBoolean(KEY.APP_BOOT_LAUNCH.name, true)
         set(value) = sp.edit().putBoolean(KEY.APP_BOOT_LAUNCH.name, value).apply()
+
+    /** 应用上一次启动时间（毫秒），默认 0 表示从未记录 */
+    var appLastLaunchAt: Long
+        get() = sp.getLong(KEY.APP_LAST_LAUNCH_AT.name, 0)
+        set(value) = sp.edit().putLong(KEY.APP_LAST_LAUNCH_AT.name, value).apply()
 
     /** 上一次最新版本 */
     var appLastLatestVersion: String
