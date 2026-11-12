@@ -79,9 +79,13 @@ fun LeanbackPanelIptvList(
             end = childPadding.end,
         ),
     ) {
-        // 按频道对象设 key：取消收藏等操作让列表缩短时，焦点与记住的状态
-        // 跟着频道走，而不是留在原位置错位到另一频道上
-        items(iptvList, key = { it }) { iptv ->
+        // 按频道名（String）设 key：取消收藏等操作让列表缩短时，焦点与
+        // 记住的状态跟着频道走，而不是留在原位置错位到另一频道上。
+        // 不能用频道对象本身作 key：Lazy 列表保存状态时要把 key 存进
+        // Bundle，Iptv 不是 Parcelable/Serializable，会抛
+        // IllegalArgumentException 直接闪退（见 crash.txt 第 2543 行）。
+        // 同组内频道名唯一（buildGroupList 按名合并），用名作 key 安全。
+        items(iptvList, key = { it.name }) { iptv ->
             LeanbackPanelIptvItem(
                 iptvProvider = { iptv },
                 currentProgrammeProvider = {
