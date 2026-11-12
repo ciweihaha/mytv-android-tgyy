@@ -77,7 +77,12 @@ class LeanBackUpdateViewModel : ViewModel() {
         }
     }
 
-    suspend fun downloadAndUpdate(latestFile: File) {
+    suspend fun downloadAndUpdate(
+        latestFile: File,
+        // 下安装包的方式：默认走 Downloader；单测传入假实现控制成功 / 失败，
+        // 否则代理失败改走直链重试这条路没法在不联网的单测里验
+        downloadFile: suspend (String, String, ((Int) -> Unit)?) -> Unit = Downloader::downloadTo,
+    ) {
         if (!_isUpdateAvailable) return
         if (_isUpdating) return
 
@@ -89,23 +94,17 @@ class LeanBackUpdateViewModel : ViewModel() {
         )
 
         try {
-            Downloader.downloadTo(_latestRelease.downloadUrl, latestFile.path) {
-                LeanbackToastState.I.showToast(
-                    "正在下载更新: $it%",
-                    LeanbackToastProperty.Duration.Custom(10_000),
-                    "downloadProcess"
-                )
-            }
-
-            // 分块传输等场景下连接干净断开也可能悄悄截断：按发行版里的
-            // 文件大小校验，大小不对就当下载失败，不留残文件
-            if (_latestRelease.downloadSize > 0 &&
-                latestFile.length() != _latestRelease.downloadSize
-            ) {
-                throw Exception(
-                    "下载文件不完整: 期望 ${_latestRelease.downloadSize} 字节，" +
-                        "实际 ${latestFile.length()} 字节"
-                )
+            try {
+                downloadOnce(_latestRelease.downloadUrl, latestFile, downloadFile)
+            } catch (ex: Exception) {
+                // 代理挂了改走 GitHub 直链再试一次：mirror.ghproxy.com 实测
+                // 只接不答（TCP+TLS 都通、HTTP 一直没回包），直连 GitHub
+                // 能通；没走代理的更新源（Gitee）没有第二条路，直接走失败
+                val directUrl = _latestRelease.downloadUrl.removePrefix(Constants.GITHUB_PROXY)
+                if (directUrl == _latestRelease.downloadUrl) throw ex
+                log.w("代理下载失败，改走 GitHub 直链重试", ex)
+                latestFile.delete()
+                downloadOnce(directUrl, latestFile, downloadFile)
             }
 
             _updateDownloaded = true
@@ -117,6 +116,34 @@ class LeanBackUpdateViewModel : ViewModel() {
             LeanbackToastState.I.showToast("下载更新失败")
         } finally {
             _isUpdating = false
+        }
+    }
+
+    /**
+     * 下一次安装包并校验大小：代理与直链两条路共用。
+     */
+    private suspend fun downloadOnce(
+        url: String,
+        latestFile: File,
+        downloadFile: suspend (String, String, ((Int) -> Unit)?) -> Unit,
+    ) {
+        downloadFile(url, latestFile.path) {
+            LeanbackToastState.I.showToast(
+                "正在下载更新: $it%",
+                LeanbackToastProperty.Duration.Custom(10_000),
+                "downloadProcess"
+            )
+        }
+
+        // 分块传输等场景下连接干净断开也可能悄悄截断：按发行版里的
+        // 文件大小校验，大小不对就当下载失败，不留残文件
+        if (_latestRelease.downloadSize > 0 &&
+            latestFile.length() != _latestRelease.downloadSize
+        ) {
+            throw Exception(
+                "下载文件不完整: 期望 ${_latestRelease.downloadSize} 字节，" +
+                    "实际 ${latestFile.length()} 字节"
+            )
         }
     }
 }
