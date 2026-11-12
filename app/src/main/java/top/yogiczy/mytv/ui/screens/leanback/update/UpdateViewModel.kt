@@ -42,7 +42,14 @@ class LeanBackUpdateViewModel : ViewModel() {
 
     var showDialog by mutableStateOf(false)
 
-    suspend fun checkUpdate(currentVersion: String) {
+    suspend fun checkUpdate(
+        currentVersion: String,
+        // 拉取最新发行版的方式：默认走线上更新源；单测传入假实现控制成功 / 失败，
+        // 否则这条状态流转没法在不联网的单测里验
+        fetchLatestRelease: suspend () -> GitRelease = {
+            GitRepository().latestRelease(Constants.GIT_RELEASE_LATEST_URL)
+        },
+    ) {
         if (_isChecking) return
         // 注意：这里不能因为“已经知道有更新”就直接返回——电视常年不关机，
         // 启动时查到的只是当时的最新版，之后又发了新版时，只有重新联网查
@@ -53,7 +60,13 @@ class LeanBackUpdateViewModel : ViewModel() {
         try {
             _isChecking = true
             _isCheckingUpdate = true
-            _latestRelease = GitRepository().latestRelease(Constants.GIT_RELEASE_LATEST_URL)
+            // 新一轮检查开始就把旧的成功标记清掉：checkCompleted 的意思是
+            // “最近一次检查是否成功拿到发行版信息”，失败或从未检查时为
+            // false——原先只在成功时置 true、从不复位，成功过一次后手动
+            // 重查失败也还留着 true，设置页“应用更新”行继续显示“已是最新
+            // 版本”，点按重查失败的提示也是“已是最新版本”而不是“检查更新失败”
+            _checkCompleted = false
+            _latestRelease = fetchLatestRelease()
             _isUpdateAvailable = _latestRelease.version.compareVersion(currentVersion) > 0
             _checkCompleted = true
         } catch (e: Exception) {
