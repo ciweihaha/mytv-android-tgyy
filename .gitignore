@@ -20,3 +20,7 @@
 .cxx
 local.properties
 key.properties
+
+# 构建产物：APK 只走 Release 资产，永不进 git
+*.apk
+*.aab
