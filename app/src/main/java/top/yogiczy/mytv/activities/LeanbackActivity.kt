@@ -7,6 +7,7 @@ import android.util.Rational
 import android.view.KeyEvent
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -57,6 +58,19 @@ class LeanbackActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 返回键兜底：绕过 Compose 返回处理的返回键直接吞掉，不走系统
+        // 默认的 finish()。正常返回键由 Compose 层
+        // LeanbackBackPressHandledArea 消费（双按确认退出），到不了这
+        // 里；到这里的都是漏网的返回事件，直接退出等于跳过二次确认。
+        // dispatcher 只在视图层没消费时才触发，正常流程不受影响。
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    // 漏网返回键：吞掉，不退出
+                }
+            },
+        )
         // 记下本次启动时间：开机重试拉起时用它判断“这次开机后应用
         // 有没有起来过”，起来过就不重复拉起
         SP.appLastLaunchAt = System.currentTimeMillis()
