@@ -25,8 +25,9 @@ private const val SCALE_MIN = 1f
 private const val SCALE_MAX = 2f
 private const val SCALE_STEP = 0.1f
 
-// 下一档缩放：到顶回最小，否则加一档钳在范围内；长按恢复默认就是 SCALE_MIN
-private fun nextScaleRatio(current: Float): Float =
+// 下一档缩放：到顶回最小，否则加一档钳在范围内；长按恢复默认就是 SCALE_MIN。
+// 顶层函数方便单元测试直接调用。
+internal fun nextScaleRatio(current: Float): Float =
     if (current >= SCALE_MAX) SCALE_MIN
     else (current + SCALE_STEP).coerceIn(SCALE_MIN, SCALE_MAX)
 
