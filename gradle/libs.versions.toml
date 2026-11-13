@@ -13,6 +13,8 @@ qrose = "1.3.1"
 kotlinx-serialization = "1.13.0"
 androidasync = "3.1.0"
 tvMaterial = "1.1.0"
+kxml2 = "2.3.0"
+xmlpull = "1.1.3.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -39,6 +41,8 @@ qrose = { module = "io.github.alexzhirkevich:qrose", version.ref = "qrose" }
 androidasync = { module = "com.koushikdutta.async:androidasync", version.ref = "androidasync" }
 androidx-tv-material = { group = "androidx.tv", name = "tv-material", version.ref = "tvMaterial" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+kxml2 = { group = "net.sf.kxml", name = "kxml2", version.ref = "kxml2" }
+xmlpull = { group = "xmlpull", name = "xmlpull", version.ref = "xmlpull" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

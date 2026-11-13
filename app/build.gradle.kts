@@ -129,6 +129,10 @@ dependencies {
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
 
     testImplementation(libs.junit)
+    // 单元测试：parseFromXml 走 XmlPullParserFactory，测试里用真
+    // KXmlParser（只进测试 classpath，不进正式包）
+    testImplementation(libs.kxml2)
+    testImplementation(libs.xmlpull)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

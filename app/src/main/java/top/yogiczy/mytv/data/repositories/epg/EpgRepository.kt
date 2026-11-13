@@ -1,12 +1,12 @@
 package top.yogiczy.mytv.data.repositories.epg
 
-import android.util.Xml
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserFactory
 import top.yogiczy.mytv.data.entities.Epg
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.EpgProgramme
@@ -154,7 +154,12 @@ class EpgRepository : FileCacheRepository("epg.json") {
         xmlString: String,
         filteredChannels: List<String> = emptyList(),
     ) = withContext(Dispatchers.Default) {
-        val parser: XmlPullParser = Xml.newPullParser()
+        // 不走 android.util.Xml.newPullParser()：它在真机上就是转调
+        // XmlPullParserFactory.newInstance().newPullParser()，但在单元
+        // 测试里 android.jar 的桩返回 null（isReturnDefaultValues），
+        // 直接建解析器就空指针、parseFromXml 一直没法进单测。直接调
+        // 工厂与真机行为一致；测试里用 kxml2 的真 KXmlParser
+        val parser: XmlPullParser = XmlPullParserFactory.newInstance().newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
         parser.setInput(StringReader(xmlString))
 
