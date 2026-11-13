@@ -314,4 +314,55 @@ class EpgRepositoryTest {
         assertEquals("CCTV-1 综合", result.first().channel)
         assertEquals(1, result.first().programmes.size)
     }
+
+    @Test
+    fun `getEpgList skips channel whose display-name contains child element`() = runBlocking {
+        // display-name 里带子元素时 nextText() 抛错：只跳过这个频道，
+        // 不拖垮整份节目单；抛错后解析器停在子元素开头，内层循环继续
+        // 走到频道结束标签才停，不会卡死
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <channel id="cctv2"><display-name><b>CCTV-2</b> 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv2"><title>没名字的台的节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList skips programme whose title contains child element`() = runBlocking {
+        // title 里带子元素时 nextText() 抛错：只跳过这条节目，好节目
+        // 不受影响；内层循环继续走到节目结束标签才停
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title><b>带格式的</b>节目名</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
 }
