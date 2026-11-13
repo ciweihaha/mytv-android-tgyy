@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -29,7 +30,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.min
 import top.yogiczy.mytv.AppGlobal
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.Iptv
@@ -176,16 +179,24 @@ fun LeanbackMainContent(
         // 白白唤醒主线程；退后台时窗口本来就没焦点，抢了也没用，
         // 回到前台时循环恢复、重新抢回来
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            // 防止切换到其他界面时焦点丢失
-            while (true) {
-                if (!videoScreenHasFocus
-                    && !mainContentState.isPanelVisible
-                    && !mainContentState.isSettingsVisible
-                    && !mainContentState.isQuickPanelVisible
-                ) {
+            // P4：失焦驱动的有界重试，不再每 100ms 永久轮询：焦点或弹窗
+            // 状态一变才重新评估；丢焦且无弹窗时重试最多 10 次（100ms 起、
+            // 指数退避到 500ms），拿到焦点即停，弹窗开关也会重新触发重试
+            snapshotFlow {
+                videoScreenHasFocus to Triple(
+                    mainContentState.isPanelVisible,
+                    mainContentState.isSettingsVisible,
+                    mainContentState.isQuickPanelVisible,
+                )
+            }.collectLatest { (hasFocus, panels) ->
+                if (hasFocus || panels.first || panels.second || panels.third) return@collectLatest
+                var delayMs = 100L
+                repeat(10) {
+                    if (videoScreenHasFocus) return@collectLatest
                     focusRequester.requestFocus()
+                    delay(delayMs)
+                    delayMs = min(delayMs * 2, 500L)
                 }
-                delay(100)
             }
         }
     }
