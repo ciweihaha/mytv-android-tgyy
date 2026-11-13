@@ -2,6 +2,7 @@ package top.yogiczy.mytv.ui.screens.leanback.update
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -67,7 +68,11 @@ fun LeanbackUpdateScreen(
 
         // 下载好了：有权限就直接装，没权限才跳系统设置去申请
         if (!tryInstallApk(context, latestFile.path)) {
-            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+            // 带包名直接打开本应用的开关页；不带只打开应用列表，要用户自己找
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}"),
+            )
             launcher.launch(intent)
         }
     }
