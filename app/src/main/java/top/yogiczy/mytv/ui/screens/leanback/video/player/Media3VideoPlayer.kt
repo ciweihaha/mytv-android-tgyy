@@ -127,6 +127,17 @@ class LeanbackMedia3VideoPlayer(
 
     companion object {
         const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 3
+
+        /**
+         * P7：SSLContext 只建一次：首次建时 SSLContext.init 配全新
+         * SecureRandom 可能在低端 SoC 上因熵池阻塞，拖慢首台起播；
+         * 单例后切台/重建数据源工厂都不再重建。OkHttpClient 仍按设置变化重建。
+         */
+        private val sharedSslContext: SSLContext by lazy {
+            SSLContext.getInstance("TLS").apply {
+                init(null, arrayOf<TrustManager>(TrustAllCertsManager), SecureRandom())
+            }
+        }
     }
 
     /**
@@ -195,11 +206,8 @@ class LeanbackMedia3VideoPlayer(
      */
     @OptIn(UnstableApi::class)
     private fun createHttpDataSourceFactory(): DataSource.Factory {
-        val sslContext = SSLContext.getInstance("TLS").apply {
-            init(null, arrayOf<TrustManager>(TrustAllCertsManager), SecureRandom())
-        }
         val okHttpClient = OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, TrustAllCertsManager)
+            .sslSocketFactory(sharedSslContext.socketFactory, TrustAllCertsManager)
             .hostnameVerifier { _, _ -> true }
             .connectTimeout(SP.videoPlayerLoadTimeout, TimeUnit.MILLISECONDS)
             .readTimeout(SP.videoPlayerLoadTimeout, TimeUnit.MILLISECONDS)
