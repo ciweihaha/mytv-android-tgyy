@@ -35,6 +35,11 @@ abstract class FileCacheRepository(
      */
     protected suspend fun getCachedData(): String? = getCacheData()
 
+    /**
+     * 缓存文件的最后修改时间：供调用方判断缓存是否当天有效，不用为此再读一遍文件
+     */
+    protected fun getCacheLastModified(): Long = getCacheFile().lastModified()
+
     private suspend fun setCacheData(data: String) = withContext(Dispatchers.IO) {
         val file = getCacheFile()
         // 原子写：先写唯一临时文件再改名，写一半被杀也不会留下截断的

@@ -2,7 +2,9 @@ package top.yogiczy.mytv.ui.screens.leanback.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -95,8 +97,13 @@ class LeanbackMainViewModel : ViewModel() {
         val generation = ++refreshGeneration
         refreshJob = viewModelScope.launch {
             _uiState.value = LeanbackMainUiState.Loading()
+            // P1：节目单 XML 下载与直播源加载并行：XML 下载不需要频道列表，
+            // 解析才需要；先在后台拉，直播源就绪后直接解析，冷启动省一段下载时间
+            val epgXmlDeferred = if (SP.epgEnable) {
+                async { epgRepository.downloadEpgXmlIfNeeded(SP.epgXmlUrl, SP.epgRefreshTimeThreshold) }
+            } else null
             refreshIptv(generation)
-            refreshEpg(generation)
+            refreshEpg(generation, epgXmlDeferred)
         }
     }
 
@@ -146,20 +153,29 @@ class LeanbackMainViewModel : ViewModel() {
             .collect()
     }
 
-    private suspend fun refreshEpg(generation: Int) {
+    private suspend fun refreshEpg(generation: Int, epgXmlDeferred: Deferred<String?>? = null) {
         // 已是过期轮次：直播源那步的写状态已被代号拦下，这里也直接
-        // 跳过，别拿新源的频道单多拉一次节目单
-        if (generation != refreshGeneration) return
+        // 跳过，别拿新源的频道单多拉一次节目单；并行下载的 XML 也不再需要
+        if (generation != refreshGeneration) {
+            epgXmlDeferred?.cancel()
+            return
+        }
 
         // 节目单开关原来没人读：关了照样拉节目单；这里真正按开关走。
         // refresh() 已把 Ready 的 epgList 重置为空，跳过即保持无节目单
-        if (!SP.epgEnable) return
+        if (!SP.epgEnable) {
+            epgXmlDeferred?.cancel()
+            return
+        }
 
         // 先把 Ready 快照下来，后面再用它：节目单请求是阻塞式网络调用
         // （execute() 不响应取消），中途用户切源会让 refresh() 把状态
         // 重置回 Loading，map 里再 as Ready 会闪退；旧节目单还可能贴
         // 到新频道单上。快照不到 Ready 说明还没加载好，直接跳过
-        val readyState = _uiState.value as? LeanbackMainUiState.Ready ?: return
+        val readyState = _uiState.value as? LeanbackMainUiState.Ready ?: run {
+            epgXmlDeferred?.cancel()
+            return
+        }
         val iptvGroupList = readyState.iptvGroupList
 
         flow {
@@ -174,6 +190,8 @@ class LeanbackMainViewModel : ViewModel() {
                         listOf(it.channelName, it.tvgId)
                     }.filter { it.isNotBlank() },
                     refreshTimeThreshold = SP.epgRefreshTimeThreshold,
+                    // P1：启动时与直播源并行拉好的 XML，解析直接用
+                    prefetchedXml = epgXmlDeferred?.await(),
                 )
             )
         }

@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.data.repositories.epg
 
 import android.util.Xml
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -274,10 +275,35 @@ class EpgRepository : FileCacheRepository("epg.json") {
         return@withContext epgList
     }
 
+    /**
+     * 启动并行化用的节目单 XML 预下载（P1）：与 getEpgList 的刷新判断一致，
+     * 只在确实需要刷新时才下载，否则返回 null、让调用方走正常路径；
+     * 下载失败也返回 null（正常路径会重试并回落旧缓存），不抛错。
+     * XML 下载不需要频道列表，解析才需要，所以可以和直播源加载并行跑。
+     */
+    suspend fun downloadEpgXmlIfNeeded(xmlUrl: String, refreshTimeThreshold: Int): String? {
+        val cachedJson = getCachedData()
+        // 未到时间点且 JSON 缓存可用 → getEpgList 直接用缓存，不下载
+        if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
+            if (cachedEpgBeforeThreshold(cachedJson) != null) return null
+        }
+        // JSON 缓存是今天的 → getEpgList 直接用缓存，不下载
+        if (!cachedJson.isNullOrBlank() &&
+            isSameDay(System.currentTimeMillis(), getCacheLastModified())
+        ) return null
+        return try {
+            epgXmlRepository.getEpgXml(xmlUrl)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            null
+        }
+    }
+
     suspend fun getEpgList(
         xmlUrl: String,
         filteredChannels: List<String> = emptyList(),
         refreshTimeThreshold: Int,
+        prefetchedXml: String? = null,
     ) = withContext(Dispatchers.Default) {
         try {
             if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
@@ -298,7 +324,8 @@ class EpgRepository : FileCacheRepository("epg.json") {
             val xmlJson = getOrRefresh({ lastModified, _ ->
                 !isSameDay(System.currentTimeMillis(), lastModified)
             }) {
-                val xmlString = epgXmlRepository.getEpgXml(xmlUrl)
+                // P1：启动时已并行拉好的 XML 直接用，不再等直播源就绪后重新下载
+                val xmlString = prefetchedXml ?: epgXmlRepository.getEpgXml(xmlUrl)
                 Json.encodeToString(parseFromXml(xmlString, filteredChannels).value)
             }
 
