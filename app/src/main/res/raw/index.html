@@ -37,7 +37,7 @@
                             <template #label>
                                 <van-space class="w-full" direction="vertical" size="small">
                                     <span>支持m3u链接与tvbox链接</span>
-                                    <van-field class="!p-0" placeholder="置为空时，将恢复默认"
+                                    <van-field class="!p-0" placeholder="置为空时保持不变"
                                         v-model="settings.iptvSourceUrl" type="textarea" rows="2"></van-field>
                                 </van-space>
                             </template>
@@ -55,7 +55,7 @@
                             <template #label>
                                 <van-space class="w-full" direction="vertical" size="small">
                                     <span>支持xml、xml.gz格式</span>
-                                    <van-field class="!p-0" placeholder="置为空时，将恢复默认"
+                                    <van-field class="!p-0" placeholder="置为空时保持不变"
                                         v-model="settings.epgXmlUrl" type="textarea" rows="2"></van-field>
                                 </van-space>
                             </template>
@@ -73,7 +73,7 @@
                         <van-cell title="自定义UA">
                             <template #label>
                                 <van-space class="w-full" direction="vertical" size="small">
-                                    <van-field class="!p-0" placeholder="置为空时，将恢复默认"
+                                    <van-field class="!p-0" placeholder="置为空时保持不变"
                                             v-model="settings.videoPlayerUserAgent" type="textarea" rows="2"></van-field>
                                 </van-space>
                             </template>
