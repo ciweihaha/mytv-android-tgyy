@@ -43,6 +43,7 @@ import top.yogiczy.mytv.ui.screens.leanback.panel.components.LeanbackPanelPlayer
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
+import top.yogiczy.mytv.ui.utils.handleLeanbackUserAction
 
 @Composable
 fun LeanbackPanelScreen(
@@ -73,6 +74,10 @@ fun LeanbackPanelScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
+            // 任意操作都续期自动关闭计时：原来只在列表滚动时续期，不滚动
+            // 的按键浏览（短分组、节目单弹窗里只看不动）15 秒就自动关掉；
+            // 快捷面板已经是这个写法（先续期、再点按关闭），照它抄
+            .handleLeanbackUserAction { autoCloseState.active() }
             .pointerInput(Unit) { detectTapGestures(onTap = { onClose() }) },
     ) {
         LeanbackPanelScreenTopRight(

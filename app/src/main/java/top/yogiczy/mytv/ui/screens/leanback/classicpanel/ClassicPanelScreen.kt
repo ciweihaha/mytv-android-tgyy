@@ -48,6 +48,7 @@ import top.yogiczy.mytv.ui.screens.leanback.panel.PanelAutoCloseState
 import top.yogiczy.mytv.ui.screens.leanback.panel.rememberPanelAutoCloseState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.ui.utils.handleLeanbackUserAction
 import kotlin.math.max
 
 @Composable
@@ -74,7 +75,9 @@ fun LeanbackClassicPanelScreen(
     }
 
     LeanbackClassicPanelScreenWrapper(
-        modifier = modifier,
+        // 任意操作都续期自动关闭计时：和普通面板同一问题（原来只在列表
+        // 滚动时续期），快捷面板已经是这个写法，照它抄
+        modifier = modifier.handleLeanbackUserAction { autoCloseState.active() },
         onClose = onClose,
     ) {
         LeanbackClassicPanelScreenContent(

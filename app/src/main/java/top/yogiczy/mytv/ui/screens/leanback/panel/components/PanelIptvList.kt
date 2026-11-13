@@ -12,6 +12,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyRow
@@ -112,6 +113,10 @@ fun LeanbackPanelIptvList(
             epgList.epgFor(currentShowEpgIptv) ?: Epg()
         },
         modifier = Modifier
+            // 弹窗里按的键也续期自动关闭计时：弹窗是独立窗口，面板根布局
+            // 的续期看不到这里的按键；只看键、不碰触摸（滚动本来就会续期，
+            // 触摸拖动别和列表滚动抢），放左右键处理前面，先续期再分发
+            .onPreviewKeyEvent { onUserAction(); false }
             .handleLeanbackKeyEvents(
                 onLeft = {
                     currentShowEpgIptv = iptvList.epgNeighbor(currentShowEpgIptv, -1)
