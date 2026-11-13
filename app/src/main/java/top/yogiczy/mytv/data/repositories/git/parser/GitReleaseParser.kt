@@ -67,7 +67,7 @@ interface GitReleaseParser {
                 // tag 前缀按“第一个数字之前全去掉”：上游最新 release 的
                 // tag 是 "tv2.2.7"（旧版还有大写 V 的 "V3.0.0.238"），只去
                 // 小写 v 会把 "tv2.2.7" 原样留成版本号，三处显示（更新弹窗、
-                // 应用设置页、左上角提示）又各拼一个 v，最后显示成
+                // 应用设置页、提示条）又各拼一个 v，最后显示成
                 // "vtv2.2.7"；和 compareVersion 里去前缀是同一做法，版本
                 // 比较那边的行为不变
                 version = json.getValue("tag_name").jsonPrimitive.content.trim()

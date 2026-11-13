@@ -27,7 +27,7 @@ fun LeanbackSettingsCategoryUpdate(
             LeanbackSettingsCategoryListItem(
                 headlineContent = "更新强提醒",
                 supportingContent = if (settingsViewModel.updateForceRemind) "检测到新版本时会弹窗提醒"
-                else "检测到新版本时仅在左上角提示",
+                else "检测到新版本时仅用提示条提示",
                 trailingContent = {
                     Switch(checked = settingsViewModel.updateForceRemind, onCheckedChange = null)
                 },
