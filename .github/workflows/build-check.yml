@@ -70,3 +70,12 @@ jobs:
         with:
           name: mytv-android-debug
           path: app/build/outputs/apk/debug/*.apk
+
+      # opt: 同样上传 release APK（同一把一次性密钥签名，仅供验证包
+      # 体积与安装，无法覆盖已安装应用），这样包体积优化的效果可以
+      # 直接用 release 产物衡量，而不只是看 debug 产物。
+      - name: 上传release APK（仅供验证体积）
+        uses: actions/upload-artifact@v7
+        with:
+          name: mytv-android-release-ci
+          path: app/build/outputs/apk/release/*.apk
