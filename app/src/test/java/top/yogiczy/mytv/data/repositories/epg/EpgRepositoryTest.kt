@@ -415,4 +415,57 @@ class EpgRepositoryTest {
         assertEquals("CCTV-1 综合", result.first().channel)
         assertEquals(1, result.first().programmes.size)
     }
+
+    @Test
+    fun `getEpgList filters channels by display-name`() = runBlocking {
+        // 频道过滤端到端：keepEpgChannel 只在单测里直接调过，过滤列表
+        // 经 getEpgList 传进 parseFromXml 这条路一直没锁死。按显示名
+        // 过滤时只留 CCTV-1，CCTV-2 的频道与节目一起丢掉
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <channel id="cctv2"><display-name>CCTV-2 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv2"><title>另一台的节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            filteredChannels = listOf("CCTV-1 综合"),
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+    }
+
+    @Test
+    fun `getEpgList filters channels by id`() = runBlocking {
+        // 按 tvg-id 过滤同样走得通：名字对不上、id 对上也留下来
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <channel id="cctv2"><display-name>CCTV-2 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv2"><title>另一台的节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            filteredChannels = listOf("cctv2"),
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-2 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("另一台的节目", result.first().programmes.first().title)
+    }
 }
