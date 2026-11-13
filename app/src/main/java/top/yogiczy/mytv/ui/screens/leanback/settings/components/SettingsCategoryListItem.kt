@@ -58,7 +58,7 @@ fun LeanbackSettingsCategoryListItem(
                 if (locK) {
                     Icon(
                         Icons.Default.Lock,
-                        contentDescription = null,
+                        contentDescription = "已锁定",
                         modifier = Modifier.size(16.dp),
                     )
                 }
@@ -66,7 +66,7 @@ fun LeanbackSettingsCategoryListItem(
                 if (remoteConfig) {
                     Icon(
                         Icons.AutoMirrored.Default.OpenInNew,
-                        contentDescription = null,
+                        contentDescription = "网页端设置",
                         modifier = Modifier.size(16.dp),
                     )
                 }

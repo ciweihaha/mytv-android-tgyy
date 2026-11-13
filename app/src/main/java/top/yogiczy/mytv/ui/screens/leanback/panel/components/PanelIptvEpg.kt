@@ -166,7 +166,7 @@ fun LeanbackPanelIptvEpgDialog(
                                         if (isLive) {
                                             Icon(
                                                 Icons.Default.PlayArrow,
-                                                contentDescription = "playing",
+                                                contentDescription = "正在播放",
                                             )
                                         }
                                     },

@@ -181,7 +181,7 @@ private fun LeanbackQuickPanelIptvChannelItem(
             if (isSelected) {
                 androidx.tv.material3.Icon(
                     Icons.Default.CheckCircle,
-                    contentDescription = "checked",
+                    contentDescription = "已选中",
                 )
             }
         },

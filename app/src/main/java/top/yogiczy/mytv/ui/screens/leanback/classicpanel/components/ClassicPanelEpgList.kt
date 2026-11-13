@@ -274,7 +274,7 @@ private fun LeanbackClassicPanelEpgItem(
             },
             trailingContent = {
                 if (isLive) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "playing")
+                    Icon(Icons.Default.PlayArrow, contentDescription = "正在播放")
                 }
             },
         )
