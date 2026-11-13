@@ -92,6 +92,12 @@ fun LeanbackMainContent(
     LaunchedEffect(settingsViewModel.videoPlayerAspectRatio) {
         videoPlayerState.applyDefaultAspectRatio()
     }
+    // 屏幕尺寸变了也立即重算：provider 每次重组都会换成最新的（捕获了
+    // 当时的 configuration），但只换不重算——“自动拉伸”仍按旧屏幕尺寸；
+    // 分屏、折叠、改显示尺寸这类不重建活动的配置变化也要立刻跟上
+    LaunchedEffect(configuration.screenWidthDp, configuration.screenHeightDp) {
+        videoPlayerState.applyDefaultAspectRatio()
+    }
     val panelChannelNoSelectState = rememberLeanbackPanelChannelNoSelectState(
         onChannelNoConfirm = {
             val channelNo = it.toInt() - 1
