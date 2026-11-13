@@ -22,6 +22,16 @@ class EpgTimeTest {
     }
 
     @Test
+    fun `glued colon timezone parses to the same instant`() {
+        assertEquals(eightOclockPlus0800, parseEpgTimeFallback("20261112080000+08:00"))
+    }
+
+    @Test
+    fun `glued Z means UTC`() {
+        assertEquals(eightOclockPlus0000, parseEpgTimeFallback("20261112080000Z"))
+    }
+
+    @Test
     fun `different timezone offset shifts the instant`() {
         assertEquals(eightOclockPlus0000, parseEpgTimeFallback("20261112080000 +0000"))
     }
