@@ -258,4 +258,60 @@ class EpgRepositoryTest {
         assertEquals("CCTV-1 综合", result.first().channel)
         assertEquals("新闻联播", result.first().programmes.first().title)
     }
+
+    @Test
+    fun `getEpgList skips malformed programmes without failing the whole list`() = runBlocking {
+        // 1184 轮修完后 parseFromXml 终于能在单测里跑了：1158 轮只靠
+        // 读代码确认过的缺属性／自闭合兜底，现在真正锁死。五条坏节目
+        // 各走一条兜底分支，好节目不受影响、整份节目单不抛错。
+        // 地址仍写 127.0.0.1:9，单测全程不联网
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme stop="20261113090000 +0800" channel="cctv1"><title>没开始时间</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><desc>只有简介没标题</desc></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1" />
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800"><title>没写频道</title></programme>
+              <programme start="20261113090000 +0800" stop="20261113080000 +0800" channel="cctv1"><title>时间倒挂</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList skips channel without display-name`() = runBlocking {
+        // 没 display-name 的频道不进列表、它名下的节目也一起丢掉，
+        // 不拖垮整份节目单；有名字的频道照常解析
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <channel id="cctv2" />
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv2"><title>没名字的台的节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+    }
 }
