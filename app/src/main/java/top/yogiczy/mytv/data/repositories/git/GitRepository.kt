@@ -20,7 +20,13 @@ class GitRepository : Loggable() {
 
         val request = Request.Builder().url(url).build()
 
-        try {
+        // 只把联网这段放 try 里：拿到响应体字符串就返回；解析放 try 外面——
+        // 发行版 JSON 缺附件、缺 tag、格式不对是更新源数据的问题，不是网络
+        // 问题。原来解析也在 try 里，解析一失败就被包成“请检查网络连接”，
+        // 和上面“不支持的更新源不包网络错”是同一个误导（第 73 轮只修了
+        // 选解析器那层，解析这层还漏着）。响应体仍在 use 里读完，解析
+        // 不碰流，不影响连接回收。
+        val data = try {
             // 响应体全路径都关：原来只有成功读 body 那条路关了（string()
             // 会关流），服务器出错（404/500）或响应体为空时直接抛错、
             // 响应体根本没关，连接回不到连接池；更新源一挂就反复失败
@@ -31,14 +37,14 @@ class GitRepository : Loggable() {
                     throw Exception("获取最新发行版失败: ${response.code}")
                 }
 
-                parser.parse(
-                    response.body?.string()
-                        ?: throw Exception("获取最新发行版失败: 响应体为空")
-                )
+                response.body?.string()
+                    ?: throw Exception("获取最新发行版失败: 响应体为空")
             }
         } catch (ex: Exception) {
             log.e("获取最新发行版失败", ex)
             throw Exception("获取最新发行版失败，请检查网络连接", ex)
         }
+
+        parser.parse(data)
     }
 }
