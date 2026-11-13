@@ -55,7 +55,10 @@ fun LeanbackSettingsCategoryMore(
                 show = true
             }
 
-            if (show) {
+            // 没拿到局域网地址时不画二维码：serverUrl 会是 http://0.0.0.0:10481
+            //（HttpServer 没拿到地址时的兜底），手机扫了也连不上；上面那行
+            // 文字仍显示地址，用户能看出来没拿到地址
+            if (show && !serverUrl.contains("0.0.0.0")) {
                 Row(
                     horizontalArrangement = Arrangement.End,
                     modifier = Modifier.fillMaxWidth(),
