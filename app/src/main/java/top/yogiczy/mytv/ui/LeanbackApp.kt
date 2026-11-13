@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -22,7 +21,6 @@ fun LeanbackApp(
     modifier: Modifier = Modifier,
     onBackPressed: () -> Unit = {},
 ) {
-    val context = LocalContext.current
     val doubleBackPressedExitState = rememberLeanbackDoubleBackPressedExitState()
 
     LeanbackToastScreen()
