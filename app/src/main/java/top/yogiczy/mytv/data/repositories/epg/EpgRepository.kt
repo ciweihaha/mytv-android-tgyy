@@ -321,17 +321,23 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 log.w("节目单缓存不可用，跳过等待直接刷新")
             }
 
+            // P5：刷新成功时直接返回刚解析出的对象，不再把写盘的 JSON
+            // 又解回来：解析出的对象编成 JSON 写缓存、随即又反序列化，
+            // 白走一趟完整编解码（约 400KB）；只有缓存命中路径才走 JSON 解码
+            var parsedOnRefresh: EpgList? = null
             val xmlJson = getOrRefresh({ lastModified, _ ->
                 !isSameDay(System.currentTimeMillis(), lastModified)
             }) {
                 // P1：启动时已并行拉好的 XML 直接用，不再等直播源就绪后重新下载
                 val xmlString = prefetchedXml ?: epgXmlRepository.getEpgXml(xmlUrl)
-                Json.encodeToString(parseFromXml(xmlString, filteredChannels).value)
+                val parsed = parseFromXml(xmlString, filteredChannels)
+                parsedOnRefresh = parsed
+                Json.encodeToString(parsed.value)
             }
 
             // 刷新刚成功时编解码必然能 round-trip；解不开说明拿到的是
             // getOrRefresh 刷新失败时顶上的旧坏缓存：给空节目单，别抛错
-            decodeEpgListOrNull(xmlJson) ?: run {
+            parsedOnRefresh ?: decodeEpgListOrNull(xmlJson) ?: run {
                 log.e("节目单数据无法解析，返回空节目单")
                 EpgList()
             }
