@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
@@ -53,6 +54,17 @@ internal fun shouldConsumeLeanbackSelectKeyDown(
     keyCode: Int,
     onKeyTap: Map<Int, () -> Unit>,
 ): Boolean = keyCode in LEANBACK_SELECT_KEY_CODES && onKeyTap.containsKey(keyCode)
+
+/**
+ * 兜底吞掉没人处理的确定键（冒泡阶段）：对话框跑在独立的 Dialog 窗口里，
+ * LeanbackActivity 的 dispatchKeyEvent 兜底盖不到；对话框里没焦点、或焦点
+ * 不在可点项上时，漏下去的确定键在 HarmonyOS 智慧屏上会被当成退出。
+ * 必须是冒泡 onKeyEvent：焦点按钮/列表先处理，走到这里的才是真没人要的；
+ * 换成 onPreviewKeyEvent 会先吞掉，按钮就按不动了。返回键等其它键原样放行。
+ */
+fun Modifier.swallowUnhandledSelectKeys(): Modifier = onKeyEvent {
+    it.nativeKeyEvent.keyCode in LEANBACK_SELECT_KEY_CODES
+}
 
 @Composable
 fun Modifier.handleLeanbackKeyEvents(

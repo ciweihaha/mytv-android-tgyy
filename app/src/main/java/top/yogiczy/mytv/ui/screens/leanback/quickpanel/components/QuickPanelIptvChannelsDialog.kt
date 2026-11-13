@@ -38,6 +38,7 @@ import okio.IOException
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
+import top.yogiczy.mytv.ui.utils.swallowUnhandledSelectKeys
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.utils.initialScrollIndex
 import top.yogiczy.mytv.utils.isIPv6
@@ -58,7 +59,7 @@ fun LeanbackQuickPanelIptvChannelsDialog(
 
     if (showDialogProvider()) {
         AlertDialog(
-            modifier = modifier,
+            modifier = modifier.swallowUnhandledSelectKeys(),
             onDismissRequest = onDismissRequest,
             confirmButton = { Text(text = "短按切换线路") },
             title = { Text(text = iptv.name) },

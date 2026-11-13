@@ -38,6 +38,7 @@ import top.yogiczy.mytv.data.entities.IptvList
 import top.yogiczy.mytv.data.entities.epgProgrammeKey
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.ui.utils.swallowUnhandledSelectKeys
 import top.yogiczy.mytv.utils.initialScrollIndex
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -69,7 +70,7 @@ fun LeanbackPanelIptvEpgDialog(
         val epg = epgProvider()
 
         AlertDialog(
-            modifier = modifier,
+            modifier = modifier.swallowUnhandledSelectKeys(),
             onDismissRequest = onDismissRequest,
             confirmButton = { Text(text = "左右切换频道") },
             // 标题显示频道名：原来是节目单用的 tvg-name（“cctv1”），

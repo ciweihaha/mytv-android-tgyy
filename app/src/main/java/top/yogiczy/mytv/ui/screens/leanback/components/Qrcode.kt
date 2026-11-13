@@ -22,6 +22,7 @@ import io.github.alexzhirkevich.qrose.options.QrShapes
 import io.github.alexzhirkevich.qrose.options.circle
 import io.github.alexzhirkevich.qrose.options.roundCorners
 import io.github.alexzhirkevich.qrose.rememberQrCodePainter
+import top.yogiczy.mytv.ui.utils.swallowUnhandledSelectKeys
 
 @Composable
 fun LeanbackQrcode(
@@ -63,7 +64,7 @@ fun LeanbackQrcodeDialog(
 ) {
     if (showDialogProvider()) {
         AlertDialog(
-            modifier = modifier,
+            modifier = modifier.swallowUnhandledSelectKeys(),
             properties = DialogProperties(usePlatformDefaultWidth = false),
             onDismissRequest = onDismissRequest,
             confirmButton = { description?.let { Text(text = description) } },

@@ -27,6 +27,7 @@ import kotlinx.collections.immutable.persistentListOf
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
 import top.yogiczy.mytv.ui.utils.HttpServer
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.ui.utils.swallowUnhandledSelectKeys
 import top.yogiczy.mytv.utils.initialScrollIndex
 
 /**
@@ -54,7 +55,7 @@ fun LeanbackSettingsSourceHistoryDialog(
     if (showDialogProvider()) {
         AlertDialog(
             properties = DialogProperties(usePlatformDefaultWidth = false),
-            modifier = modifier,
+            modifier = modifier.swallowUnhandledSelectKeys(),
             onDismissRequest = onDismissRequest,
             confirmButton = { Text(text = "短按切换；长按删除历史记录") },
             title = { Text(title) },

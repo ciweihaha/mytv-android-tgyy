@@ -24,6 +24,7 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.ui.utils.swallowUnhandledSelectKeys
 
 @Composable
 fun LeanbackSettingsCategoryFavorite(
@@ -112,7 +113,7 @@ private fun LeanbackSettingsFavoriteClearConfirmDialog(
 
         AlertDialog(
             properties = DialogProperties(usePlatformDefaultWidth = false),
-            modifier = modifier,
+            modifier = modifier.swallowUnhandledSelectKeys(),
             onDismissRequest = onDismissRequest,
             confirmButton = {
                 androidx.tv.material3.Button(

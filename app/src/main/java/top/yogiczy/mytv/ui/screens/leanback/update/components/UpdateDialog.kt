@@ -14,6 +14,7 @@ import androidx.compose.ui.window.DialogProperties
 import top.yogiczy.mytv.data.entities.GitRelease
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
+import top.yogiczy.mytv.ui.utils.swallowUnhandledSelectKeys
 
 @Composable
 fun LeanbackUpdateDialog(
@@ -33,7 +34,7 @@ fun LeanbackUpdateDialog(
 
         AlertDialog(
             properties = DialogProperties(usePlatformDefaultWidth = false),
-            modifier = modifier,
+            modifier = modifier.swallowUnhandledSelectKeys(),
             onDismissRequest = onDismissRequest,
             confirmButton = {
                 androidx.tv.material3.Button(

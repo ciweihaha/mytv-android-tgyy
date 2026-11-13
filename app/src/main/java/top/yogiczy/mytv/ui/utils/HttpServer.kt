@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import top.yogiczy.mytv.AppGlobal
+import top.yogiczy.mytv.CRASH_REPORT_FILE_NAME
 import top.yogiczy.mytv.R
 import top.yogiczy.mytv.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
@@ -202,6 +203,10 @@ object HttpServer : Loggable() {
                     handleUploadApk(request, response, context)
                 }
 
+                server.get("/api/crash") { _, response ->
+                    handleGetCrashReport(response)
+                }
+
                 log.i("服务已启动: 0.0.0.0:${SERVER_PORT}")
             } catch (ex: Exception) {
                 isStarted = false
@@ -259,6 +264,26 @@ object HttpServer : Loggable() {
                     )
                 )
             )
+        }
+    }
+
+    /**
+     * 只读：取上次崩溃的报告，没有则 404。崩溃日志不设限，与查看设置、
+     * 日志同一条规则；写接口才要访问码。
+     */
+    private fun handleGetCrashReport(response: AsyncHttpServerResponse) {
+        val file = File(AppGlobal.cacheDir, CRASH_REPORT_FILE_NAME)
+        if (!file.exists()) {
+            wrapResponse(response).code(404).send("no crash recorded")
+            return
+        }
+        try {
+            wrapResponse(response).apply {
+                setContentType("text/plain; charset=utf-8")
+                send(file.readText())
+            }
+        } catch (ex: Exception) {
+            wrapResponse(response).code(500).send("read crash report failed: ${ex.message}")
         }
     }
 
