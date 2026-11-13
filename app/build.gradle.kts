@@ -51,6 +51,8 @@ android {
     }
     buildFeatures {
         compose = true
+        // P3：EventLogger 只在 debug 构建挂载，需要 BuildConfig.DEBUG
+        buildConfig = true
     }
     testOptions {
         // 单元测试跑在本机 JVM 上，android.jar 里的 Log 等方法是桩，

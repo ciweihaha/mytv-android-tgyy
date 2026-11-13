@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import top.yogiczy.mytv.BuildConfig
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.ui.utils.SP
 import java.security.SecureRandom
@@ -388,7 +389,11 @@ class LeanbackMedia3VideoPlayer(
         super.initialize()
         videoPlayer.addListener(playerListener)
         videoPlayer.addAnalyticsListener(metadataListener)
-        videoPlayer.addAnalyticsListener(eventLogger)
+        // P3：EventLogger 只在 debug 构建挂载：它把每次播放器事件都详细
+        // 打到 logcat，release 包不需要这份噪音和 I/O；debug 信息不受影响
+        if (BuildConfig.DEBUG) {
+            videoPlayer.addAnalyticsListener(eventLogger)
+        }
         videoPlayer.setVideoFrameMetadataListener { _, _, _, _ ->
             renderedFrameCount.incrementAndGet()
         }
