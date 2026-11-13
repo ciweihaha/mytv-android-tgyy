@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.data.repositories.epg
 
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -141,5 +142,53 @@ class EpgRepositoryTest {
         assertEquals(1, cached?.size)
         assertEquals("CCTV-1", cached?.first()?.channel)
         assertEquals("新闻", cached?.first()?.programmes?.first()?.title)
+    }
+
+    @Test
+    fun `prefetch returns null when cache is usable before threshold`() = runBlocking {
+        // 未到刷新时间点且 JSON 缓存可用：调用方直接用缓存，不下载。
+        // 阈值传 24（小时只到 23），任何时刻都算“未到时间点”，不依赖
+        // 现在几点；只断言不下载，不碰网络
+        File(tempFolder.root, "epg.json").writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻"))
+                        )
+                    )
+                )
+            )
+        )
+
+        val result = EpgRepository().downloadEpgXmlIfNeeded("https://example.com/epg.xml", 24)
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `prefetch returns null when json cache is from today`() = runBlocking {
+        // JSON 缓存是今天的：调用方直接用缓存，不下载。阈值传 0 跳过
+        // “未到时间点”那条分支，只走“缓存是今天”这一条；只断言不
+        // 下载，不碰网络
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻"))
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(System.currentTimeMillis())
+
+        val result = EpgRepository().downloadEpgXmlIfNeeded("https://example.com/epg.xml", 0)
+
+        assertNull(result)
     }
 }
