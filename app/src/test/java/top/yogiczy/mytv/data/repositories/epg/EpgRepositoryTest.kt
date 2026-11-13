@@ -191,4 +191,71 @@ class EpgRepositoryTest {
 
         assertNull(result)
     }
+
+    @Test
+    fun `getEpgList uses prefetched xml without downloading`() = runBlocking {
+        // P1 预下载的核心行为：启动时并行拉好的 XML 直接用，getEpgList
+        // 不再等直播源就绪后重新下载。之前只有 downloadEpgXmlIfNeeded
+        // 两条“不用下载”分支有单测，getEpgList 收到预下载 XML 后到底
+        // 用不用它、还是照样去下载，一直没人锁死。
+        // 地址故意写成 127.0.0.1:9（discard 端口、无人监听）：一旦实现
+        // 回退到重新下载，立刻连接被拒抛错、用例失败；走预下载时地址
+        // 碰都不碰，单测全程不联网
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList refresh uses prefetched xml over stale cache`() = runBlocking {
+        // 缓存是昨天的（过期、必须刷新）：刷新走预下载的 XML，而不是
+        // 用旧缓存顶上。阈值传 0 跳过“未到时间点”分支；旧缓存故意写
+        // 另一台，避免断言误判成“读了缓存也算过”
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-2",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "旧节目"))
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(System.currentTimeMillis() - 25 * 60 * 60 * 1000L)
+
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
 }
