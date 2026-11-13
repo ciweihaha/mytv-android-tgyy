@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -523,5 +524,52 @@ class EpgRepositoryTest {
         assertEquals(1, result.size)
         assertEquals("CCTV-1 综合", result.first().channel)
         assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList falls back to stale cache when refresh fails`() = runBlocking {
+        // 刷新失败时旧缓存顶上：缓存是昨天的（过期、必须刷新），预下载
+        // 没给、地址又连不上（127.0.0.1:9 丢弃端口）——刷新抛错后不
+        // 应直接报错，而是返回旧缓存那台；时间戳不重写，下次加载仍会
+        // 再试刷新
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-2",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "旧节目"))
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(System.currentTimeMillis() - 25 * 60 * 60 * 1000L)
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = null,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-2", result.first().channel)
+        assertEquals("旧节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList throws when refresh fails without cache`() = runBlocking {
+        // 没缓存可顶时刷新失败就原样抛错，不给空节目单冒充成功
+        try {
+            EpgRepository().getEpgList(
+                "http://127.0.0.1:9/epg.xml",
+                refreshTimeThreshold = 0,
+                prefetchedXml = null,
+            )
+            fail("没缓存又刷新失败时应抛错")
+        } catch (_: Exception) {
+            // 预期：没旧缓存可顶，刷新失败原样抛错
+        }
     }
 }
