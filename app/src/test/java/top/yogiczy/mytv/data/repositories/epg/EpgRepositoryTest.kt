@@ -365,4 +365,54 @@ class EpgRepositoryTest {
         assertEquals(1, result.first().programmes.size)
         assertEquals("新闻联播", result.first().programmes.first().title)
     }
+
+    @Test
+    fun `getEpgList resets programmes when channel is declared twice`() = runBlocking {
+        // 同一个 channel id 声明两次：第二次声明把名字与节目列表都重置，
+        // 第一次声明名下的节目丢掉——与原先 `epgMap[id] = Epg(...)` 的
+        // 覆盖语义一致；源里重复声明频道时不把两份节目拼在一起
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>早节目</title></programme>
+              <channel id="cctv1"><display-name>CCTV-1 综合（重声明）</display-name></channel>
+              <programme start="20261113090000 +0800" stop="20261113100000 +0800" channel="cctv1"><title>晚节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合（重声明）", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("晚节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList keeps first display-name when channel has two`() = runBlocking {
+        // 一个 channel 里写两个 display-name：只取第一个，第二个忽略，
+        // 不会把名字拼起来、也不会覆盖
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name><display-name>CCTV-1 别名</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+    }
 }
