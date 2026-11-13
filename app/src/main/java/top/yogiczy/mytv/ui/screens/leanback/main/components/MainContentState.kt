@@ -71,6 +71,32 @@ class LeanbackMainContentState(
          * 第 4 次断流时放弃（见 nextCutoffStreak）
          */
         const val MAX_CUTOFFS_BEFORE_GIVE_UP = 3
+
+        /**
+         * 可播域名记忆攒够多少次变化才刷盘（P8）：连切台时每次都读-改-写
+         * SP 太浪费，内存里攒着、够数或播起来时一次性刷
+         */
+        const val PLAYABLE_HOSTS_FLUSH_EVERY = 5
+    }
+
+    // P8：可播域名与上次台号的内存镜像：SP 的 StringSet 每次读写都整份
+    // 复制，连切台时反复读-改-写；内存里改、攒够次数或播起来时一次性刷盘。
+    // 丢了也只是“可播域名”缓存与上次台号，不影响播放
+    private var playableHostsMirror: MutableSet<String>? = null
+    private var playableHostsDirtyCount = 0
+    private var lastIptvIdxMirror: Int? = null
+
+    private fun playableHosts(): MutableSet<String> =
+        playableHostsMirror ?: SP.iptvPlayableHostList.toMutableSet().also { playableHostsMirror = it }
+
+    private fun markPlayableHostsChanged() {
+        if (++playableHostsDirtyCount >= PLAYABLE_HOSTS_FLUSH_EVERY) flushPlayableHosts()
+    }
+
+    private fun flushPlayableHosts() {
+        playableHostsMirror?.let { SP.iptvPlayableHostList = it.toSet() }
+        lastIptvIdxMirror?.let { SP.iptvLastIptvIdx = it }
+        playableHostsDirtyCount = 0
     }
 
     private var _currentIptv by mutableStateOf(Iptv())
@@ -119,10 +145,13 @@ class LeanbackMainContentState(
             hideTempPanelAfterDelay()
 
             // 记忆可播放的域名：下标按 getOrNull 取，万一下标和频道对不上
-            // 就跳过这一次记忆，不越界崩溃
+            // 就跳过这一次记忆，不越界崩溃；播起来是稳定点，顺手把攒着的
+            // 镜像刷盘（P8），连切台时没播起来的变化仍攒着
             _currentIptv.urlList.getOrNull(_currentIptvUrlIdx)?.let {
-                SP.iptvPlayableHostList += getUrlHost(it)
+                playableHosts().add(getUrlHost(it))
+                markPlayableHostsChanged()
             }
+            flushPlayableHosts()
 
             // P2：当前台播稳后，提前拉上下相邻台的 HLS 列表，换台时少一次往返
             prefetchAdjacentPlaylists()
@@ -206,9 +235,10 @@ class LeanbackMainContentState(
         }
 
         // 从记忆中删除不可播放的域名：下标按 getOrNull 取，万一下标和
-        // 频道对不上就跳过，不越界崩溃
+        // 频道对不上就跳过，不越界崩溃；只改内存镜像（P8），攒够次数再刷盘
         _currentIptv.urlList.getOrNull(failedUrlIdx)?.let {
-            SP.iptvPlayableHostList -= getUrlHost(it)
+            playableHosts().remove(getUrlHost(it))
+            markPlayableHostsChanged()
         }
     }
 
@@ -243,16 +273,19 @@ class LeanbackMainContentState(
 
         if (iptv == _currentIptv && urlIdx != _currentIptvUrlIdx) {
             // 仅当旧频道有播放地址时才处理域名记忆（无地址的提示条目没有 urlList[0]）；
-            // 下标按 getOrNull 取，万一对不上就跳过，不越界崩溃
+            // 下标按 getOrNull 取，万一对不上就跳过，不越界崩溃；
+            // 只改内存镜像（P8），攒够次数再刷盘
             _currentIptv.urlList.getOrNull(_currentIptvUrlIdx)?.let {
-                SP.iptvPlayableHostList -= getUrlHost(it)
+                playableHosts().remove(getUrlHost(it))
+                markPlayableHostsChanged()
             }
         }
 
         _isTempPanelVisible = true
 
         _currentIptv = iptv
-        SP.iptvLastIptvIdx = iptvGroupList.iptvIdx(_currentIptv)
+        // 上次台号也进内存镜像（P8），和可播域名一起刷盘
+        lastIptvIdxMirror = iptvGroupList.iptvIdx(_currentIptv)
 
         // 无可用播放地址的频道（如不支持的源格式返回的 m3u/tvbox 提示条目）：
         // 只切换显示，不调用播放器——否则 urlList[0] 越界崩溃；不调播放器
@@ -265,8 +298,9 @@ class LeanbackMainContentState(
 
         _currentIptvUrlIdx = if (urlIdx == null) {
             // 优先从记忆中选择可播放的域名：域名表只从设置里读一次记下来，
-            // 原来每比一条地址就重读一次，一个台有多条备用地址时就重复读好几次
-            val playableHosts = SP.iptvPlayableHostList
+            // 原来每比一条地址就重读一次，一个台有多条备用地址时就重复读好几次；
+            // 读内存镜像（P8），不走 SP 的整份复制
+            val playableHosts = playableHosts()
             max(0, _currentIptv.urlList.indexOfFirst {
                 playableHosts.contains(getUrlHost(it))
             })
