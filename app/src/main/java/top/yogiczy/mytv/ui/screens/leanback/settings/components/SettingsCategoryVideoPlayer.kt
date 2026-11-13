@@ -66,7 +66,7 @@ fun LeanbackSettingsCategoryVideoPlayer(
 
 @Preview
 @Composable
-private fun LeanbackSettingsCategoryHttpPreview() {
+private fun LeanbackSettingsCategoryVideoPlayerPreview() {
     SP.init(LocalContext.current)
     LeanbackTheme {
         LeanbackSettingsCategoryVideoPlayer(
