@@ -146,31 +146,36 @@ private fun LeanbackMainScreenError(
             )
         }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = childPadding.end, bottom = childPadding.bottom)
-                .width(100.dp)
-                .height(100.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.onBackground,
-                    shape = MaterialTheme.shapes.medium,
-                ),
-        ) {
-            Image(
+        // 没拿到局域网地址时不画二维码：serverUrl 会是 http://0.0.0.0:10481
+        //（HttpServer 没拿到地址时的兜底），手机扫了也连不上；失败页最常
+        // 出现在没网的时候，这时画出来就是个扫了没用的码。有地址时照常显示
+        if (!serverUrl.contains("0.0.0.0")) {
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(6.dp),
-                painter = rememberQrCodePainter(
-                    data = serverUrl,
-                    shapes = QrShapes(
-                        ball = QrBallShape.circle(),
-                        darkPixel = QrPixelShape.roundCorners(),
-                        frame = QrFrameShape.roundCorners(.25f),
+                    .align(Alignment.BottomEnd)
+                    .padding(end = childPadding.end, bottom = childPadding.bottom)
+                    .width(100.dp)
+                    .height(100.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.onBackground,
+                        shape = MaterialTheme.shapes.medium,
                     ),
-                ),
-                contentDescription = serverUrl,
-            )
+            ) {
+                Image(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(6.dp),
+                    painter = rememberQrCodePainter(
+                        data = serverUrl,
+                        shapes = QrShapes(
+                            ball = QrBallShape.circle(),
+                            darkPixel = QrPixelShape.roundCorners(),
+                            frame = QrFrameShape.roundCorners(.25f),
+                        ),
+                    ),
+                    contentDescription = serverUrl,
+                )
+            }
         }
     }
 }
