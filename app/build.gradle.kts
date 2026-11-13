@@ -31,7 +31,13 @@ android {
         }
 
         ndk {
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86_64"))
+            // opt: 只保留 ARM 两个 ABI。x86_64 的 libffmpegJNI.so 有
+            // 1,381,952 字节，.so 在 APK 里不压缩存放，等于白占
+            // release 包约 21%；而 x86_64 设备（模拟器、x86 盒子/
+            // Chromebook）极少，且缺了该 ABI 的 .so 时 Media3 会
+            // 捕获 UnsatisfiedLinkError、回落到系统解码器，不会崩。
+            // x86 早已不在此列；32 位 ARM 电视仍多，armeabi-v7a 保留。
+            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
         }
     }
 
