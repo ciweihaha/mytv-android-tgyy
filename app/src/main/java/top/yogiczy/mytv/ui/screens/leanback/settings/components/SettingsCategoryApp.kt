@@ -52,8 +52,6 @@ fun LeanbackSettingsCategoryApp(
         }
 
         item {
-            val context = LocalContext.current
-
             LeanbackSettingsCategoryListItem(
                 headlineContent = "显示模式",
                 supportingContent = "短按切换应用显示模式",
