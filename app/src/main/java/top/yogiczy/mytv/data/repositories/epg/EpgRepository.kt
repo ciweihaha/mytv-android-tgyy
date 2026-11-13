@@ -22,10 +22,12 @@ import java.util.Calendar
 import java.util.Locale
 
 /**
- * 容错解码节目单缓存：缓存文件是 file.writeText 直接写入（非原子），
- * 进程在写入中途被杀会留下截断的 JSON；旧版本缓存的结构也可能与当前
- * Epg 对不上。解不开时返回 null，让调用方走刷新或给空节目单，而不
- * 是抛错——否则一次坏缓存会让节目单在缓存过期（隔天）前一直加载失败。
+ * 容错解码节目单缓存：正常路径已是原子写（临时文件＋改名，见
+ * FileCacheRepository.setCacheData），但截断的 JSON 仍可能出现——
+ * 原子写之前的旧缓存还留在用户机器上，改名失败回退直写那条路
+ * 写一半被杀也会截断；旧版本缓存的结构也可能与当前 Epg 对不上。
+ * 解不开时返回 null，让调用方走刷新或给空节目单，而不是抛错——
+ * 否则一次坏缓存会让节目单在缓存过期（隔天）前一直加载失败。
  * 顶层函数与 EpgRepository 对象无关，方便单元测试直接调用。
  */
 internal fun decodeEpgListOrNull(json: String?): EpgList? {
