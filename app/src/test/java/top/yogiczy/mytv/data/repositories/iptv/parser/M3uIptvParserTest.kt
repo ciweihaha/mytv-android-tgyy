@@ -288,4 +288,31 @@ class M3uIptvParserTest {
         assertEquals(1, result[0].iptvList.size)
         assertEquals("CCTV-5", result[0].iptvList[0].name)
     }
+
+    @Test
+    fun `duplicate attribute keeps the first value`() = runBlocking {
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" tvg-name="CCTV-1B" group-title="央视",显示名
+            http://example.com/cctv1.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("显示名", result[0].iptvList[0].name)
+        // 先到先得：与原来各正则只取第一次匹配的语义一致
+        assertEquals("CCTV-1", result[0].iptvList[0].channelName)
+    }
+
+    @Test
+    fun `last channel without trailing newline is still parsed`() = runBlocking {
+        val data = "#EXTM3U\n#EXTINF:-1 tvg-name=\"CCTV-1\" group-title=\"央视\",CCTV-1\nhttp://example.com/cctv1.m3u8"
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+    }
 }
