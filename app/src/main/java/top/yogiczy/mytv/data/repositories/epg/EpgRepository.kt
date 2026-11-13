@@ -330,8 +330,14 @@ class EpgRepository : FileCacheRepository("epg.json") {
             // 又解回来：解析出的对象编成 JSON 写缓存、随即又反序列化，
             // 白走一趟完整编解码（约 400KB）；只有缓存命中路径才走 JSON 解码
             var parsedOnRefresh: EpgList? = null
-            val xmlJson = getOrRefresh({ lastModified, _ ->
-                !isSameDay(System.currentTimeMillis(), lastModified)
+            val xmlJson = getOrRefresh({ lastModified, cacheData ->
+                // 同天但解不开的缓存也算过期：截断的缓存若只按日期判
+                // “未过期”，下面解码失败会直接给空节目单、要等隔天才
+                // 恢复；解不开就刷新——上面“未到时间点”那条分支也是
+                // 这个意思（缓存解不开时不等时间点直接刷新），只按日
+                // 期判会让这条兜底落空
+                !isSameDay(System.currentTimeMillis(), lastModified) ||
+                    decodeEpgListOrNull(cacheData) == null
             }) {
                 // P1：启动时已并行拉好的 XML 直接用，不再等直播源就绪后重新下载
                 val xmlString = prefetchedXml ?: epgXmlRepository.getEpgXml(xmlUrl)
