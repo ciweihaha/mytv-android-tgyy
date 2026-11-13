@@ -25,10 +25,13 @@ import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.util.EventLogger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.ui.utils.SP
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -146,6 +149,45 @@ class LeanbackMedia3VideoPlayer(
     }
 
     /**
+     * 播放器专用的 OkHttp 客户端（随数据源工厂一起建）：预取用同一个
+     * 客户端，连接池复用，换台时 TCP/TLS 已是热的；首次 prepare 前还
+     * 没建出来时回落到共用客户端。
+     */
+    private var playerHttpClient: OkHttpClient? = null
+
+    /**
+     * 已预取过的列表地址：换台时相邻台的地址不变就不再重复拉；
+     * 上限 64 条，满了清空重记，避免无限增长
+     */
+    private val prefetchedPlaylistUrls = mutableSetOf<String>()
+
+    /**
+     * 预取相邻台的 HLS 列表（P2）：当前台播稳后提前拉，换台时少一次
+     * DNS + TCP + TLS + 请求往返。只拉 master 列表（几 KB），不拉分片；
+     * 只认 .m3u8 地址，其他类型不预取。用播放器自己的 OkHttp 客户端，
+     * 连接池与真正播放复用；失败时允许下次再试。
+     */
+    override fun prefetchPlaylist(url: String) {
+        if (!url.contains(".m3u8", ignoreCase = true)) return
+        synchronized(prefetchedPlaylistUrls) {
+            if (!prefetchedPlaylistUrls.add(url)) return
+            if (prefetchedPlaylistUrls.size > 64) prefetchedPlaylistUrls.clear()
+        }
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val client = playerHttpClient ?: sharedHttpClient
+                client.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                    // 只预热连接，不取 body 内容；close 即丢弃
+                    response.body?.close()
+                }
+            } catch (_: Exception) {
+                // 预取失败不影响播放：换台时正常拉取；允许下次再试
+                synchronized(prefetchedPlaylistUrls) { prefetchedPlaylistUrls.remove(url) }
+            }
+        }
+    }
+
+    /**
      * 播放器专用的 HTTP 数据源工厂：用独立的 OkHttp 客户端拉流，证书校验只对播放流量放行。
      * 超时、User-Agent 与原 DefaultHttpDataSource 配置保持一致；
      * OkHttp 默认跟随重定向（含跨协议），与原 setAllowCrossProtocolRedirects(true) 等效。
@@ -161,6 +203,7 @@ class LeanbackMedia3VideoPlayer(
             .connectTimeout(SP.videoPlayerLoadTimeout, TimeUnit.MILLISECONDS)
             .readTimeout(SP.videoPlayerLoadTimeout, TimeUnit.MILLISECONDS)
             .build()
+            .also { playerHttpClient = it }
         return OkHttpDataSource.Factory(okHttpClient).apply {
             setUserAgent(SP.videoPlayerUserAgent)
         }

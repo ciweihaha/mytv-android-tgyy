@@ -59,6 +59,13 @@ class LeanbackVideoPlayerState(
         instance.setVideoSurfaceView(surfaceView)
     }
 
+    /**
+     * 预取播放列表（P2）：转给底层播放器，只拉列表不拉分片
+     */
+    fun prefetchPlaylist(url: String) {
+        instance.prefetchPlaylist(url)
+    }
+
     private val onReadyListeners = mutableListOf<() -> Unit>()
     private val onErrorListeners = mutableListOf<() -> Unit>()
     private val onCutoffListeners = mutableListOf<() -> Unit>()

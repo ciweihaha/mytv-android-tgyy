@@ -35,6 +35,12 @@ abstract class LeanbackVideoPlayer(
 
     abstract fun prepare(url: String)
 
+    /**
+     * 预取播放列表（P2）：默认空实现，子类可覆写。只拉列表不拉分片，
+     * 失败时静默丢弃——换台时正常拉取，不影响播放。
+     */
+    open fun prefetchPlaylist(url: String) {}
+
     abstract fun play()
 
     /**

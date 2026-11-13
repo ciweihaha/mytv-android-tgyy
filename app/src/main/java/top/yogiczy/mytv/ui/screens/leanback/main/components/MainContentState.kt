@@ -123,6 +123,9 @@ class LeanbackMainContentState(
             _currentIptv.urlList.getOrNull(_currentIptvUrlIdx)?.let {
                 SP.iptvPlayableHostList += getUrlHost(it)
             }
+
+            // P2：当前台播稳后，提前拉上下相邻台的 HLS 列表，换台时少一次往返
+            prefetchAdjacentPlaylists()
         }
 
         videoPlayerState.onError {
@@ -221,6 +224,16 @@ class LeanbackMainContentState(
         val currentIndex = iptvGroupList.iptvIdx(_currentIptv)
         return iptvGroupList.iptvAt(currentIndex + 1)
             ?: iptvGroupList.firstOrNull()?.iptvList?.firstOrNull() ?: Iptv()
+    }
+
+    /**
+     * 预取相邻台的 HLS 列表（P2）：只取上下台的首条地址，播放器内部
+     * 只认 .m3u8、只拉列表不拉分片；同一地址重复调用时播放器内部去重
+     */
+    private fun prefetchAdjacentPlaylists() {
+        listOf(getPrevIptv(), getNextIptv()).forEach { iptv ->
+            iptv.urlList.firstOrNull()?.let { videoPlayerState.prefetchPlaylist(it) }
+        }
     }
 
     fun changeCurrentIptv(iptv: Iptv, urlIdx: Int? = null) {
