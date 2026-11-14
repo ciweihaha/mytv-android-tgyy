@@ -48,4 +48,27 @@ class ToastStateTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun `换场后没有更新的提示新提示正常显示`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val state = LeanbackToastState(scope)
+        try {
+            state.showToast("A")
+            delay(200)
+            assertTrue(state.visible)
+            assertEquals("A", state.current.message)
+
+            // 只有 B：B 先藏起 A、等 300ms 换场，醒来时号没过期，
+            // 必须接着把 B 显示出来——这条“号没过期就继续显示”
+            // 的路之前没有任何单测（旧用例里换场后总有更新的 C
+            // 把 B 盖掉，B 的这条路一次也没走通过）
+            state.showToast("B")
+            delay(700)
+            assertEquals("B", state.current.message)
+            assertTrue(state.visible)
+        } finally {
+            scope.cancel()
+        }
+    }
 }
