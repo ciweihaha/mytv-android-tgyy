@@ -78,6 +78,32 @@ class UpdateCheckCompletedTest {
     }
 
     @Test
+    fun `检查进行中 isCheckingUpdate 为 true，查完复位`() = runBlocking {
+        val viewModel = LeanBackUpdateViewModel()
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<GitRelease>()
+
+        // 第一轮检查卡在拉取上（没回包）
+        val first = async {
+            viewModel.checkUpdate("2.2.10") {
+                started.complete(Unit)
+                releaseGate.await()
+            }
+        }
+        started.await()
+
+        // 检查进行中设置页“应用更新”行应显示“检查中”：这档之前
+        // 没有任何单测（旧用例只在查完后看状态，取消那个用例也
+        // 只断言查完复位 false）；没这行赋值时这里是 false
+        assertTrue(viewModel.isCheckingUpdate)
+
+        releaseGate.complete(GitRelease(version = "9.9.9"))
+        first.await()
+        assertFalse(viewModel.isCheckingUpdate)
+        assertTrue(viewModel.checkCompleted)
+    }
+
+    @Test
     fun `检查进行中再次检查直接返回不重复拉取`() = runBlocking {
         val viewModel = LeanBackUpdateViewModel()
         val started = CompletableDeferred<Unit>()
