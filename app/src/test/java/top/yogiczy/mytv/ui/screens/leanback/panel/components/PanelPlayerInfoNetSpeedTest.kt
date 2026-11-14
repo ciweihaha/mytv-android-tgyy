@@ -29,4 +29,13 @@ class PanelPlayerInfoNetSpeedTest {
     fun `流量计数中途倒退时按 0 算、不显示负网速`() {
         assertEquals(0L, nextNetSpeed(10_240, 20_000, 10_000, 1000))
     }
+
+    @Test
+    fun `按实际耗时折算成每秒、不是只按一秒算`() {
+        // 旧 4 个用例耗时全是 1000 毫秒：算式里 * 1000 / elapsedMs
+        // 的折算若丢了、写死了，分母永远是 1000 也全能过；
+        // 换两个不是 1000 的耗时钉住它
+        assertEquals(250L, nextNetSpeed(0, 0, 500, 2000))
+        assertEquals(20_480L, nextNetSpeed(0, 0, 10_240, 500))
+    }
 }
