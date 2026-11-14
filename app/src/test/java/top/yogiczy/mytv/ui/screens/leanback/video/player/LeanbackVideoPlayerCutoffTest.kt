@@ -65,4 +65,23 @@ class LeanbackVideoPlayerCutoffTest {
         Thread.sleep(1000)
         assertEquals(1, cutoffCount)
     }
+
+    @Test
+    fun `repeated same position does not re-arm the cutoff, a stall still fires`() {
+        val player = FakeVideoPlayer()
+        var cutoffCount = 0
+        player.onCutoff { cutoffCount++ }
+
+        // 位置冻住时 1 秒轮询每秒都会报同一个位置：重复上报不能重设计时，
+        // 否则 15 秒超时永远等不到、断流永远报不出来
+        player.emitPosition(1000L, timeoutMs = 300L)
+        repeat(12) {
+            Thread.sleep(50)
+            player.emitPosition(1000L, timeoutMs = 300L)
+        }
+        // 此时约 650ms：正确行为已在 300ms 时报过一次断流；
+        // 若重复上报会重设计时，计时会被推到 900ms 之后、现在应还是 0 次
+        Thread.sleep(50)
+        assertEquals(1, cutoffCount)
+    }
 }
