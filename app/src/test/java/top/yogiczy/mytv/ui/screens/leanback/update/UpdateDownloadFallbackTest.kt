@@ -270,6 +270,30 @@ class UpdateDownloadFallbackTest {
     }
 
     @Test
+    fun `proxy truncated but direct complete succeeds`() = runBlocking {
+        // 发行版写明 100 字节：代理只下到 3 字节（截断）、直链下到
+        // 100 字节（完整），应记下载成功。大小校验在 downloadOnce
+        // 里每路各算一次，这档之前没有任何单测——旧用例里两路要么
+        // 都完整、要么都截断；校验若只算一次，代理那次 3 字节就会
+        // 把整次下载判死，直链完整也救不回来
+        val viewModel = setupViewModel(proxyUrl, downloadSize = 100)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                if (url == proxyUrl) File(path).writeText("apk")
+                else File(path).writeText("x".repeat(100))
+            }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+
+        assertTrue(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl, directUrl), calls)
+        assertEquals(100L, file.length())
+    }
+
+    @Test
     fun `download progress callback shows percentage toast`() = runBlocking {
         // 假下载调一次进度回调 50 再卡住：downloadOnce 传给下载函数
         // 的进度回调应弹“正在下载更新: 50%”；没传回调时用户下大包
