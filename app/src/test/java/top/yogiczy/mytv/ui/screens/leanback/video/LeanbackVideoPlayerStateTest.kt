@@ -4,6 +4,7 @@ import android.view.SurfaceView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 
@@ -17,6 +18,7 @@ class LeanbackVideoPlayerStateTest {
         override fun setVideoSurfaceView(surfaceView: SurfaceView) = Unit
 
         fun emitResolution(width: Int, height: Int) = triggerResolution(width, height)
+        fun emitError(error: LeanbackVideoPlayer.PlaybackException?) = triggerError(error)
     }
 
     @Test
@@ -85,5 +87,24 @@ class LeanbackVideoPlayerStateTest {
         state.defaultAspectRatioProvider = { 4f / 3f }
         state.applyDefaultAspectRatio()
         assertEquals(4f / 3f, state.aspectRatio, 0.001f)
+    }
+
+    @Test
+    fun `error maps to name and code, null error clears it without notifying`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var errorNotifications = 0
+        state.onError { errorNotifications++ }
+
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
+        assertEquals(1, errorNotifications)
+
+        // 进缓冲时底层会报一次空错误清显示：只清掉 error，不应再通知一次
+        player.emitError(null)
+        assertNull(state.error)
+        assertEquals(1, errorNotifications)
     }
 }
