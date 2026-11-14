@@ -278,6 +278,48 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList refreshes when cache is from today but has no live programme`() = runBlocking {
+        // 712 轮的场景：缓存文件日期是今天、也能解开，但里面全是
+        // 已经播完的节目（凌晨拉到的昨天数据带着今天的时间戳存下
+        // 来）——只按日期判会沿用一整天、白天全台显示无节目；
+        // 没正在播的节目就当过期、必须刷新。阈值传 0 跳过“未到
+        // 时间点”分支；旧缓存故意写另一台，避免断言误判
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-2",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = now - 2000, endAt = now - 1000, title = "旧节目"))
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now)
+
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113090000 +0800" stop="20261113100000 +0800" channel="cctv1"><title>新节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("新节目", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList skips malformed programmes without failing the whole list`() = runBlocking {
         // 1184 轮修完后 parseFromXml 终于能在单测里跑了：1158 轮只靠
         // 读代码确认过的缺属性／自闭合兜底，现在真正锁死。五条坏节目
