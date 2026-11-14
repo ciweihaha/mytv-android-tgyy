@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -34,6 +35,24 @@ class FileCacheRepositoryTest {
         repo.load(0) { "hello cache" }
 
         assertEquals("hello cache", repo.cached())
+    }
+
+    @Test
+    fun `fresh cache is returned without refreshing`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        repo.load(0) { "fresh data" }
+
+        // 缓存刚写好、还在有效期内：不应再调刷新操作，直接用缓存；
+        // 这档是直播源加载用的那条路（IptvRepository 按 SP.iptvSourceCacheTime
+        // 传有效期），过期判断一坏、每次加载都会重新下载直播源
+        var refreshAttempted = false
+        val result = repo.load(60_000) {
+            refreshAttempted = true
+            "new data"
+        }
+
+        assertEquals("fresh data", result)
+        assertFalse(refreshAttempted)
     }
 
     @Test
