@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.ui.utils
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,5 +27,14 @@ class ModifierUtilsSafeInvokeTest {
         safeLeanbackInvoke { throw NullPointerException("test") }
         // 能跑到这里就说明异常被接住了
         assertTrue(true)
+    }
+
+    @Test
+    fun `回调抛 Error 时照常抛出不掩盖`() {
+        // 只接 Exception 是有意的：内存溢出这类 Error 照常抛出，
+        // 不掩盖真正致命的问题；若有人改成接 Throwable，这句就挂
+        assertThrows(OutOfMemoryError::class.java) {
+            safeLeanbackInvoke { throw OutOfMemoryError("test") }
+        }
     }
 }
