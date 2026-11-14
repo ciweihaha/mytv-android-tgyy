@@ -237,6 +237,38 @@ class UpdateDownloadFallbackTest {
     }
 
     @Test
+    fun `successful download then failed download clears downloaded flag`() = runBlocking {
+        // 第一次下成功、第二次下代理与直链都失败：每次下载开始
+        // 先把成功标记清掉（第 97 行）没有任何单测——旧用例全是
+        // 同一台 ViewModel 只下一次；没这句时第二次失败后标记还
+        // 留着 true，设置页会一直显示“已下载”，旧单测发现不了
+        // （checkUpdate 那边同款复位已有 failed recheck 用例钉死，
+        // 下载这边没有）
+        val viewModel = setupViewModel(proxyUrl)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        var attempts = 0
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                attempts++
+                if (attempts == 1) {
+                    File(path).writeText("apk")
+                } else {
+                    throw RuntimeException("network down")
+                }
+            }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        assertTrue(viewModel.updateDownloaded)
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        assertFalse(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl, proxyUrl, directUrl), calls)
+        assertFalse(file.exists())
+    }
+
+    @Test
     fun `failed download resets updating flag so retry works`() = runBlocking {
         // 第一次下：代理与直链都失败；第二次下：代理一次成功。
         // _isUpdating 在 finally 里复位没有任何单测——旧用例全是
