@@ -45,13 +45,15 @@ data class Epg(
          * 的。取开始时间在当前节目结束时刻之后、最早的那一档；都没
          * 有时再退一步，取还没开始的最早那档（节目时间有重叠的脏数
          * 据也能带上）
+         * 时间可传参：默认用当前时间（与 isLive/progress 同款写法），
+         * 单测传固定时间才能钉死首尾相接的边界（现在正好等于上一档
+         * 结束、下一档开始的那一刻）
          */
-        fun Epg.currentProgrammes(): EpgProgrammeCurrent? {
-            val now = System.currentTimeMillis()
+        fun Epg.currentProgrammes(now: Long = System.currentTimeMillis()): EpgProgrammeCurrent? {
             var current: EpgProgramme? = null
             var earliestFuture: EpgProgramme? = null
             for (programme in programmes) {
-                if (current == null && programme.isLive()) {
+                if (current == null && programme.isLive(now)) {
                     current = programme
                 }
                 if (programme.startAt > now &&

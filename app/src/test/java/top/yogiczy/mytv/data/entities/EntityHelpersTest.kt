@@ -68,6 +68,45 @@ class EntityHelpersTest {
     }
 
     @Test
+    fun `currentProgrammes picks next programme at exact boundary`() {
+        // 首尾相接：上一档结束正好等于下一档开始的那一刻，正在播
+        // 的是下一档（左闭右开的组合语义）；传固定时间才能钉死
+        // 这个边界——无参调 currentProgrammes() 时 wall clock
+        // 会走动，钉不住
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now - 10_000, endAt = now, title = "上一档"),
+                    EpgProgramme(startAt = now, endAt = now + 10_000, title = "下一档"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertEquals("下一档", current?.now?.title)
+        assertNull(current?.next)
+    }
+
+    @Test
+    fun `currentProgrammes returns null when last programme ends exactly now`() {
+        // 最后一档结束正好等于现在：已播完、不算正在播，也没有
+        // 下一档，整份回 null
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now - 10_000, endAt = now, title = "刚播完"),
+                )
+            ),
+        )
+
+        assertNull(epg.currentProgrammes(now))
+    }
+
+    @Test
     fun `currentProgrammes returns null for empty programme list`() {
         assertNull(Epg(channel = "cctv1").currentProgrammes())
     }
