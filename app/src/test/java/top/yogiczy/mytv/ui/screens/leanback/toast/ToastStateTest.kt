@@ -5,8 +5,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -68,6 +70,29 @@ class ToastStateTest {
             assertEquals("B", state.current.message)
             assertTrue(state.visible)
         } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `提示到期后自动藏起`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val state = LeanbackToastState(scope)
+        // observe() 之前没有任何单测：它只在 rememberLeanbackToastState
+        // 里 LaunchedEffect 调，防抖到期自动藏起这条路一次也没走通过——
+        // 如果 debounce 那行丢了，提示会一直挂在屏幕上，旧单测全过、
+        // 发现不了
+        val observeJob = scope.launch { state.observe() }
+        try {
+            state.showToast("A")
+            delay(200)
+            assertTrue(state.visible)
+
+            // 默认时长 2300ms：等防抖到期，提示自己藏起
+            delay(2800)
+            assertFalse(state.visible)
+        } finally {
+            observeJob.cancel()
             scope.cancel()
         }
     }
