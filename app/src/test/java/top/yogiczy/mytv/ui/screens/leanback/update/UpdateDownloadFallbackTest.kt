@@ -200,6 +200,49 @@ class UpdateDownloadFallbackTest {
     }
 
     @Test
+    fun `cancelled download resets updating flag so retry works`() = runBlocking {
+        // 第一轮下载卡在假下载里、从外面取消；第二轮下应能正常下。
+        // 1865 轮只钉死了失败路径的 finally 复位，取消路径一次也
+        // 没测过——复位若只写在成功/失败分支里、取消分支漏了，第
+        // 二次调用会被重入守卫直接拦掉，更新页从此再也下不了包；
+        // 壳线 772 轮同款用例断言了取消后状态复位（壳线把 isUpdating
+        // 对外暴露了），天光这边 _isUpdating 是私有的，只能用
+        // “取消后真的能再下”来断言同一件事
+        val viewModel = setupViewModel(proxyUrl)
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<Unit>()
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        var attempts = 0
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                attempts++
+                if (attempts == 1) {
+                    started.complete(Unit)
+                    releaseGate.await()
+                }
+                File(path).writeText("apk")
+            }
+
+        val first = async { viewModel.downloadAndUpdate(file, fakeDownload) }
+        started.await()
+        first.cancel()
+        try {
+            first.await()
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            // 预期
+        }
+        assertFalse(viewModel.updateDownloaded)
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        assertTrue(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl, proxyUrl), calls)
+        assertTrue(file.exists())
+    }
+
+    @Test
     fun `下载进行中再次下载直接返回不重复下载`() = runBlocking {
         val viewModel = setupViewModel(proxyUrl)
         val started = CompletableDeferred<Unit>()
