@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.ui.screens.leanback.update
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -144,5 +145,33 @@ class UpdateDownloadFallbackTest {
         assertTrue(viewModel.updateDownloaded)
         assertEquals(listOf(proxyUrl, directUrl), calls)
         assertTrue(file.exists())
+    }
+
+    @Test
+    fun `cancelled proxy download does not retry direct and rethrows cancellation`() = runBlocking {
+        val viewModel = setupViewModel(proxyUrl)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        // 假下载先把文件写出来再抛取消异常：真实下载是阻塞 I/O，
+        // 取消时整包已经下完、withContext 在返回时才抛取消异常
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                File(path).writeText("apk")
+                throw CancellationException("cancelled")
+            }
+
+        try {
+            viewModel.downloadAndUpdate(file, fakeDownload)
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            assertEquals("cancelled", ex.message)
+        }
+
+        // 取消不是代理失败：不走直链重试、不记下载成功、不留残文件；
+        // 没这三行守卫时这里会重试直链、再弹“下载更新失败”
+        assertFalse(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl), calls)
+        assertFalse(file.exists())
     }
 }

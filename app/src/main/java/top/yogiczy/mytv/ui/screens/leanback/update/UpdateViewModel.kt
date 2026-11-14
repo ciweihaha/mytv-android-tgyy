@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.CancellationException
 import top.yogiczy.mytv.data.entities.GitRelease
 import top.yogiczy.mytv.data.repositories.git.GitRepository
 import top.yogiczy.mytv.data.utils.Constants
@@ -71,6 +72,11 @@ class LeanBackUpdateViewModel : ViewModel() {
             _isUpdateAvailable = _latestRelease.version.compareVersion(currentVersion) > 0
             _checkCompleted = true
         } catch (e: Exception) {
+            // 取消不是失败：检查中途离开更新页、LaunchedEffect 取消时
+            // 取消异常也会走到这里——当成失败记一条日志是误报，更不能
+            // 把取消吞掉（调用方要按取消处理）；原样抛出去，状态复位
+            // 仍由 finally 做
+            if (e is CancellationException) throw e
             log.e("检查更新失败", e)
         } finally {
             _isChecking = false
@@ -98,6 +104,14 @@ class LeanBackUpdateViewModel : ViewModel() {
             try {
                 downloadOnce(_latestRelease.downloadUrl, latestFile, downloadFile)
             } catch (ex: Exception) {
+                // 取消不是代理失败：下载中途离开更新页、协程取消时，
+                // 取消异常也会走到这里——当成代理失败再走直链重试一次
+                // 是白试（取消后直链那次在入口就抛），残文件删掉、原样
+                // 抛出去，别让外层 catch 再弹“下载更新失败”
+                if (ex is CancellationException) {
+                    latestFile.delete()
+                    throw ex
+                }
                 // 代理挂了改走 GitHub 直链再试一次：mirror.ghproxy.com 实测
                 // 只接不答（TCP+TLS 都通、HTTP 一直没回包），直连 GitHub
                 // 能通；没走代理的更新源（Gitee）没有第二条路，直接走失败
@@ -115,6 +129,12 @@ class LeanBackUpdateViewModel : ViewModel() {
             _updateDownloaded = true
             LeanbackToastState.I.showToast("下载更新成功")
         } catch (ex: Exception) {
+            // 取消不是下载失败：离开更新页取消了下载，外层不能弹
+            // “下载更新失败”误导用户；残文件删掉、原样抛出去
+            if (ex is CancellationException) {
+                latestFile.delete()
+                throw ex
+            }
             log.e("下载更新失败", ex)
             // 残文件（下载中断 / 大小校验失败）不要留着，避免之后被误安装
             latestFile.delete()

@@ -1,6 +1,8 @@
 package top.yogiczy.mytv.ui.screens.leanback.update
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,5 +55,23 @@ class UpdateCheckCompletedTest {
 
         assertTrue(viewModel.checkCompleted)
         assertTrue(viewModel.isUpdateAvailable)
+    }
+
+    @Test
+    fun `cancelled check propagates cancellation instead of logging failure`() = runBlocking {
+        val viewModel = LeanBackUpdateViewModel()
+
+        // 检查中途离开更新页、LaunchedEffect 取消：取消异常不能被
+        // 当成普通检查失败记一条日志、更不能吞掉；没这行守卫时这里
+        // 不抛异常，只记一条“检查更新失败”
+        try {
+            viewModel.checkUpdate("2.2.10") { throw CancellationException("cancelled") }
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            assertEquals("cancelled", ex.message)
+        }
+
+        assertFalse(viewModel.checkCompleted)
+        assertFalse(viewModel.isCheckingUpdate)
     }
 }
