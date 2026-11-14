@@ -315,4 +315,25 @@ class M3uIptvParserTest {
         assertEquals("CCTV-1", result[0].iptvList[0].name)
         assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
     }
+
+    @Test
+    fun `display name empty after comma falls back to tvg-name or is skipped`() = runBlocking {
+        // 逗号后是空的：trim 后取不到非空显示名，回落到 tvg-name；
+        // 没有 tvg-name 的那条跳过——与“没逗号”那档走同一条 ?: 链，
+        // 但 trim 后为空这一步之前没有任何用例钉过
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视",
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 group-title="央视",
+            http://example.com/noname.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV-1", result[0].iptvList[0].channelName)
+    }
 }
