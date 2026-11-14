@@ -295,6 +295,7 @@ fun LeanbackMainContent(
                         settingsViewModel.iptvChannelFavoriteListVisible = it
                     },
                     onClose = { mainContentState.isPanelVisible = false },
+                    iptvFavoriteEnableProvider = { settingsViewModel.iptvChannelFavoriteEnable }
                 )
             }
 
