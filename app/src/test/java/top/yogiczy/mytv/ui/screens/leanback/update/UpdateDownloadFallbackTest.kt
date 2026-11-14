@@ -25,11 +25,11 @@ class UpdateDownloadFallbackTest {
         LeanbackToastState.I = LeanbackToastState(CoroutineScope(Dispatchers.Unconfined))
     }
 
-    private fun setupViewModel(downloadUrl: String) = runBlocking {
+    private fun setupViewModel(downloadUrl: String, downloadSize: Long = -1) = runBlocking {
         installToastState()
         LeanBackUpdateViewModel().also {
             it.checkUpdate("2.2.10") {
-                GitRelease(version = "9.9.9", downloadUrl = downloadUrl, downloadSize = -1)
+                GitRelease(version = "9.9.9", downloadUrl = downloadUrl, downloadSize = downloadSize)
             }
         }
     }
@@ -145,6 +145,27 @@ class UpdateDownloadFallbackTest {
         assertTrue(viewModel.updateDownloaded)
         assertEquals(listOf(proxyUrl, directUrl), calls)
         assertTrue(file.exists())
+    }
+
+    @Test
+    fun `size mismatch fails the download and deletes the partial file`() = runBlocking {
+        // 发行版里写明 100 字节、实际只下到 3 字节：分块传输干净断开也可能
+        // 悄悄截断，大小不对就当下载失败，不留残文件、不能装
+        val viewModel = setupViewModel(proxyUrl, downloadSize = 100)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                File(path).writeText("apk")
+            }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+
+        // 大小不对不是 404，走直链再试一次也一样截断，两次都失败才收尾
+        assertFalse(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl, directUrl), calls)
+        assertFalse(file.exists())
     }
 
     @Test
