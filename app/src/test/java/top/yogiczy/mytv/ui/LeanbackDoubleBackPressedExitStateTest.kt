@@ -80,4 +80,20 @@ class LeanbackDoubleBackPressedExitStateTest {
         now += 1
         assertFalse(s.allowExit)
     }
+
+    @Test
+    fun `间隔正好满 300ms 的第二次按压被接受并重新计时`() {
+        val s = state()
+        assertTrue(s.backPress())
+        now += LeanbackDoubleBackPressedExitState.MIN_GAP_MILLIS
+        // 正好 300ms：小于 300 才算同一物理按键的重复投递，300 整
+        // 应被接受为一次新按压、并把第一次按压的时间重记为现在。
+        // 旧用例只在 allowExit 上测过 300，没在 backPress() 上测过——
+        // 若 < 写成 <=，正好 300ms 的第二次按压会被当成重复投递丢掉
+        assertTrue(s.backPress())
+        // 刚重记完，距第一次按压 0ms，不在窗口内
+        assertFalse(s.allowExit)
+        now += 800
+        assertTrue(s.allowExit)
+    }
 }
