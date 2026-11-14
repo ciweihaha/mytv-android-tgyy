@@ -1,6 +1,10 @@
 package top.yogiczy.mytv.utils
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
 import okio.BufferedSource
@@ -32,6 +36,12 @@ object Downloader : Loggable() {
                 .callTimeout(0, TimeUnit.SECONDS)
                 .build()
             val request = okhttp3.Request.Builder().url(url).build()
+            val call = client.newCall(request)
+            // 取消要能打断阻塞的 execute()/copyTo：withContext 的取消是协作
+            // 式的，阻塞调用本身不会停——没这行时取消下载要等整包下完才抛，
+            // 约 25MB 的更新包在慢网下能拖很久；协程取消时直接取消这次
+            // HTTP 调用，读流立刻抛错；正常下完时这个回调不会跑
+            currentCoroutineContext().job.invokeOnCancellation { call.cancel() }
 
             try {
                 // 响应用完就关：原先只在成功读流时关了 body，HTTP 出错
@@ -39,7 +49,7 @@ object Downloader : Loggable() {
                 // 更新服务器出问题、反复下载失败会占满单 host 的连接槽，
                 // 后续下载一直等连接。use 保证成功、出错两条路都关，和
                 // 测速那边 .execute().use 的写法一致
-                client.newCall(request).execute().use { response ->
+                call.execute().use { response ->
                     if (!response.isSuccessful) {
                         throw HttpStatusException(
                             response.code,
@@ -57,6 +67,12 @@ object Downloader : Loggable() {
                 }
             } catch (ex: Exception) {
                 log.e("下载文件失败", ex)
+                // 取消不是失败：call.cancel() 抛的是 IOException，不是取消
+                // 异常——协程已取消说明这次失败就是取消，原样抛取消异常，
+                // 别包成网络错（1663 轮已让调用方按取消处理：删残文件、不
+                // 弹“下载更新失败”；包错了会把取消又绕回失败那条路）
+                if (ex is CancellationException) throw ex
+                currentCoroutineContext().ensureActive()
                 // 服务器回了明确状态码就原样抛：不是网络问题，别包成
                 // “请检查网络连接”误导用户去查网络
                 if (ex is HttpStatusException) throw ex
