@@ -116,4 +116,11 @@ class ClassicPanelFavoriteGroupTest {
         )
         assertEquals(-1, classicPanelGroupIndex(list, IptvGroup(name = "我的收藏")))
     }
+
+    @Test
+    fun `index of group in empty list is minus one`() {
+        // 空列表里按引用找一圈也找不到，和“不在列表里”同一条回 -1 的路，
+        // 但调用方 initialScrollIndex(-1) 夹回 0 的兜底只在这档上才真正走得到
+        assertEquals(-1, classicPanelGroupIndex(IptvGroupList(), IptvGroup(name = "我的收藏")))
+    }
 }
