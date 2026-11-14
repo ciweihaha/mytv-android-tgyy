@@ -1,8 +1,10 @@
 package top.yogiczy.mytv.ui.screens.leanback.update
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -194,6 +196,44 @@ class UpdateDownloadFallbackTest {
         assertFalse(viewModel.updateDownloaded)
         assertEquals(listOf(proxyUrl), calls)
         assertFalse(file.exists())
+    }
+
+    @Test
+    fun `下载进行中再次下载直接返回不重复下载`() = runBlocking {
+        val viewModel = setupViewModel(proxyUrl)
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<Unit>()
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        // 只有第一次下载卡在门闩上：没这行守卫时第二次调用也会进
+        // 假下载、同样卡住，测试会直接挂起而不是失败，所以第二次
+        // 调用走不卡的那条路——守卫一丢，这里就会多一次下载调用
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                if (calls.size == 1) {
+                    started.complete(Unit)
+                    releaseGate.await()
+                }
+                File(path).writeText("apk")
+            }
+
+        // 第一轮下载卡在假下载里：_isUpdating 已置 true
+        val first = async { viewModel.downloadAndUpdate(file, fakeDownload) }
+        started.await()
+
+        // 正在下时再调一次：应直接返回，第二次下载一次也不调——
+        // 这档之前没有任何单测（旧用例全是下完再下，_isUpdating
+        // 那行守卫一次也没走通过）；没这行守卫时两次下载会并行跑，
+        // 同一份安装包写两次、提示也弹两次
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        assertEquals(listOf(proxyUrl), calls)
+
+        releaseGate.complete(Unit)
+        first.await()
+        assertTrue(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl), calls)
+        assertTrue(file.exists())
     }
 
     @Test
