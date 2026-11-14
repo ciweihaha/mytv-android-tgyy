@@ -5,6 +5,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -266,6 +267,37 @@ class UpdateDownloadFallbackTest {
         assertFalse(viewModel.updateDownloaded)
         assertEquals(listOf(proxyUrl, proxyUrl, directUrl), calls)
         assertFalse(file.exists())
+    }
+
+    @Test
+    fun `download progress callback shows percentage toast`() = runBlocking {
+        // 假下载调一次进度回调 50 再卡住：downloadOnce 传给下载函数
+        // 的进度回调应弹“正在下载更新: 50%”；没传回调时用户下大包
+        // 全程看不到进度，旧单测发现不了（旧假下载一次也没调过
+        // 这个回调）。“开始下载更新”与进度提示是两条提示，换场要
+        // 300 毫秒，多等一倍（600 毫秒）再断言，免得机器慢时误判
+        val viewModel = setupViewModel(proxyUrl)
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<Unit>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { _, path, onProgress ->
+                onProgress?.invoke(50)
+                started.complete(Unit)
+                releaseGate.await()
+                File(path).writeText("apk")
+            }
+
+        val first = async { viewModel.downloadAndUpdate(file, fakeDownload) }
+        started.await()
+        delay(600)
+        assertTrue(LeanbackToastState.I.visible)
+        assertEquals("正在下载更新: 50%", LeanbackToastState.I.current.message)
+
+        releaseGate.complete(Unit)
+        first.await()
+        assertTrue(viewModel.updateDownloaded)
+        assertTrue(file.exists())
     }
 
     @Test
