@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Icon
 import androidx.tv.material3.ListItemDefaults
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
+import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.utils.HttpServer
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 
@@ -80,7 +81,17 @@ fun LeanbackSettingsCategoryListItem(
                 onSelect = {
                     if (isFocused) {
                         if (onSelected != null) onSelected()
-                        else if (remoteConfig) showServerUrlDialog = true
+                        // 没拿到局域网地址时不弹扫码框：serverUrl 会是
+                        // http://0.0.0.0:10481（HttpServer 没拿到地址时的
+                        // 兜底），手机扫了也连不上；改弹一句提示（“更多”页
+                        // 1176 轮同款修法的弹窗版）
+                        else if (remoteConfig) {
+                            if (HttpServer.serverUrl.contains("0.0.0.0")) {
+                                LeanbackToastState.I.showToast("未检测到局域网地址，请检查网络连接")
+                            } else {
+                                showServerUrlDialog = true
+                            }
+                        }
                     } else focusRequester.requestFocus()
                 },
                 onLongSelect = {

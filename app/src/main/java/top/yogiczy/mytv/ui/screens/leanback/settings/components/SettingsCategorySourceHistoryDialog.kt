@@ -25,6 +25,7 @@ import androidx.compose.ui.window.DialogProperties
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackQrcodeDialog
+import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.ui.utils.HttpServer
 import top.yogiczy.mytv.ui.utils.handleLeanbackKeyEvents
 import top.yogiczy.mytv.utils.initialScrollIndex
@@ -129,8 +130,17 @@ fun LeanbackSettingsSourceHistoryDialog(
                                 .onFocusChanged { isFocused = it.isFocused || it.hasFocus }
                                 .handleLeanbackKeyEvents(
                                     onSelect = {
-                                        if (isFocused) showDialog = true
-                                        else focusRequester.requestFocus()
+                                        // 没拿到局域网地址时不弹扫码框：serverUrl 会是
+                                        // http://0.0.0.0:10481（HttpServer 没拿到地址时的
+                                        // 兜底），手机扫了也连不上；改弹一句提示（“更多”页
+                                        // 1176 轮同款修法的弹窗版）
+                                        if (isFocused) {
+                                            if (HttpServer.serverUrl.contains("0.0.0.0")) {
+                                                LeanbackToastState.I.showToast("未检测到局域网地址，请检查网络连接")
+                                            } else {
+                                                showDialog = true
+                                            }
+                                        } else focusRequester.requestFocus()
                                     },
                                 ),
                             selected = false,
