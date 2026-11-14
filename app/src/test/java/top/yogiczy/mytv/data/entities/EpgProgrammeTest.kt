@@ -79,6 +79,24 @@ class EpgProgrammeTest {
     }
 
     @Test
+    fun `programme progress is exactly 0 at start`() {
+        // 刚开始那一刻进度正好是 0；传固定时间才能钉死这个边界
+        val now = 1_000_000L
+        val programme = EpgProgramme(startAt = now, endAt = now + 10_000, title = "刚开始")
+
+        assertEquals(0f, programme.progress(now), 0f)
+    }
+
+    @Test
+    fun `programme progress is exactly 1 at end`() {
+        // 刚播完那一刻进度正好是 1
+        val now = 1_000_000L
+        val programme = EpgProgramme(startAt = now - 10_000, endAt = now, title = "刚播完")
+
+        assertEquals(1f, programme.progress(now), 0f)
+    }
+
+    @Test
     fun `identical programmes at different indices have different keys`() {
         // 源里同一条节目被写了两遍：只按内容设键会撞键让列表崩掉
         val first = EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻联播")

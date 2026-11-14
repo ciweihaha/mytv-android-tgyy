@@ -35,11 +35,13 @@ data class EpgProgramme(
         /**
          * 节目进度：钳在 0~1 之间。退化节目（endAt <= startAt，如时间
          * 解析失败都记 0）返回 0；节目刚播完、重组时已越过 endAt 的
-         * 返回 1，避免 Infinity/NaN 或超界值进 fillMaxWidth 搞坏布局
+         * 返回 1，避免 Infinity/NaN 或超界值进 fillMaxWidth 搞坏布局。
+         * 时间可传参：默认用当前时间（与 isLive 同款写法），单测传
+         * 固定时间才能钉死开始/结束正好等于现在的边界
          */
-        fun EpgProgramme.progress(): Float {
+        fun EpgProgramme.progress(now: Long = System.currentTimeMillis()): Float {
             if (endAt <= startAt) return 0f
-            return ((System.currentTimeMillis() - startAt).toFloat() / (endAt - startAt))
+            return ((now - startAt).toFloat() / (endAt - startAt))
                 .coerceIn(0f, 1f)
         }
     }
