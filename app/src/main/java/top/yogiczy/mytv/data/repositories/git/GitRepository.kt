@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import top.yogiczy.mytv.data.repositories.git.parser.GitReleaseParser
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import top.yogiczy.mytv.utils.Loggable
 
@@ -34,7 +35,10 @@ class GitRepository : Loggable() {
             // Downloader（第 180 轮）、节目单拉取（第 181 轮）一致
             sharedHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    throw Exception("获取最新发行版失败: ${response.code}")
+                    throw HttpStatusException(
+                        response.code,
+                        "获取最新发行版失败：服务器返回 ${response.code}，请检查更新源地址"
+                    )
                 }
 
                 response.body?.string()
@@ -42,6 +46,9 @@ class GitRepository : Loggable() {
             }
         } catch (ex: Exception) {
             log.e("获取最新发行版失败", ex)
+            // 服务器回了明确状态码就原样抛：不是网络问题，别包成
+            // “请检查网络连接”误导用户去查网络
+            if (ex is HttpStatusException) throw ex
             throw Exception("获取最新发行版失败，请检查网络连接", ex)
         }
 

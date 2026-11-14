@@ -6,6 +6,7 @@ import okhttp3.Interceptor
 import okio.BufferedSource
 import okio.ForwardingSource
 import okio.buffer
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.sharedHttpClient
 import java.io.File
 import java.io.FileOutputStream
@@ -40,7 +41,10 @@ object Downloader : Loggable() {
                 // 测速那边 .execute().use 的写法一致
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        throw Exception("下载文件失败: ${response.code}")
+                        throw HttpStatusException(
+                            response.code,
+                            "下载文件失败：服务器返回 ${response.code}，请检查下载链接"
+                        )
                     }
 
                     val file = File(filePath)
@@ -53,6 +57,9 @@ object Downloader : Loggable() {
                 }
             } catch (ex: Exception) {
                 log.e("下载文件失败", ex)
+                // 服务器回了明确状态码就原样抛：不是网络问题，别包成
+                // “请检查网络连接”误导用户去查网络
+                if (ex is HttpStatusException) throw ex
                 throw Exception("下载文件失败，请检查网络连接", ex)
             }
         }
