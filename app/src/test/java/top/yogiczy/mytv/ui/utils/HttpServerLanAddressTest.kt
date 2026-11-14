@@ -80,4 +80,17 @@ class HttpServerLanAddressTest {
         )
         assertEquals("10.8.0.2", picked?.hostAddress)
     }
+
+    @Test
+    fun `prefers point-to-point site-local over point-to-point public`() {
+        // 只有 VPN 接口时也要先挑内网段：第三档（点对点内网）优先于
+        // 第四档（点对点其他），不能按列表顺序拿第一个
+        val picked = pickLanAddress(
+            listOf(
+                candidate("8.8.8.8", pointToPoint = true),
+                candidate("10.8.0.2", pointToPoint = true),
+            )
+        )
+        assertEquals("10.8.0.2", picked?.hostAddress)
+    }
 }
