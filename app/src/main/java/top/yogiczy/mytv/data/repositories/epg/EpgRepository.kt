@@ -41,6 +41,27 @@ internal fun decodeEpgListOrNull(json: String?): EpgList? {
 }
 
 /**
+ * 缓存里有没有正在播的节目：只看文件修改日期是不是今天会中招——
+ * 凌晨 00:00–05:32 拉到的还是服务端昨天的数据（早上 05:32 才合
+ * 并出今天的），带着今天的时间戳存下来，白天节目全播完了、
+ * currentProgrammes() 找不到正在播的，节目单整天显示无节目；
+ * 只按日期判会一直沿用这份缓存到明天。任一台有一档正在播才算
+ * 内容还新鲜，否则不管文件日期都当过期、重新拉取。时间范围与
+ * EpgProgramme.isLive() 一致（开始 <= 现在 < 结束），这里直接
+ * 按 now 参数比，方便单元测试用固定时间断言。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun hasLiveProgramme(
+    epgList: EpgList?,
+    now: Long = System.currentTimeMillis(),
+): Boolean {
+    if (epgList == null) return false
+    return epgList.any { epg ->
+        epg.programmes.any { it.startAt <= now && now < it.endAt }
+    }
+}
+
+/**
  * 未到刷新时间点时能不能直接用缓存返回：缓存能解开就用它（源文件一般
  * 覆盖多天，凌晨时段的节目多半在里面）；没缓存（首次启动、清过缓存）
  * 或缓存解不开时返回 null，调用方不等时间点直接走刷新——原先没缓存
@@ -292,9 +313,13 @@ class EpgRepository : FileCacheRepository("epg.json") {
         if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
             if (cachedEpgBeforeThreshold(cachedJson) != null) return null
         }
-        // JSON 缓存是今天的 → getEpgList 直接用缓存，不下载
-        if (!cachedJson.isNullOrBlank() &&
-            isSameDay(System.currentTimeMillis(), getCacheLastModified())
+        // JSON 缓存是今天的、且里面有正在播的节目 → getEpgList 直接用缓存，不下载；
+        // 只有今天的日期、内容却是昨天的（凌晨拉的旧数据），也要下载，
+        // 否则 getEpgList 刷新时还得同步再下一遍
+        val cachedList = decodeEpgListOrNull(cachedJson)
+        if (cachedList != null &&
+            isSameDay(System.currentTimeMillis(), getCacheLastModified()) &&
+            hasLiveProgramme(cachedList)
         ) return null
         return try {
             epgXmlRepository.getEpgXml(xmlUrl)
@@ -336,8 +361,15 @@ class EpgRepository : FileCacheRepository("epg.json") {
                 // 恢复；解不开就刷新——上面“未到时间点”那条分支也是
                 // 这个意思（缓存解不开时不等时间点直接刷新），只按日
                 // 期判会让这条兜底落空
+                // 内容过期也一样：文件是今天的、也能解开，但里面没有
+                // 一档正在播的节目——凌晨拉到的还是昨天的数据，带着
+                // 今天的时间戳存下来，白天全播完了；只按日期判会沿用
+                // 一整天、节目单一直显示无节目。没正在播的节目就当
+                // 过期、重新拉取
+                val decoded = decodeEpgListOrNull(cacheData)
                 !isSameDay(System.currentTimeMillis(), lastModified) ||
-                    decodeEpgListOrNull(cacheData) == null
+                    decoded == null ||
+                    !hasLiveProgramme(decoded)
             }) {
                 // P1：启动时已并行拉好的 XML 直接用，不再等直播源就绪后重新下载
                 val xmlString = prefetchedXml ?: epgXmlRepository.getEpgXml(xmlUrl)

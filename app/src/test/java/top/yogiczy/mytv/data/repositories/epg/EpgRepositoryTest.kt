@@ -17,6 +17,9 @@ import top.yogiczy.mytv.data.entities.Epg
 import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class EpgRepositoryTest {
     @get:Rule
@@ -26,6 +29,10 @@ class EpgRepositoryTest {
     fun setUp() {
         AppGlobal.cacheDir = tempFolder.root
     }
+
+    /** 按解析器主格式（yyyyMMddHHmmss Z，默认时区）格式化时间戳，供 XML 单测拼正在播的节目 */
+    private fun formatEpgTime(millis: Long): String =
+        SimpleDateFormat("yyyyMMddHHmmss Z", Locale.getDefault()).format(Date(millis))
 
     @Test
     fun `clearCache also clears the raw xml cache`() {
@@ -170,9 +177,12 @@ class EpgRepositoryTest {
 
     @Test
     fun `prefetch returns null when json cache is from today`() = runBlocking {
-        // JSON 缓存是今天的：调用方直接用缓存，不下载。阈值传 0 跳过
-        // “未到时间点”那条分支，只走“缓存是今天”这一条；只断言不
-        // 下载，不碰网络
+        // JSON 缓存是今天的、且里面有正在播的节目：调用方直接用缓存，
+        // 不下载。阈值传 0 跳过“未到时间点”那条分支，只走“缓存是今天”
+        // 这一条；只断言不下载，不碰网络。时间戳必须正在播——只有今天
+        // 的日期、内容却是昨天的旧缓存，现在也要下载（见下面那条单测
+        // 锁的 getEpgList 端到端行为）
+        val now = System.currentTimeMillis()
         val cacheFile = File(tempFolder.root, "epg.json")
         cacheFile.writeText(
             Json.encodeToString(
@@ -180,13 +190,19 @@ class EpgRepositoryTest {
                     Epg(
                         channel = "CCTV-1",
                         programmes = EpgProgrammeList(
-                            listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻"))
+                            listOf(
+                                EpgProgramme(
+                                    startAt = now - 30 * 60 * 1000L,
+                                    endAt = now + 30 * 60 * 1000L,
+                                    title = "新闻",
+                                )
+                            )
                         )
                     )
                 )
             )
         )
-        cacheFile.setLastModified(System.currentTimeMillis())
+        cacheFile.setLastModified(now)
 
         val result = EpgRepository().downloadEpgXmlIfNeeded("https://example.com/epg.xml", 0)
 
@@ -556,6 +572,174 @@ class EpgRepositoryTest {
         assertEquals(1, result.size)
         assertEquals("CCTV-2", result.first().channel)
         assertEquals("旧节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `hasLiveProgramme is true when a programme is live now`() {
+        val now = System.currentTimeMillis()
+        val list = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1000, endAt = now + 1000, title = "正在播"))
+                    )
+                )
+            )
+        )
+
+        assertTrue(hasLiveProgramme(list, now))
+    }
+
+    @Test
+    fun `hasLiveProgramme is false when all programmes already ended`() {
+        // 凌晨拉到的旧缓存就是这样：文件日期是今天，节目全是昨天的，
+        // 白天再看一档正在播的都没有
+        val now = System.currentTimeMillis()
+        val list = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 2000, endAt = now - 1000, title = "播完了"))
+                    )
+                )
+            )
+        )
+
+        assertFalse(hasLiveProgramme(list, now))
+    }
+
+    @Test
+    fun `hasLiveProgramme is false for future-only programmes`() {
+        val now = System.currentTimeMillis()
+        val list = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now + 1000, endAt = now + 2000, title = "还没开始"))
+                    )
+                )
+            )
+        )
+
+        assertFalse(hasLiveProgramme(list, now))
+    }
+
+    @Test
+    fun `hasLiveProgramme is false for empty list and null`() {
+        val now = System.currentTimeMillis()
+
+        assertFalse(hasLiveProgramme(EpgList(), now))
+        assertFalse(hasLiveProgramme(null, now))
+    }
+
+    @Test
+    fun `hasLiveProgramme is true when any channel has a live programme`() {
+        val now = System.currentTimeMillis()
+        val list = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 2000, endAt = now - 1000, title = "播完了"))
+                    )
+                ),
+                Epg(
+                    channel = "CCTV-2",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1000, endAt = now + 1000, title = "正在播"))
+                    )
+                ),
+            )
+        )
+
+        assertTrue(hasLiveProgramme(list, now))
+    }
+
+    @Test
+    fun `getEpgList refreshes when today cache has no live programme`() = runBlocking {
+        // 回归：凌晨拉到的旧缓存（文件是今天的、内容是昨天的）以前会
+        // 被当成未过期沿用一整天，节目单一直显示无节目；现在没正在
+        // 播的节目就算过期，走预下载的 XML 重新拉取
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-2",
+                        programmes = EpgProgrammeList(
+                            listOf(
+                                EpgProgramme(
+                                    startAt = now - 25 * 60 * 60 * 1000L,
+                                    endAt = now - 24 * 60 * 60 * 1000L,
+                                    title = "旧节目",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now)
+
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 30 * 60 * 1000L)}" stop="${formatEpgTime(now + 30 * 60 * 1000L)}" channel="cctv1"><title>正在播的节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("正在播的节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList uses today cache when it has a live programme`() = runBlocking {
+        // 反向锁死：有正在播的节目时仍按日期规则用缓存，不刷新。
+        // 地址写 127.0.0.1:9，一旦走刷新去下载立刻连接被拒抛错、
+        // 用例失败；走缓存时地址碰都不碰，单测全程不联网
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1",
+                        programmes = EpgProgrammeList(
+                            listOf(
+                                EpgProgramme(
+                                    startAt = now - 30 * 60 * 1000L,
+                                    endAt = now + 30 * 60 * 1000L,
+                                    title = "缓存里的直播",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now)
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = null,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1", result.first().channel)
+        assertEquals("缓存里的直播", result.first().programmes.first().title)
     }
 
     @Test
