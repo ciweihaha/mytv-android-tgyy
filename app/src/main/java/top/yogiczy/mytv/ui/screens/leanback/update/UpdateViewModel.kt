@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import top.yogiczy.mytv.data.entities.GitRelease
 import top.yogiczy.mytv.data.repositories.git.GitRepository
 import top.yogiczy.mytv.data.utils.Constants
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastProperty
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import top.yogiczy.mytv.utils.Downloader
@@ -100,6 +101,10 @@ class LeanBackUpdateViewModel : ViewModel() {
                 // 代理挂了改走 GitHub 直链再试一次：mirror.ghproxy.com 实测
                 // 只接不答（TCP+TLS 都通、HTTP 一直没回包），直连 GitHub
                 // 能通；没走代理的更新源（Gitee）没有第二条路，直接走失败
+                // 代理明确说没有这个文件（404）：直链是同一份文件，换条路
+                // 也一样没有——直接失败，不再白试一次；其他错（网络断、
+                // 代理 5xx、超时、文件大小不对）仍走直链再试一次
+                if (ex is HttpStatusException && ex.code == 404) throw ex
                 val directUrl = _latestRelease.downloadUrl.removePrefix(Constants.GITHUB_PROXY)
                 if (directUrl == _latestRelease.downloadUrl) throw ex
                 log.w("代理下载失败，改走 GitHub 直链重试", ex)

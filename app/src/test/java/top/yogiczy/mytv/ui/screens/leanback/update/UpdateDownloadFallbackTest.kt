@@ -9,6 +9,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.GitRelease
 import top.yogiczy.mytv.data.utils.Constants
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.ui.screens.leanback.toast.LeanbackToastState
 import java.io.File
 
@@ -103,5 +104,45 @@ class UpdateDownloadFallbackTest {
 
         assertFalse(viewModel.updateDownloaded)
         assertEquals(listOf(directUrl), calls)
+    }
+
+    @Test
+    fun `proxy 404 does not retry direct`() = runBlocking {
+        val viewModel = setupViewModel(proxyUrl)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, _, _ ->
+                calls.add(url)
+                throw HttpStatusException(404, "下载文件失败：服务器返回 404，请检查下载链接")
+            }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+
+        assertFalse(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl), calls)
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun `proxy 500 still retries direct`() = runBlocking {
+        val viewModel = setupViewModel(proxyUrl)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                if (url == proxyUrl) throw HttpStatusException(
+                    500,
+                    "下载文件失败：服务器返回 500，请检查下载链接"
+                )
+                File(path).writeText("apk")
+            }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+
+        assertTrue(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl, directUrl), calls)
+        assertTrue(file.exists())
     }
 }
