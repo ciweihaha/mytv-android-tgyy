@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.data.repositories
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yogiczy.mytv.AppGlobal
@@ -108,6 +109,11 @@ abstract class FileCacheRepository(
                 data = refreshed
                 setCacheData(data)
             } catch (ex: Exception) {
+                // 取消不算刷新失败：刷新中途被取消时，取消异常不能被
+                // 当成普通失败拿旧缓存顶上——调用方要按取消处理，取消
+                // 的加载也不该被记成一次成功加载；和节目单拉取那处
+                // （EpgRepository）只认取消就原样抛的写法一致
+                if (ex is CancellationException) throw ex
                 // 刷新失败时用旧缓存顶上（若有）：源服务器临时故障也不至于
                 // 无频道可看；换源时调用方已先清缓存，所以旧缓存只可能是
                 // 同源的。注意不重写缓存文件：时间戳不变，下次加载仍会重试刷新

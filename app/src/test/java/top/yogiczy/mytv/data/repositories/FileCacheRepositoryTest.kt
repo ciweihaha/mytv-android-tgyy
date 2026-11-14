@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.data.repositories
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,6 +46,22 @@ class FileCacheRepositoryTest {
         val result = repo.load(0) { throw RuntimeException("network down") }
 
         assertEquals("stale but usable", result)
+    }
+
+    @Test
+    fun `cancelled refresh propagates cancellation instead of reusing stale cache`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        repo.load(0) { "stale but usable" }
+
+        // 刷新中途被取消：取消异常不能被当成普通刷新失败、拿旧缓存
+        // 顶上——调用方要按取消处理；没这行守卫时这里会悄悄返回
+        // 旧缓存，等于把一次取消记成成功加载
+        try {
+            repo.load(0) { throw CancellationException("cancelled") }
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            assertEquals("cancelled", ex.message)
+        }
     }
 
     @Test
