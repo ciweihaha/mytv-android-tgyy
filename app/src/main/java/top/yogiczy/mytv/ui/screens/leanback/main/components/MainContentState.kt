@@ -99,6 +99,19 @@ class LeanbackMainContentState(
         playableHostsDirtyCount = 0
     }
 
+    /**
+     * 清掉可播放域名记忆：只写 SP 不够——镜像还在内存里，下次播起来
+     * flush 时会把旧的写回 SP、清了等于没清。设置页那路清完调 refresh()、
+     * 主界面状态重建、镜像随状态一起没了，所以那路没这个问题；快捷面板
+     * 那路不清不刷新，镜像一直留着，必须在这里一并丢掉，下次读镜像时
+     * 从已清空的 SP 重读
+     */
+    fun clearPlayableHosts() {
+        playableHostsMirror = null
+        playableHostsDirtyCount = 0
+        SP.iptvPlayableHostList = emptySet()
+    }
+
     private var _currentIptv by mutableStateOf(Iptv())
     val currentIptv get() = _currentIptv
 

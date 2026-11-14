@@ -346,7 +346,10 @@ fun LeanbackMainContent(
                     }
                 },
                 onClearCache = {
-                    settingsViewModel.iptvPlayableHostList = emptySet()
+                    // 只写 SP 不够：可播放域名还有一份内存镜像在主界面状态里，
+                    // 不刷新就一直留着，下次播起来会把旧的写回 SP——走
+                    // clearPlayableHosts() 把镜像一并丢掉
+                    mainContentState.clearPlayableHosts()
                     coroutineScope.launch {
                         // 只清目录内容，不删目录本身：AppGlobal.cacheDir 是
                         // 启动时取到的 File 引用，目录删了之后再写缓存会抛
