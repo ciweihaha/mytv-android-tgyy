@@ -237,6 +237,28 @@ class UpdateDownloadFallbackTest {
     }
 
     @Test
+    fun `size matches passes the download`() = runBlocking {
+        // 发行版写明 3 字节、实际也下到 3 字节：大小对得上就放行，
+        // 不能当成下载失败。这档之前没有任何单测——旧用例只测过
+        // 大小不对（100 vs 3 字节）与不校验（downloadSize = -1）；
+        // 校验写反（相等也抛错）时这里会失败，旧单测发现不了
+        val viewModel = setupViewModel(proxyUrl, downloadSize = 3)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                File(path).writeText("apk")
+            }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+
+        assertTrue(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl), calls)
+        assertTrue(file.exists())
+    }
+
+    @Test
     fun `no update available skips download entirely`() = runBlocking {
         // 没查过更新（isUpdateAvailable 为 false）：第一行守卫直接返回，
         // 一次也不下载、也不删文件。这档之前没有任何单测——旧用例
