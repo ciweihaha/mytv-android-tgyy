@@ -120,4 +120,75 @@ class ModifierUtilsTest {
             shouldConsumeLeanbackSelectKeyDown(KeyEvent.KEYCODE_DPAD_CENTER, map)
         )
     }
+
+    @Test
+    fun `onSettings 时菜单设置帮助 H 四个键都进表`() {
+        val map = leanbackKeyTapMap(onSettings = {}, sdkInt = 24)
+        assertEquals(
+            setOf(
+                KeyEvent.KEYCODE_MENU,
+                KeyEvent.KEYCODE_SETTINGS,
+                KeyEvent.KEYCODE_HELP,
+                KeyEvent.KEYCODE_H,
+            ),
+            map.keys,
+        )
+    }
+
+    @Test
+    fun `左右方向键在 API25 以上也注册系统导航键`() {
+        val leftBelow = leanbackKeyTapMap(onLeft = {}, sdkInt = 24)
+        assertEquals(setOf(KeyEvent.KEYCODE_DPAD_LEFT), leftBelow.keys)
+
+        val leftAbove = leanbackKeyTapMap(onLeft = {}, sdkInt = 25)
+        assertEquals(
+            setOf(
+                KeyEvent.KEYCODE_DPAD_LEFT,
+                KeyEvent.KEYCODE_SYSTEM_NAVIGATION_LEFT,
+            ),
+            leftAbove.keys,
+        )
+
+        val rightAbove = leanbackKeyTapMap(onRight = {}, sdkInt = 25)
+        assertEquals(
+            setOf(
+                KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_SYSTEM_NAVIGATION_RIGHT,
+            ),
+            rightAbove.keys,
+        )
+    }
+
+    @Test
+    fun `下方向键在 API25 以上注册频道下键与系统导航下键`() {
+        val map = leanbackKeyTapMap(onDown = {}, sdkInt = 25)
+        assertEquals(
+            setOf(
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_CHANNEL_DOWN,
+                KeyEvent.KEYCODE_SYSTEM_NAVIGATION_DOWN,
+            ),
+            map.keys,
+        )
+    }
+
+    @Test
+    fun `长按方向键各进长按表`() {
+        assertEquals(
+            setOf(KeyEvent.KEYCODE_DPAD_LEFT),
+            leanbackKeyLongTapMap(onLongLeft = {}).keys,
+        )
+        assertEquals(
+            setOf(KeyEvent.KEYCODE_DPAD_RIGHT),
+            leanbackKeyLongTapMap(onLongRight = {}).keys,
+        )
+        assertEquals(
+            setOf(KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP),
+            leanbackKeyLongTapMap(onLongUp = {}).keys,
+        )
+        assertEquals(
+            setOf(KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN),
+            leanbackKeyLongTapMap(onLongDown = {}).keys,
+        )
+    }
 }
