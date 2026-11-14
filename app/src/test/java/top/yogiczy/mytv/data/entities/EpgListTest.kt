@@ -339,6 +339,54 @@ class EpgListTest {
     }
 
     @Test
+    fun `duplicate channel names keep the first entry`() {
+        // 同名频道（两个源都叫一个名）：按名查留第一次出现的，跟原来
+        // firstOrNull 取到的那条一致；putIfAbsent 换成 put 会反悔
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                liveEpg("CCTV-1 综合", "cctv1").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "第一份"))
+                    )
+                ),
+                liveEpg("CCTV-1 综合", "cctv1b").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "第二份"))
+                    )
+                ),
+            )
+        )
+        val iptv = Iptv(name = "CCTV-1 综合", channelName = "CCTV-1 综合", tvgId = "cctv1")
+
+        assertEquals("第一份", epgList.currentProgrammes(iptv)?.now?.title)
+    }
+
+    @Test
+    fun `duplicate channel ids keep the first entry`() {
+        // 同 id 的两条节目单：按 id 查也留第一次出现的；名字复核走
+        // 第一份的频道名（tvg-name 写法不同时才走到 id 这条路）
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                liveEpg("CCTV-1 综合", "cctv1").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "第一份"))
+                    )
+                ),
+                liveEpg("CCTV-1 综合", "cctv1").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "第二份"))
+                    )
+                ),
+            )
+        )
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        assertEquals("第一份", epgList.currentProgrammes(iptv)?.now?.title)
+    }
+
+    @Test
     fun `name spelling check ignores digits spaces dash and plus`() {
         assertTrue(isSameEpgChannelName("CCTV综合", "CCTV-1 综合"))
         assertTrue(isSameEpgChannelName("CCTV体育赛事", "CCTV-5+ 体育赛事"))
