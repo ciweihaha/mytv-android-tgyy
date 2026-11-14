@@ -70,4 +70,23 @@ class LeanbackVideoPlayerLoadTimeoutTest {
             errors,
         )
     }
+
+    @Test
+    fun `re-prepare cancels the previous load timeout, only one timeout fires`() {
+        val player = FakeVideoPlayer()
+        val errors = mutableListOf<LeanbackVideoPlayer.PlaybackException>()
+        player.onError { it?.let { errors.add(it) } }
+
+        // 切台/重试会再次 prepare：旧那次挂起的加载超时必须取消，
+        // 否则旧超时会往新流里报一次多余的 LOAD_TIMEOUT
+        player.emitPrepared(timeoutMs = 100L)
+        Thread.sleep(50)
+        player.emitPrepared(timeoutMs = 100L)
+
+        Thread.sleep(1000)
+        assertEquals(
+            listOf(LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT),
+            errors,
+        )
+    }
 }
