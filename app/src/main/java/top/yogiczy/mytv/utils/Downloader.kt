@@ -1,11 +1,12 @@
 package top.yogiczy.mytv.utils
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.invokeOnCancellation
-import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
 import okio.BufferedSource
@@ -40,9 +41,17 @@ object Downloader : Loggable() {
             val call = client.newCall(request)
             // 取消要能打断阻塞的 execute()/copyTo：withContext 的取消是协作
             // 式的，阻塞调用本身不会停——没这行时取消下载要等整包下完才抛，
-            // 约 25MB 的更新包在慢网下能拖很久；协程取消时直接取消这次
-            // HTTP 调用，读流立刻抛错；正常下完时这个回调不会跑
-            currentCoroutineContext().job.invokeOnCancellation { call.cancel() }
+            // 约 25MB 的更新包在慢网下能拖很久。另起一个协程守着：父协程一
+            // 取消它就先收尾、顺手取消这次 HTTP 调用，读流立刻抛错；正常
+            // 下完时外层 finally 把它取消掉，对已完成的调用再取消也没影响
+            // （Job.invokeOnCancellation 不是公开 API，只能用这个公开写法）
+            val cancelCall = launch(start = CoroutineStart.UNDISPATCHED) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    call.cancel()
+                }
+            }
 
             try {
                 // 响应用完就关：原先只在成功读流时关了 body，HTTP 出错
@@ -78,6 +87,8 @@ object Downloader : Loggable() {
                 // “请检查网络连接”误导用户去查网络
                 if (ex is HttpStatusException) throw ex
                 throw Exception("下载文件失败，请检查网络连接", ex)
+            } finally {
+                cancelCall.cancel()
             }
         }
 
