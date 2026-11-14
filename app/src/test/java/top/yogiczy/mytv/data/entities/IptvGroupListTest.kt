@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvGroupIdx
 
 class IptvGroupListTest {
     @Test
@@ -86,5 +87,31 @@ class IptvGroupListTest {
         val favorites = groupList.favoriteIptvList(listOf("cctv1", "不存在的台"))
         assertEquals(1, favorites.size)
         assertEquals(cctv1, favorites[0])
+    }
+
+    @Test
+    fun `iptvGroupIdx returns group index of channel`() {
+        // 分组下标全程没单测：经典面板与分组列表两处调用点都包着
+        // max(0, …)，但下标本身（第几组、找不到回 -1）没人钉过
+        val target = Iptv(name = "目标", channelName = "target")
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "分组1", iptvList = IptvList(listOf(Iptv(name = "A")))),
+                IptvGroup(name = "分组2", iptvList = IptvList(listOf(Iptv(name = "B"), target))),
+            )
+        )
+
+        assertEquals(0, groupList.iptvGroupIdx(Iptv(name = "A")))
+        assertEquals(1, groupList.iptvGroupIdx(target))
+    }
+
+    @Test
+    fun `iptvGroupIdx returns minus one when channel is missing`() {
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "分组1", iptvList = IptvList(listOf(Iptv(name = "A")))))
+        )
+
+        assertEquals(-1, groupList.iptvGroupIdx(Iptv(name = "不存在")))
+        assertEquals(-1, IptvGroupList().iptvGroupIdx(Iptv(name = "不存在")))
     }
 }
