@@ -54,7 +54,9 @@ fun LeanbackSettingsCategoryApp(
         item {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "显示模式",
-                supportingContent = "短按切换应用显示模式",
+                // 文案与行为一致：点按只弹“暂未开放”，副文案原来写
+                // “短按切换应用显示模式”，点了却切不了，对不上
+                supportingContent = "暂未开放",
                 trailingContent = settingsViewModel.appDeviceDisplayType.label,
                 onSelected = {
                     Toast.makeText(context, "暂未开放", Toast.LENGTH_SHORT).show()
