@@ -1,6 +1,8 @@
 package top.yogiczy.mytv.ui.screens.leanback.update
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -73,5 +75,37 @@ class UpdateCheckCompletedTest {
 
         assertFalse(viewModel.checkCompleted)
         assertFalse(viewModel.isCheckingUpdate)
+    }
+
+    @Test
+    fun `检查进行中再次检查直接返回不重复拉取`() = runBlocking {
+        val viewModel = LeanBackUpdateViewModel()
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<GitRelease>()
+        var secondFetchCalls = 0
+
+        // 第一轮检查卡在拉取上（没回包）：_isChecking 已置 true
+        val first = async {
+            viewModel.checkUpdate("2.2.10") {
+                started.complete(Unit)
+                releaseGate.await()
+            }
+        }
+        started.await()
+
+        // 正在查时再调一次：应直接返回，第二次拉取一次也不调——
+        // 这档之前没有任何单测（旧用例全是查完再查，_isChecking
+        // 那行守卫一次也没走通过）；没这行守卫时两次拉取会并行跑，
+        // 后回来的那次会把先回来的结果盖掉
+        viewModel.checkUpdate("2.2.10") {
+            secondFetchCalls++
+            GitRelease(version = "9.9.9")
+        }
+        assertEquals(0, secondFetchCalls)
+
+        releaseGate.complete(GitRelease(version = "9.9.9"))
+        first.await()
+        assertTrue(viewModel.checkCompleted)
+        assertTrue(viewModel.isUpdateAvailable)
     }
 }
