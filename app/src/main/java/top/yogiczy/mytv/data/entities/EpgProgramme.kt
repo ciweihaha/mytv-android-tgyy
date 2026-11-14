@@ -24,9 +24,13 @@ data class EpgProgramme(
 ) {
     companion object {
         /**
-         * 是否正在直播
+         * 是否正在直播：左闭右开（开始 <= 现在 < 结束），与
+         * EpgRepository.hasLiveProgramme 一致。时间可传参：默认
+         * 用当前时间，单测传固定时间才能钉死开始/结束正好等于
+         * 现在的边界（否则 wall clock 在构造节目与调用之间走
+         * 动，边界永远钉不住）
          */
-        fun EpgProgramme.isLive() = System.currentTimeMillis() in startAt..<endAt
+        fun EpgProgramme.isLive(now: Long = System.currentTimeMillis()) = now in startAt..<endAt
 
         /**
          * 节目进度：钳在 0~1 之间。退化节目（endAt <= startAt，如时间

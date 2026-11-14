@@ -60,6 +60,25 @@ class EpgProgrammeTest {
     }
 
     @Test
+    fun `programme starting exactly now is live`() {
+        // 左闭：开始时间等于现在算正在播；传固定时间才能钉死这个
+        // 边界——无参调 isLive() 时 wall clock 会走动，钉不住
+        val now = 1_000_000L
+        val programme = EpgProgramme(startAt = now, endAt = now + 5_000, title = "刚开始")
+
+        assertTrue(programme.isLive(now))
+    }
+
+    @Test
+    fun `programme ending exactly now is not live`() {
+        // 右开：结束时间等于现在算已播完
+        val now = 1_000_000L
+        val programme = EpgProgramme(startAt = now - 5_000, endAt = now, title = "刚播完")
+
+        assertFalse(programme.isLive(now))
+    }
+
+    @Test
     fun `identical programmes at different indices have different keys`() {
         // 源里同一条节目被写了两遍：只按内容设键会撞键让列表崩掉
         val first = EpgProgramme(startAt = 1000, endAt = 2000, title = "新闻联播")
