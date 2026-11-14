@@ -618,6 +618,25 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList returns empty epg when stale cache is undecodable and refresh fails`() = runBlocking {
+        // 旧缓存是半截 JSON（解不开）、又是昨天的（过期、必须刷新），
+        // 刷新又连不上（127.0.0.1:9 丢弃端口）：刷新失败时 getOrRefresh
+        // 会拿半截旧缓存顶上，解码失败后给空节目单、不抛错——和“没
+        // 缓存可顶时原样抛错”是两条路，别混了
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText("""[{"channel":"CCTV-1"""")
+        cacheFile.setLastModified(System.currentTimeMillis() - 25 * 60 * 60 * 1000L)
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = null,
+        )
+
+        assertEquals(0, result.size)
+    }
+
+    @Test
     fun `hasLiveProgramme is true when a programme is live now`() {
         val now = System.currentTimeMillis()
         val list = EpgList(
