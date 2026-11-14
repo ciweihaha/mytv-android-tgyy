@@ -66,4 +66,18 @@ class LeanbackDoubleBackPressedExitStateTest {
         now += LeanbackDoubleBackPressedExitState.MIN_GAP_MILLIS
         assertTrue(s.allowExit)
     }
+
+    @Test
+    fun `确认窗口上沿正好满 2 秒不允许退出`() {
+        val s = state()
+        s.backPress()
+        // 窗口是 [300, 2000)：1999ms 还在窗口内、2000ms 整已出窗口
+        // （until 不含上沿）。旧用例只测过 2500ms（远超窗口），上沿
+        // 这一点一次也没钉过——若写成闭区间，2000ms 整也会放行，
+        // 旧单测发现不了
+        now += 1999
+        assertTrue(s.allowExit)
+        now += 1
+        assertFalse(s.allowExit)
+    }
 }
