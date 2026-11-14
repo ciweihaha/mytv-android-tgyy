@@ -96,4 +96,26 @@ class ToastStateTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun `自定义时长按自定义毫秒藏起`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val state = LeanbackToastState(scope)
+        val observeJob = scope.launch { state.observe() }
+        try {
+            // Custom(500)：toMs 必须回 500、不是默认 2300——更新页
+            // 在用 Custom(10_000)，这档一次也没测过
+            state.showToast("A", duration = LeanbackToastProperty.Duration.Custom(500))
+            delay(200)
+            assertTrue(state.visible)
+
+            // 500 毫秒防抖到期就藏起；若 toMs 错回默认 2300，
+            // 这里还会是可见，单测会失败
+            delay(800)
+            assertFalse(state.visible)
+        } finally {
+            observeJob.cancel()
+            scope.cancel()
+        }
+    }
 }
