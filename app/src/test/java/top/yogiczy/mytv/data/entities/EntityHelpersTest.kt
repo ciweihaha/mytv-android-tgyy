@@ -128,6 +128,29 @@ class EntityHelpersTest {
     }
 
     @Test
+    fun `currentProgrammes prefers programme starting after current ends over overlapping future`() {
+        // 正在播 + 重叠档（开始在当前结束之前）+ 正点下一档（开始正好
+        // 等于当前结束）：下一档应是正点那档，不是重叠那档——
+        // nextAfterEnd 非空时不走 earliestFuture 退路；两者重合的
+        // 旧用例分不出这一档
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now, endAt = now + 20_000, title = "正在播"),
+                    EpgProgramme(startAt = now + 10_000, endAt = now + 15_000, title = "重叠档"),
+                    EpgProgramme(startAt = now + 20_000, endAt = now + 30_000, title = "正点下一档"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertEquals("正在播", current?.now?.title)
+        assertEquals("正点下一档", current?.next?.title)
+    }
+
+    @Test
     fun `currentProgrammes returns null for empty programme list`() {
         assertNull(Epg(channel = "cctv1").currentProgrammes())
     }
