@@ -11,6 +11,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import java.io.File
 import java.net.InetSocketAddress
 import java.util.concurrent.CountDownLatch
@@ -69,6 +70,36 @@ class DownloaderTest {
             assertTrue("取消后应在 5 秒内停下，实际 ${elapsed}ms", elapsed < 5_000)
         } finally {
             holdBody.countDown()
+            server.stop(0)
+        }
+    }
+
+    /** 服务器回明确状态码时原样抛 HttpStatusException，不包成网络错。 */
+    @Test
+    fun `http error status throws HttpStatusException with the status code`() = runBlocking {
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/missing.apk") { exchange ->
+                exchange.sendResponseHeaders(404, -1)
+                exchange.close()
+            }
+            start()
+        }
+        try {
+            val url = "http://127.0.0.1:${server.address.port}/missing.apk"
+            val file = tempFile()
+            val thrown = try {
+                withTimeout(10_000) {
+                    Downloader.downloadTo(url, file.path, null)
+                }
+                null
+            } catch (e: Throwable) {
+                e
+            }
+            assertTrue(
+                "404 应原样抛 HttpStatusException，实际是 $thrown",
+                thrown is HttpStatusException && thrown.code == 404,
+            )
+        } finally {
             server.stop(0)
         }
     }
