@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.invokeOnCancellation
 import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
