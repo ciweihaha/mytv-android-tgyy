@@ -14,9 +14,9 @@ class Media3TransientIoRetryTest {
     }
 
     @Test
-    fun `2007 和 2008 是瞬时网络错`() {
-        assertEquals(2007, Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
-        assertEquals(2008, Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)
+    fun `连接失败（2001）和连接超时（2002）是瞬时网络错`() {
+        assertEquals(2001, Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED)
+        assertEquals(2002, Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT)
         assertTrue(isTransientIoError(Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
         assertTrue(isTransientIoError(Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT))
     }
