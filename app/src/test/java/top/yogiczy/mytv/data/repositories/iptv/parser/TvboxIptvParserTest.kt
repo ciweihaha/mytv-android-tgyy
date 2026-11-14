@@ -218,4 +218,40 @@ class TvboxIptvParserTest {
             result[0].iptvList[0].urlList,
         )
     }
+
+    @Test
+    fun `nameless genre line does not reset group name`() = runBlocking {
+        // 无名分组行不能把分组名写成空串：后面的频道仍进原来的分组，
+        // 而不是进一个无名假分组
+        val data = """
+            央视,#genre#
+            CCTV-1,http://example.com/cctv1.m3u8
+            ,#genre#
+            CCTV-5,http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
+
+    @Test
+    fun `line without comma is skipped`() = runBlocking {
+        val data = """
+            央视,#genre#
+            CCTV-1,http://example.com/cctv1.m3u8
+            CCTV-9
+            CCTV-5,http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
 }
