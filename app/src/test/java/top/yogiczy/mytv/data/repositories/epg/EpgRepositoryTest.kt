@@ -660,6 +660,42 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `hasLiveProgramme is true when a programme starts exactly now`() {
+        // 左闭：开始时间等于 now 算正在播
+        val now = System.currentTimeMillis()
+        val list = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now, endAt = now + 1000, title = "刚开始"))
+                    )
+                )
+            )
+        )
+
+        assertTrue(hasLiveProgramme(list, now))
+    }
+
+    @Test
+    fun `hasLiveProgramme is false when a programme ends exactly now`() {
+        // 右开：结束时间等于 now 算已播完
+        val now = System.currentTimeMillis()
+        val list = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 2000, endAt = now, title = "刚播完"))
+                    )
+                )
+            )
+        )
+
+        assertFalse(hasLiveProgramme(list, now))
+    }
+
+    @Test
     fun `getEpgList refreshes when today cache has no live programme`() = runBlocking {
         // 回归：凌晨拉到的旧缓存（文件是今天的、内容是昨天的）以前会
         // 被当成未过期沿用一整天，节目单一直显示无节目；现在没正在
