@@ -195,4 +195,23 @@ class UpdateDownloadFallbackTest {
         assertEquals(listOf(proxyUrl), calls)
         assertFalse(file.exists())
     }
+
+    @Test
+    fun `no update available skips download entirely`() = runBlocking {
+        // 没查过更新（isUpdateAvailable 为 false）：第一行守卫直接返回，
+        // 一次也不下载、也不删文件。这档之前没有任何单测——旧用例
+        // 全是 setupViewModel 先查出有更新再下；没这行守卫时这里会
+        // 直接下 _latestRelease 里的默认空地址，旧单测发现不了
+        val viewModel = LeanBackUpdateViewModel()
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, _, _ -> calls.add(url) }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+
+        assertFalse(viewModel.updateDownloaded)
+        assertTrue(calls.isEmpty())
+        assertTrue(file.exists())
+    }
 }
