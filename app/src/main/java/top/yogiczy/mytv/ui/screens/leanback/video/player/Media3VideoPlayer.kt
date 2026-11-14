@@ -96,6 +96,27 @@ internal fun nextUntriedContentType(attempts: Map<Int, Boolean>): Int? = when {
     else -> null
 }
 
+/**
+ * 瞬时网络错：拉列表或分片时 HTTP 回了错误状态（上游一抖回 503、
+ * 票据过期那一下回 403）、连接失败或超时。ExoPlayer 内部已重试
+ * 过几次才上报，但直接判死刑会让只有一条线路的台永久卡死；
+ * 同 BEHIND_LIVE_WINDOW 的模式，在同一条线路上再试几次。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun isTransientIoError(errorCode: Int): Boolean =
+    errorCode == Media3PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+        errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+        errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+
+/**
+ * 瞬时网络错该不该在同一条线路上再试一次：是瞬时网络错、且这条
+ * 线路上已经试过的次数还没到上限。retriesSoFar 是这条线路上已经
+ * 试过的次数。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldRetryTransientIoError(errorCode: Int, retriesSoFar: Int): Boolean =
+    isTransientIoError(errorCode) && retriesSoFar < LeanbackMedia3VideoPlayer.MAX_IO_ERROR_RETRIES
+
 @OptIn(UnstableApi::class)
 class LeanbackMedia3VideoPlayer(
     private val context: Context,
@@ -125,8 +146,15 @@ class LeanbackMedia3VideoPlayer(
      */
     private var behindLiveWindowRetries = 0
 
+    /**
+     * 瞬时网络错重试计数：与 BEHIND_LIVE_WINDOW 同模式——同一条线路
+     * 最多重试 3 次，播稳（READY）后清零；超限上报原始错误走正常换线流程
+     */
+    private var ioErrorRetries = 0
+
     companion object {
         const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 3
+        const val MAX_IO_ERROR_RETRIES = 3
 
         /**
          * P7：SSLContext 只建一次：首次建时 SSLContext.init 配全新
@@ -279,6 +307,22 @@ class LeanbackMedia3VideoPlayer(
                     videoPlayer.prepare()
                 }
             }
+            // 瞬时网络错（2004/2007/2008）：上游抖动、票据过期瞬间或
+            // 连接超时，同一条线路再拉一次列表能拿到新票据；直接判死
+            // 刑会让只有一条线路的台永久卡死。重试 3 次还不行再上报
+            // 原始错误走正常换线流程
+            else if (isTransientIoError(ex.errorCode)) {
+                if (shouldRetryTransientIoError(ex.errorCode, ioErrorRetries)) {
+                    ioErrorRetries++
+                    videoPlayer.seekToDefaultPosition()
+                    videoPlayer.prepare()
+                } else {
+                    ioErrorRetries = 0
+                    triggerError(
+                        PlaybackException(ex.errorCodeName, ex.errorCode)
+                    )
+                }
+            }
             // 当解析容器不支持时，尝试使用其他解析容器
             else if (ex.errorCode == Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED) {
                 val uri = videoPlayer.currentMediaItem?.localConfiguration?.uri
@@ -303,8 +347,9 @@ class LeanbackMedia3VideoPlayer(
                 triggerError(null)
                 triggerBuffering(true)
             } else if (playbackState == Player.STATE_READY) {
-                // 播起来了：位置落后计数清零，下次再落后重新数
+                // 播起来了：位置落后计数和瞬时网络错计数清零，下次再出错重新数
                 behindLiveWindowRetries = 0
+                ioErrorRetries = 0
                 triggerReady()
 
                 updatePositionJob?.cancel()
@@ -423,6 +468,7 @@ class LeanbackMedia3VideoPlayer(
     override fun prepare(url: String) {
         contentTypeAttempts.clear()
         behindLiveWindowRetries = 0
+        ioErrorRetries = 0
         prepare(Uri.parse(url))
     }
 
