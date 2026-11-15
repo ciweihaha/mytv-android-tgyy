@@ -390,4 +390,11 @@ class M3uIptvParserTest {
         assertEquals("CCTV-1", result[1].iptvList[0].name)
         assertEquals(listOf("http://example.com/cctv1-ws.m3u8"), result[1].iptvList[0].urlList)
     }
+
+    @Test
+    fun `empty input parses to empty list`() = runBlocking {
+        // 壳 818 轮姊妹检查的后半边（M3u 那半）：空源解析出空列表、不崩；
+        // isSupport 空串那档已有用例，parse("") 出空列表一次也没断言过
+        assertTrue(parser.parse("").isEmpty())
+    }
 }
