@@ -260,6 +260,14 @@ class ProgressPercentTest {
         assertNull(progressPercent(100, 0))
         assertNull(progressPercent(100, -1))
     }
+
+    @Test
+    fun `overfull reports above 100 without clamping`() {
+        // 收到比总长多：上传的 Content-Length 含分隔符只是近似值，
+        // 原来两处都照实返回超过 100 的数、不额外夹到 100
+        assertEquals(150, progressPercent(150, 100))
+        assertEquals(101, progressPercent(101, 100))
+    }
 }
 
 /**
