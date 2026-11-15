@@ -56,15 +56,6 @@ class LeanbackVideoPlayerState(
         instance.prepare(url)
     }
 
-    /**
-     * 设置重连提示：播放器自己在延迟重试等待时发信号；主界面在自动重调
-     * 等待时也用它——同一面旗子，两处生产者；重连开火、播稳、报错、
-     * 切台时各方负责清掉
-     */
-    fun setReconnecting(reconnecting: Boolean) {
-        isReconnecting = reconnecting
-    }
-
     fun play() {
         instance.play()
     }
