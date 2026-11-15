@@ -11,6 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import top.yogiczy.mytv.AppGlobal
+import java.io.File
 
 class FileCacheRepositoryTest {
     @get:Rule
@@ -201,5 +202,20 @@ class FileCacheRepositoryTest {
 
         assertTrue(tempFolder.root.listFiles()?.none { it.name.endsWith(".tmp") } == true)
         assertTrue(java.io.File(tempFolder.root, "test.txt").isDirectory)
+    }
+
+    @Test
+    fun `refresh failure picks up cache written during refresh`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        // 开头没有缓存；刷新操作里另一路并发刷新刚把新缓存写好、随后刷新失败：
+        // 应捡回那份新写好的缓存，而不是抛错——没有这行再读，开头没读到
+        // 东西时这里会直接把刷新失败抛出去
+        val result = repo.load(0) {
+            File(tempFolder.root, "test.txt").writeText("concurrent fresh data")
+            throw RuntimeException("network down")
+        }
+
+        assertEquals("concurrent fresh data", result)
+        assertEquals("concurrent fresh data", repo.cached())
     }
 }
