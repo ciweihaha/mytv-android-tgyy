@@ -150,7 +150,13 @@ internal fun keepEpgChannel(
 ): Boolean {
     if (channelId == null || channelName == null) return false
     if (filteredChannels.isEmpty()) return true
-    return filteredChannels.contains(channelName) || filteredChannels.contains(channelId)
+    // 大小写不敏感：备用源的频道 id 是大写（CCTV1）、直播源的 tvg-id
+    // 是小写（cctv1），大小写敏感比会对不上、整台被滤掉。any + equals
+    // ignoreCase 线性扫一遍过滤集：过滤集约 112 项、节目单频道约
+    // 500 个，5 万多次短串比较可忽略；Set 在这里只起去重作用
+    return filteredChannels.any {
+        it.equals(channelName, ignoreCase = true) || it.equals(channelId, ignoreCase = true)
+    }
 }
 
 /**
@@ -226,8 +232,9 @@ class EpgRepository : FileCacheRepository("epg.json") {
         // 复制整个列表，是 O(n²)；大节目单（多频道×多天）下很慢
         val channelNames = mutableMapOf<String, String>()
         val channelProgrammes = mutableMapOf<String, MutableList<EpgProgramme>>()
-        // 过滤列表转 Set 再查：源频道上千时，List.contains 每个 channel
-        // 都线性扫一遍，解析一次就是频道数×过滤数次字符串比较
+        // 过滤列表转 Set 去重：keepEpgChannel 里按忽略大小写比对，
+        // Set 在这里只起去重作用；过滤集约 112 项、节目单频道约
+        // 500 个，线性扫一遍是 5 万多次短串比较、可忽略
         val filteredChannelSet = filteredChannels.toSet()
 
         var eventType = parser.eventType

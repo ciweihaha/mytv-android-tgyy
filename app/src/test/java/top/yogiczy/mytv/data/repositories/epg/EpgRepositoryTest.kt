@@ -82,6 +82,22 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `keepEpgChannel matches id case-insensitively`() {
+        // 备用源的频道 id 是大写（CCTV1）、直播源的 tvg-id 是小写
+        // （cctv1）：大小写敏感比会对不上、整台被滤掉
+        val filter = setOf("cctv1")
+
+        assertTrue(keepEpgChannel("CCTV1", "CCTV1", filter))
+    }
+
+    @Test
+    fun `keepEpgChannel matches display-name case-insensitively`() {
+        val filter = setOf("CCTV-1 综合")
+
+        assertTrue(keepEpgChannel("cctv1", "cctv-1 综合", filter))
+    }
+
+    @Test
     fun `keepEpgChannel drops channel when neither matches`() {
         val filter = setOf("cctv1")
 
