@@ -106,6 +106,11 @@ class M3uIptvParserTest {
         assertTrue(parser.isSupport("https://example.com/list.m3u", "\uFEFF#EXTM3U\n#EXTINF:-1,CCTV-1"))
         assertTrue(parser.isSupport("https://example.com/list.m3u", "\n\n#EXTM3U\n#EXTINF:-1,CCTV-1"))
         assertTrue(parser.isSupport("https://example.com/list.m3u", "\uFEFF\n#EXTM3U\n#EXTINF:-1,CCTV-1"))
+        // 壳 826 轮姊妹检查：反复转存、拼接过的源开头可能带两个 BOM，
+        // 或 BOM 在空行后面——isSupport 是 indexOfFirst 跳过全部前导
+        // BOM/空白，本来就认，但这两档一次也没断言过
+        assertTrue(parser.isSupport("https://example.com/list.m3u", "\uFEFF\uFEFF#EXTM3U\n#EXTINF:-1,CCTV-1"))
+        assertTrue(parser.isSupport("https://example.com/list.m3u", "\n\uFEFF#EXTM3U\n#EXTINF:-1,CCTV-1"))
         assertFalse(parser.isSupport("https://example.com/list.m3u", "\uFEFF央视,#genre#\nCCTV-1,http://example.com/1"))
     }
 
@@ -118,6 +123,21 @@ class M3uIptvParserTest {
         assertEquals(1, result.size)
         assertEquals("CCTV-1", result[0].iptvList[0].name)
         assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+    }
+
+    @Test
+    fun `parses double-BOM playlist normally`() = runBlocking {
+        // 壳 826 轮姊妹检查：双 BOM 开头，isSupport 那档已断言认得出，
+        // 解析整条走下来也要不断言——首行是带双 BOM 的 #EXTM3U，
+        // 不是 #EXTINF 行，直接跳过，频道照常解析
+        val data = "\uFEFF\uFEFF#EXTM3U\n#EXTINF:-1 tvg-name=\"CCTV-1\" group-title=\"央视\",CCTV-1\nhttp://example.com/cctv1.m3u8\n#EXTINF:-1 tvg-name=\"CCTV-5\" group-title=\"央视\",CCTV-5\nhttp://example.com/cctv5.m3u8\n"
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
     }
 
     @Test
