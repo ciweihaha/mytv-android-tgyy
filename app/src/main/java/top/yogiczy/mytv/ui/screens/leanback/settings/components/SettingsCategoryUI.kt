@@ -31,6 +31,17 @@ internal fun nextScaleRatio(current: Float): Float =
     if (current >= SCALE_MAX) SCALE_MIN
     else (current + SCALE_STEP).coerceIn(SCALE_MIN, SCALE_MAX)
 
+// “时间显示”行副文案：四档模式各一句话；整点/半点两档要带上前后秒数。
+// 原来 when 直接写在界面里、测不到；抽出来钉死四档文案（仍留在设置页
+// 这份文件里不动，见 SP.UiTimeShowMode 上的注释）。
+internal fun timeShowSupportingText(mode: SP.UiTimeShowMode, rangeSeconds: Long): String =
+    when (mode) {
+        SP.UiTimeShowMode.HIDDEN -> "不显示时间"
+        SP.UiTimeShowMode.ALWAYS -> "总是显示时间"
+        SP.UiTimeShowMode.EVERY_HOUR -> "整点前后${rangeSeconds}s显示时间"
+        SP.UiTimeShowMode.HALF_HOUR -> "半点前后${rangeSeconds}s显示时间"
+    }
+
 @Composable
 fun LeanbackSettingsCategoryUI(
     modifier: Modifier = Modifier,
@@ -84,12 +95,10 @@ fun LeanbackSettingsCategoryUI(
 
             LeanbackSettingsCategoryListItem(
                 headlineContent = "时间显示",
-                supportingContent = when (settingsViewModel.uiTimeShowMode) {
-                    SP.UiTimeShowMode.HIDDEN -> "不显示时间"
-                    SP.UiTimeShowMode.ALWAYS -> "总是显示时间"
-                    SP.UiTimeShowMode.EVERY_HOUR -> "整点前后${timeShowRangeSeconds}s显示时间"
-                    SP.UiTimeShowMode.HALF_HOUR -> "半点前后${timeShowRangeSeconds}s显示时间"
-                },
+                supportingContent = timeShowSupportingText(
+                    settingsViewModel.uiTimeShowMode,
+                    timeShowRangeSeconds,
+                ),
                 trailingContent = settingsViewModel.uiTimeShowMode.label,
                 onSelected = {
                     settingsViewModel.uiTimeShowMode =
