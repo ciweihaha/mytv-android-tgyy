@@ -117,8 +117,8 @@ class IsIPv6Test {
     }
 
     @Test
-    fun `bracketed ipv6 urls are ipv6`() {
-        // 带方括号的写法：括号内判断，带端口与路径都不影响
+    fun `bracketed ipv6 live source urls are ipv6`() {
+        // 带方括号的写法：括号内判断，带端口、路径与查询串都不影响
         assertTrue("http://[2409:8087:5e01:34::20]:6610/ZTE_CMS/00000001000000060000000000000131/index.m3u8?IAS".isIPv6())
         assertTrue("[::1]".isIPv6())
         assertTrue("[2001:db8::1]:8080".isIPv6())
