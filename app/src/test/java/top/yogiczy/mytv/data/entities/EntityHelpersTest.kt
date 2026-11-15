@@ -288,4 +288,47 @@ class EntityHelpersTest {
         assertSame(groupList.iptvList, groupList.iptvList)
         assertEquals(emptyList<Iptv>(), IptvGroupList().iptvList)
     }
+
+    @Test
+    fun `currentProgrammes picks first on tied future start times`() {
+        // 两个未来节目开始时间完全相同：稍后播放应取列表里先写的那档
+        // （循环里用严格小于比较，平局时先写的留下来）；改成小于等
+        // 于时后写的那档会顶掉先写的，这里会失败
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now + 10_000, endAt = now + 20_000, title = "先写的"),
+                    EpgProgramme(startAt = now + 10_000, endAt = now + 30_000, title = "后写的"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertNull(current?.now)
+        assertEquals("先写的", current?.next?.title)
+    }
+
+    @Test
+    fun `currentProgrammes picks first on tied next start times`() {
+        // 正在播 + 两档下一档开始时间都正好等于当前档结束：下一档应
+        // 取列表里先写的那档（nextAfterEnd 也是严格小于比较，平局
+        // 取第一个）；改成小于等于时后写的那档会顶掉先写的
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now, endAt = now + 20_000, title = "正在播"),
+                    EpgProgramme(startAt = now + 20_000, endAt = now + 30_000, title = "先写的下一档"),
+                    EpgProgramme(startAt = now + 20_000, endAt = now + 40_000, title = "后写的下一档"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertEquals("正在播", current?.now?.title)
+        assertEquals("先写的下一档", current?.next?.title)
+    }
 }
