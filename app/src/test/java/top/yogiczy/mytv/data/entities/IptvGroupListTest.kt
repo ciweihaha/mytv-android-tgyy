@@ -90,6 +90,20 @@ class IptvGroupListTest {
     }
 
     @Test
+    fun `台号两位与三位边界`() {
+        // 壳线 774 轮同款：补零只补到两位——第 10 个台是“10”不是“010”，
+        // 第 100 个台是“100”、补零不截断；旧用例只测过“01”“02”。
+        val channels = List(100) { Iptv(name = "CCTV-$it", channelName = "cctv$it") }
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "央视", iptvList = IptvList(channels)))
+        )
+
+        assertEquals("10", groupList.channelNoText(channels[9]))
+        assertEquals("99", groupList.channelNoText(channels[98]))
+        assertEquals("100", groupList.channelNoText(channels[99]))
+    }
+
+    @Test
     fun `iptvGroupIdx returns group index of channel`() {
         // 分组下标全程没单测：经典面板与分组列表两处调用点都包着
         // max(0, …)，但下标本身（第几组、找不到回 -1）没人钉过
