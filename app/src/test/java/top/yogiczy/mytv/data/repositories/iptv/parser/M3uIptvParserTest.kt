@@ -336,4 +336,29 @@ class M3uIptvParserTest {
         assertEquals("CCTV-1", result[0].iptvList[0].name)
         assertEquals("CCTV-1", result[0].iptvList[0].channelName)
     }
+
+    @Test
+    fun `duplicate display name keeps the first lines channelName and tvgId`() = runBlocking {
+        // 同名频道多行并进一条时地址都留着，但 channelName 与 tvgId
+        // 取第一条的：之前那档重复行元数据全相同，分不清先赢还是后赢
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="cctv1" tvg-name="CCTV综合" group-title="央视",CCTV-1
+            http://example.com/cctv1-a.m3u8
+            #EXTINF:-1 tvg-id="cctv1-hd" tvg-name="CCTV-1 高清" group-title="央视",CCTV-1
+            http://example.com/cctv1-b.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV综合", result[0].iptvList[0].channelName)
+        assertEquals("cctv1", result[0].iptvList[0].tvgId)
+        assertEquals(
+            listOf("http://example.com/cctv1-a.m3u8", "http://example.com/cctv1-b.m3u8"),
+            result[0].iptvList[0].urlList,
+        )
+    }
 }
