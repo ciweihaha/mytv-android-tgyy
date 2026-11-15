@@ -29,10 +29,10 @@ class Media3TransientIoRetryTest {
     }
 
     @Test
-    fun `2004 连报三次都重试、第四次上报`() {
+    fun `2004 连报五次都重试、第六次上报`() {
         val errorCode = Media3PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
         var retries = 0
-        repeat(3) {
+        repeat(5) {
             assertTrue(shouldRetryTransientIoError(errorCode, retries))
             retries++
         }
@@ -50,14 +50,18 @@ class Media3TransientIoRetryTest {
     }
 
     @Test
-    fun `第 1 次重试等 1 秒、第 2 次 2 秒、第 3 次 3 秒`() {
-        assertEquals(1000L, transientIoRetryDelayMs(1))
-        assertEquals(2000L, transientIoRetryDelayMs(2))
-        assertEquals(3000L, transientIoRetryDelayMs(3))
+    fun `第 1 次重试等 1 秒、第 2 次 2 秒、第 3 次 3 秒、第 4 次 5 秒、第 5 次 8 秒`() {
+        assertEquals(1000L, retryDelayMs(1))
+        assertEquals(2000L, retryDelayMs(2))
+        assertEquals(3000L, retryDelayMs(3))
+        assertEquals(5000L, retryDelayMs(4))
+        assertEquals(8000L, retryDelayMs(5))
     }
 
     @Test
-    fun `还没重试时不等待`() {
-        assertEquals(0L, transientIoRetryDelayMs(0))
+    fun `还没重试时不等待、超过 5 次按 8 秒封顶`() {
+        assertEquals(0L, retryDelayMs(0))
+        assertEquals(0L, retryDelayMs(-1))
+        assertEquals(8000L, retryDelayMs(6))
     }
 }

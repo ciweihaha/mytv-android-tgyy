@@ -7,10 +7,10 @@ import org.junit.Test
 
 class Media3BehindLiveWindowRetryTest {
     @Test
-    fun `BEHIND_LIVE_WINDOW 连报三次都重试、第四次上报`() {
+    fun `BEHIND_LIVE_WINDOW 连报五次都重试、第六次上报`() {
         val errorCode = Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
         var retries = 0
-        repeat(3) {
+        repeat(5) {
             assertTrue(shouldRetryBehindLiveWindow(errorCode, retries))
             retries++
         }
