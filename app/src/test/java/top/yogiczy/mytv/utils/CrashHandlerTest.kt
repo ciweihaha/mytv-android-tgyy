@@ -71,8 +71,44 @@ class CrashHandlerTest {
             deviceModel = "?",
         )
 
-        assertTrue(report.length <= 16_000)
+        assertEquals(16_000, report.length)
         assertTrue(report.startsWith("天光云影闪退报告"))
+    }
+
+    @Test
+    fun `报告正好16000字符时原样返回`() {
+        // 堆栈帧由 setStackTrace 精确控制；版本号在报告里只出现一次，
+        // 先量出固定部分长度，再把版本号垫到正好 16000 字符。
+        val throwable = RuntimeException("boom").apply {
+            stackTrace = arrayOf(
+                StackTraceElement("com.example.Foo", "bar", "Foo.java", 1)
+            )
+        }
+        val probe = CrashHandler.formatCrashReport(
+            threadName = "main",
+            throwable = throwable,
+            timestamp = 0L,
+            appVersion = "",
+            androidVersion = "?",
+            androidSdk = 0,
+            deviceModel = "?",
+        )
+        val pad = 16_000 - probe.length
+        assertTrue(pad > 0)
+
+        val report = CrashHandler.formatCrashReport(
+            threadName = "main",
+            throwable = throwable,
+            timestamp = 0L,
+            appVersion = "x".repeat(pad),
+            androidVersion = "?",
+            androidSdk = 0,
+            deviceModel = "?",
+        )
+
+        assertEquals(16_000, report.length)
+        // 最后一帧完整在末尾，说明正好 16000 时没有被截
+        assertTrue(report.endsWith("at com.example.Foo.bar(Foo.java:1)\n"))
     }
 
     @Test
