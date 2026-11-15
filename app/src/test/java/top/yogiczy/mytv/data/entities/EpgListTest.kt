@@ -76,6 +76,18 @@ class EpgListTest {
     }
 
     @Test
+    fun `falls back to tvg-id when channel name is lowercase`() {
+        // 壳 816 轮姊妹检查：直播源里小写写的“cctv综合”，按名查不到、
+        // 按 tvg-id=cctv1 找回后名字复核要过大小写这一关；1940 轮只
+        // 钉了比对函数本身，这档走完整匹配、名字复核在 epgFor 里
+        val epgList = EpgList(listOf(liveEpg("CCTV-1 综合", "cctv1")))
+        val iptv = Iptv(name = "cctv综合", channelName = "cctv综合", tvgId = "cctv1")
+
+        assertEquals("正在播", epgList.currentProgrammes(iptv)?.now?.title)
+        assertEquals("CCTV-1 综合", epgList.epgFor(iptv)?.channel)
+    }
+
+    @Test
     fun `falls back to tvg-id when tvg-name is a bare id`() {
         // tvg-name 是纯 id（"cctv1"）的源：拿它对节目单名 "CCTV-1 综合"
         // 永远对不上，id 兜底等于没开；显示名和节目单名是同一套叫法，
