@@ -436,4 +436,23 @@ class UpdateDownloadFallbackTest {
         assertTrue(calls.isEmpty())
         assertTrue(file.exists())
     }
+
+    @Test
+    fun `failed download shows failure toast`() = runBlocking {
+        // 两路都失败：外层 catch 弹“下载更新失败”一次也没断言过——
+        // 没这句提示时用户只看到下载没反应；提示换场要 300 毫秒，
+        // 多等一倍（600 毫秒）再断言，和进度提示那档同一写法
+        val viewModel = setupViewModel(proxyUrl)
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { _, _, _ -> throw RuntimeException("network down") }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        delay(600)
+
+        assertFalse(viewModel.updateDownloaded)
+        assertFalse(file.exists())
+        assertTrue(LeanbackToastState.I.visible)
+        assertEquals("下载更新失败", LeanbackToastState.I.current.message)
+    }
 }
