@@ -224,6 +224,10 @@ class EpgRepositoryTest {
         // 地址故意写成 127.0.0.1:9（discard 端口、无人监听）：一旦实现
         // 回退到重新下载，立刻连接被拒抛错、用例失败；走预下载时地址
         // 碰都不碰，单测全程不联网
+        // 备用源地址也一样写 discard 端口：本文件大部分用例的预下载
+        // XML 都是写死的过期日期（20261113），不断言兜底时备用源一
+        // 拉就命中、结果会被备用源盖掉；只测兜底本身的那条用例才传
+        // 真实可用的备用源（预先写好的 epg.xml 缓存）
         val xml = """
             <?xml version="1.0" encoding="UTF-8"?>
             <tv>
@@ -236,6 +240,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -261,6 +266,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -289,6 +295,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -323,6 +330,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = decoded,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -362,6 +370,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -404,6 +413,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -552,6 +562,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -578,6 +589,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -604,6 +616,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -629,6 +642,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -655,6 +669,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -679,6 +694,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -706,6 +722,7 @@ class EpgRepositoryTest {
             filteredChannels = listOf("CCTV-1 综合"),
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -731,6 +748,7 @@ class EpgRepositoryTest {
             filteredChannels = listOf("cctv2"),
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -761,6 +779,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 24,
             prefetchedXml = null,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -788,6 +807,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 24,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -820,6 +840,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = null,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -841,6 +862,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = null,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(0, result.size)
@@ -1005,6 +1027,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -1043,6 +1066,7 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = null,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
         )
 
         assertEquals(1, result.size)
@@ -1086,6 +1110,7 @@ class EpgRepositoryTest {
                 "http://127.0.0.1:9/epg.xml",
                 refreshTimeThreshold = 0,
                 prefetchedXml = null,
+                backupXmlUrl = "http://127.0.0.1:9/backup.xml",
             )
             fail("没缓存又刷新失败时应抛错")
         } catch (_: Exception) {
