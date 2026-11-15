@@ -42,8 +42,11 @@ fun LeanbackUpdateScreen(
 
         val latestRelease = updateViewModel.latestRelease
         if (
-            updateViewModel.isUpdateAvailable &&
-            latestRelease.version != settingsViewModel.appLastLatestVersion
+            shouldRemindUpdate(
+                updateViewModel.isUpdateAvailable,
+                latestRelease.version,
+                settingsViewModel.appLastLatestVersion,
+            )
         ) {
             settingsViewModel.appLastLatestVersion = latestRelease.version
 
@@ -90,6 +93,17 @@ fun LeanbackUpdateScreen(
         },
     )
 }
+
+/**
+ * 启动 3 秒后查到新版时要不要提醒：有更新、且这个版本号不是上次已经提醒
+ * 过的，才提醒——否则同一版每次启动都弹一次。`appLastLatestVersion`
+ * 为空是从没提醒过。只抽判断本身，3 秒延迟与弹框/提示仍在界面里。
+ */
+internal fun shouldRemindUpdate(
+    isUpdateAvailable: Boolean,
+    latestVersion: String,
+    lastLatestVersion: String,
+): Boolean = isUpdateAvailable && latestVersion != lastLatestVersion
 
 /**
  * 有安装权限就直接装包，返回 true；没权限返回 false，由调用方决定是提示还是去申请。
