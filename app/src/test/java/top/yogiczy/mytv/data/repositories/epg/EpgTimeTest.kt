@@ -37,6 +37,20 @@ class EpgTimeTest {
     }
 
     @Test
+    fun `negative glued timezone parses to the same instant`() {
+        // 美洲源的负时区：贴着秒的 -0800 只能走第一档 Z（主解析
+        // 要求时区前面有空格，贴着秒的进不了主解析）；08:00-0800
+        // 是 UTC 16:00，即 +0800 的次日 00:00
+        assertEquals(1794499200000L, parseEpgTimeFallback("20261112080000-0800"))
+    }
+
+    @Test
+    fun `negative glued colon timezone parses to the same instant`() {
+        // 同上，冒号写法走第三档 XXX
+        assertEquals(1794499200000L, parseEpgTimeFallback("20261112080000-08:00"))
+    }
+
+    @Test
     fun `no timezone is read as local time`() {
         val expected = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
             .parse("20261112080000")!!.time
