@@ -40,6 +40,33 @@ class EpgListTest {
     }
 
     @Test
+    fun `name match wins over id match pointing at a different entry`() {
+        // 按名查到和按 id 查到指向不同条目：名字对上“湖南卫视”，
+        // id 却指向“湖南卫视备”（上游 id 标错的同款）；现有“按名
+        // 查到就赢”那档名字与 id 指向同一条，分不清先按名还是
+        // 先按 id——先按 id 的话复核不过会回 null、好节目单丢了
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                liveEpg("湖南卫视", "hnws").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "正份"))
+                    )
+                ),
+                liveEpg("湖南卫视备", "hnws2").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "备份"))
+                    )
+                ),
+            )
+        )
+        val iptv = Iptv(name = "湖南卫视", channelName = "湖南卫视", tvgId = "hnws2")
+
+        assertEquals("湖南卫视", epgList.epgFor(iptv)?.channel)
+        assertEquals("正份", epgList.currentProgrammes(iptv)?.now?.title)
+    }
+
+    @Test
     fun `falls back to tvg-id when names differ in spelling`() {
         val epgList = EpgList(listOf(liveEpg("CCTV-1 综合", "cctv1")))
         val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
