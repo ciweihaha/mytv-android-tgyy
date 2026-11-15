@@ -238,6 +238,8 @@ class HumanizeMsTest {
         assertEquals("3秒", 3_000L.humanizeMs())
         assertEquals("15秒", 15_000L.humanizeMs())
         assertEquals("59秒", 59_000L.humanizeMs())
+        // 刚好不到 60 秒：整数除法截断，仍是 59 秒
+        assertEquals("59秒", 59_999L.humanizeMs())
     }
 
     @Test
@@ -245,6 +247,8 @@ class HumanizeMsTest {
         assertEquals("1分钟", 60_000L.humanizeMs())
         assertEquals("5分钟", 300_000L.humanizeMs())
         assertEquals("59分钟", 3_599_000L.humanizeMs())
+        // 刚好不到 60 分钟：整数除法截断，仍是 59 分钟
+        assertEquals("59分钟", 3_599_999L.humanizeMs())
     }
 
     @Test
@@ -252,5 +256,7 @@ class HumanizeMsTest {
         assertEquals("1小时", 3_600_000L.humanizeMs())
         assertEquals("2小时", 7_200_000L.humanizeMs())
         assertEquals("24小时", 86_400_000L.humanizeMs())
+        // 刚好不到 24 小时：仍是 23 小时（天光没有“天”那档）
+        assertEquals("23小时", 86_399_999L.humanizeMs())
     }
 }
