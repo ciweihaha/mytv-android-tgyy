@@ -124,6 +124,22 @@ class EpgListTest {
     }
 
     @Test
+    fun `id match rejected when display-name is another channel's tvg-id`() {
+        // 壳 846 轮姊妹检查：节目单显示名本身就是个 tvg-id
+        // （cctv1），但它是另一个台的 id、不是当前这台的
+        // （cctv5）：复核新接受的“显示名 == tvg-id”那档只认当
+        // 前这台的 tvg-id，别的台的 id 不能把节目单贴过来。
+        // 显示名是台名时拒绝的那档（上一条用例）盖不住这条——
+        // 显示名长得像 id 时，错写成“只要显示名像 id 就认”也会
+        // 把这台贴错
+        val epgList = EpgList(listOf(liveEpg("cctv1", "cctv5")))
+        val iptv = Iptv(name = "CCTV-1 综合", channelName = "CCTV-1 综合", tvgId = "cctv5")
+
+        assertNull(epgList.epgFor(iptv))
+        assertNull(epgList.currentProgrammes(iptv))
+    }
+
+    @Test
     fun `id match with unrelated names is rejected`() {
         // 上游把海南卫视的 id 写成了湖南卫视备的 id（hnws2）：只按 id 认会
         // 把湖南卫视备的节目单贴到海南卫视上；名字对不上就宁可不贴
