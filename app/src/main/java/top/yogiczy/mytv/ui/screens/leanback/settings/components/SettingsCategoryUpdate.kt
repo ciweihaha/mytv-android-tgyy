@@ -26,8 +26,7 @@ fun LeanbackSettingsCategoryUpdate(
         item {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "更新强提醒",
-                supportingContent = if (settingsViewModel.updateForceRemind) "检测到新版本时会弹窗提醒"
-                else "检测到新版本时仅用提示条提示",
+                supportingContent = updateForceRemindSupportingText(settingsViewModel.updateForceRemind),
                 trailingContent = {
                     Switch(checked = settingsViewModel.updateForceRemind, onCheckedChange = null)
                 },
@@ -38,6 +37,15 @@ fun LeanbackSettingsCategoryUpdate(
         }
     }
 }
+
+/**
+ * “更新强提醒”行的说明文字：开 → 检测到新版本时弹窗提醒，关 →
+ * 只用提示条提示。从界面里抽出来，只为能离线断言开/关两档写没
+ * 写对；行为逐字不变。
+ */
+internal fun updateForceRemindSupportingText(forceRemind: Boolean): String =
+    if (forceRemind) "检测到新版本时会弹窗提醒"
+    else "检测到新版本时仅用提示条提示"
 
 @Preview
 @Composable
