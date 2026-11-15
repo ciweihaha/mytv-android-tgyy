@@ -874,6 +874,50 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList before threshold refreshes from prefetched xml when cache has no live programme`() = runBlocking {
+        // 未到时间点（阈值传 24）、缓存能解开但里面全是播完的节目：
+        // ec40633 之前这里直接沿用旧缓存，0 点到阈值之间一直显示
+        // 昨天的节目；现在没正在播的节目就当过期、直接走刷新。预
+        // 下载的 XML 里有正在播的节目就用它——ec40633 自己的用例
+        // 只锁了“备用源兜底”那条路，预下载这条路一次也没断言过；
+        // 一旦改回旧逻辑，这条用例会直接返回旧缓存的“旧节目”
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = now - 7200_000, endAt = now - 3600_000, title = "旧节目"))
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now)
+
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 30 * 60 * 1000L)}" stop="${formatEpgTime(now + 30 * 60 * 1000L)}" channel="cctv1"><title>正在播的节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 24,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("正在播的节目", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList before threshold refreshes when cache is undecodable`() = runBlocking {
         // 未到时间点但缓存解不开（写半截 JSON 模拟截断）：不等时间点，
         // 直接走刷新。没修之前这里会落空——getOrRefresh 只按日期判
