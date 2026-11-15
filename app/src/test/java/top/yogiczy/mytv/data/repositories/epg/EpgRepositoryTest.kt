@@ -3,6 +3,10 @@ package top.yogiczy.mytv.data.repositories.epg
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -17,6 +21,7 @@ import top.yogiczy.mytv.data.entities.Epg
 import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
+import top.yogiczy.mytv.data.repositories.epg.fetcher.EpgFetcher
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -284,6 +289,40 @@ class EpgRepositoryTest {
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList parses double-BOM xml after decodeBody strips it`() = runBlocking {
+        // 壳 833 轮姊妹检查：1954 轮只在 decodeBody 那层断言了去 BOM，
+        // 去完的串到底能不能进解析器、拼出节目，一直没端到端锁死；
+        // 拼起来走一遍：双 BOM 的响应体先过 decodeBody、再当预下载
+        // XML 进 getEpgList，节目应正常解析出来。去 BOM 那步一旦
+        // 回退，解析器在 "PI must not start with xml" 上抛错、用例失败
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+        val response = Response.Builder()
+            .request(Request.Builder().url("https://example.com/epg.xml").build())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body(("\uFEFF\uFEFF" + xml).toResponseBody())
+            .build()
+        val decoded = EpgFetcher.decodeBody(response)
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = decoded,
         )
 
         assertEquals(1, result.size)
