@@ -58,8 +58,7 @@ fun LeanbackSettingsCategoryIptv(
         item {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "换台反转",
-                supportingContent = if (settingsViewModel.iptvChannelChangeFlip) "方向键上：下一个频道；方向键下：上一个频道"
-                else "方向键上：上一个频道；方向键下：下一个频道",
+                supportingContent = channelChangeFlipSupportingText(settingsViewModel.iptvChannelChangeFlip),
                 trailingContent = {
                     Switch(
                         checked = settingsViewModel.iptvChannelChangeFlip,
@@ -159,6 +158,16 @@ fun LeanbackSettingsCategoryIptv(
         }
     }
 }
+
+/**
+ * “换台反转”行的说明文字：反转开 → 方向键上切下一个频道、方向键下切
+ * 上一个频道；反转关 → 相反。两句话里“上/下”与“上一个/下一个”各出现
+ * 一次，写反了肉眼很难发现；行为对过主界面 `MainContent` 里的
+ * `moveChannelUp` / `moveChannelDown`，文案与实际方向一致。
+ */
+internal fun channelChangeFlipSupportingText(flip: Boolean): String =
+    if (flip) "方向键上：下一个频道；方向键下：上一个频道"
+    else "方向键上：上一个频道；方向键下：下一个频道"
 
 @Preview
 @Composable
