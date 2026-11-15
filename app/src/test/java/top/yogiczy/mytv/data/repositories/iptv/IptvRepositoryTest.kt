@@ -62,6 +62,38 @@ class IptvRepositoryTest {
     }
 
     @Test
+    fun `getIptvGroupList without simplify keeps all groups`() = runBlocking {
+        // 不精简那条路一次也没端到端断言过：else 分支原样返回解析结果，
+        // 一旦被改成也过滤，四个分组会被悄悄砍成两个、用例失败。缓存
+        // 与地址写法与上面那条同款，全程不联网
+        val m3u = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-name="湖南卫视" group-title="卫视",湖南卫视
+            http://example.com/hunan.m3u8
+            #EXTINF:-1 tvg-name="BBC 新闻" group-title="国际",BBC 新闻
+            http://example.com/bbc.m3u8
+            #EXTINF:-1 tvg-name="凤凰中文" group-title="港澳",凤凰中文
+            http://example.com/phoenix.m3u8
+        """.trimIndent()
+        File(tempFolder.root, "iptv.txt").writeText(m3u)
+
+        val result = IptvRepository().getIptvGroupList(
+            "http://127.0.0.1:9/live.m3u",
+            cacheTime = 60_000,
+            simplify = false,
+        )
+
+        assertEquals(4, result.size)
+        assertEquals(listOf("央视", "卫视", "国际", "港澳"), result.map { it.name })
+        assertEquals(listOf("CCTV-1"), result[0].iptvList.map { it.name })
+        assertEquals(listOf("湖南卫视"), result[1].iptvList.map { it.name })
+        assertEquals(listOf("BBC 新闻"), result[2].iptvList.map { it.name })
+        assertEquals(listOf("凤凰中文"), result[3].iptvList.map { it.name })
+    }
+
+    @Test
     fun `simplify keeps cctv regardless of case`() {
         assertTrue(simplifyTest(Iptv(name = "CCTV-1")))
         assertTrue(simplifyTest(Iptv(name = "cctv-1")))
