@@ -55,11 +55,12 @@ data class EpgList(
      * 的 tvg-id 和节目单 channel 的 id 是同一套（默认源 50 个带
      * tvg-id 的台全部能在节目单里按 id 对上），名字写法不同时靠它兜底；
      * 没 id 的条目不进表。同名频道（两个源都叫一个名）留第一次出现的，
-     * 跟按名那份一致。
+     * 跟按名那份一致。键统一存小写、查时也小写：备用源的 id 是大写
+     * （CCTV1），直播源的 tvg-id 是小写（cctv1），原样做键查不到。
      */
     val byChannelId: Map<String, Epg> by lazy {
         buildMap {
-            value.forEach { if (it.id.isNotBlank()) putIfAbsent(it.id, it) }
+            value.forEach { if (it.id.isNotBlank()) putIfAbsent(it.id.lowercase(Locale.ROOT), it) }
         }
     }
 
@@ -77,10 +78,16 @@ data class EpgList(
     fun epgFor(iptv: Iptv): Epg? {
         byChannel[iptv.channelName]?.let { return it }
         if (iptv.tvgId.isBlank()) return null
-        val byId = byChannelId[iptv.tvgId] ?: return null
+        val byId = byChannelId[iptv.tvgId.lowercase(Locale.ROOT)] ?: return null
         return byId.takeIf {
             isSameEpgChannelName(iptv.channelName, it.channel) ||
-                isSameEpgChannelName(iptv.name, it.channel)
+                isSameEpgChannelName(iptv.name, it.channel) ||
+                // 节目单显示名本身就是 tvg-id 的源（如备用源的 CCTV1
+                // 对 tvg-id cctv1）：名字复核按写法比永远对不上，
+                // 但显示名与 tvg-id 相等本身就是同一台的强证据；
+                // 显示名是别的台名时这条不成立，海南/湖南、4K/8K
+                // 的拦法还在
+                it.channel.equals(iptv.tvgId, ignoreCase = true)
         }
     }
 

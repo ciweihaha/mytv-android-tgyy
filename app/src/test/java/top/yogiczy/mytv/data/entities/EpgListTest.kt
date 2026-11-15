@@ -100,6 +100,30 @@ class EpgListTest {
     }
 
     @Test
+    fun `falls back to tvg-id ignoring id case`() {
+        // 备用源的频道 id 是大写（CCTV1）、直播源的 tvg-id 是小写
+        // （cctv1）：id 表的键原样存、查不到；键与查都小写后对上，
+        // 显示名 CCTV1 与 tvg-id 相等也过了复核
+        val epgList = EpgList(listOf(liveEpg("CCTV1", "CCTV1")))
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        assertEquals("正在播", epgList.currentProgrammes(iptv)?.now?.title)
+        assertEquals("CCTV1", epgList.epgFor(iptv)?.channel)
+    }
+
+    @Test
+    fun `id match still rejected when display-name differs from tvg-id`() {
+        // 复核新接受“显示名 == tvg-id”那档，不能把原来拦错台的
+        // 口子撕开：显示名是别的台名、id 碰巧对上时仍拒绝；这里
+        // id 还是大写，顺带锁死大小写不敏感的查表没放宽复核
+        val epgList = EpgList(listOf(liveEpg("湖南卫视备", "HNWS2")))
+        val iptv = Iptv(name = "海南卫视", channelName = "海南卫视", tvgId = "hnws2")
+
+        assertNull(epgList.epgFor(iptv))
+        assertNull(epgList.currentProgrammes(iptv))
+    }
+
+    @Test
     fun `id match with unrelated names is rejected`() {
         // 上游把海南卫视的 id 写成了湖南卫视备的 id（hnws2）：只按 id 认会
         // 把湖南卫视备的节目单贴到海南卫视上；名字对不上就宁可不贴
