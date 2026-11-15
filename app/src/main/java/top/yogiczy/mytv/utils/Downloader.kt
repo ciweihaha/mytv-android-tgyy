@@ -68,9 +68,18 @@ object Downloader : Loggable() {
                     }
 
                     val file = File(filePath)
+                    // 建输出流失败（如目标父目录不存在）单独包一层中文原因：
+                    // 原样抛 FileNotFoundException 时，日志里只有裸路径，
+                    // 与“下载文件失败…”的其它分支不一致；只包建流这一步，
+                    // 写一半断流仍走原路，别把网络错也说成写文件错
+                    val outputStream = try {
+                        FileOutputStream(file)
+                    } catch (ex: Exception) {
+                        throw Exception("下载文件失败：无法写入目标文件", ex)
+                    }
                     // 流式写入：原先 body.bytes() 会把整个文件读进内存，
                     // 在低内存电视盒子上下载 APK（~25 MB）时容易 OOM
-                    FileOutputStream(file).use { fos ->
+                    outputStream.use { fos ->
                         response.body?.byteStream()?.use { it.copyTo(fos) }
                             ?: throw Exception("下载文件失败: 响应体为空")
                     }
@@ -83,6 +92,10 @@ object Downloader : Loggable() {
                 // 弹“下载更新失败”；包错了会把取消又绕回失败那条路）
                 if (ex is CancellationException) throw ex
                 currentCoroutineContext().ensureActive()
+                // 建输出流失败已包过中文原因（“无法写入目标文件”）：原样抛，
+                // 别再包成“请检查网络连接”误导用户去查网络——本地写文件
+                // 失败和网络没关系
+                if (ex.message == "下载文件失败：无法写入目标文件") throw ex
                 // 服务器回了明确状态码就原样抛：不是网络问题，别包成
                 // “请检查网络连接”误导用户去查网络
                 if (ex is HttpStatusException) throw ex

@@ -240,11 +240,12 @@ class DownloaderTest {
         }
     }
 
-    /** 目标父目录不存在：建文件流就抛错，包成网络错、不留残文件；downloadTo 本身不建目录。 */
+    /** 目标父目录不存在：建文件流失败包中文原因、不留残文件；downloadTo 本身不建目录。 */
     @Test
-    fun `missing parent dir throws network message and leaves no file`() = runBlocking {
-        // 壳 822 轮姊妹检查：天光这边直接写目标文件、没有 .tmp 中间文件，
-        // 断言只钉目标文件不存在；FileNotFoundException 走统一的包错那条路
+    fun `missing parent dir throws write failure message and leaves no file`() = runBlocking {
+        // 壳 823 轮姊妹检查：建输出流失败单独包一层“无法写入目标文件”，
+        // 别再包成“请检查网络连接”误导用户去查网络；1946 轮断言的
+        // 是旧的网络错文案，这轮随生产修法改过来
         val body = "apk-bytes".toByteArray()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
             createContext("/ok.apk") { exchange ->
@@ -268,8 +269,8 @@ class DownloaderTest {
                 e
             }
             assertTrue(
-                "父目录不存在应包成网络错，实际是 $thrown",
-                thrown is Exception && thrown.message?.contains("请检查网络连接") == true,
+                "父目录不存在应报无法写入目标文件，实际是 $thrown",
+                thrown is Exception && thrown.message?.contains("无法写入目标文件") == true,
             )
             assertTrue("目标文件不应存在", !target.exists())
         } finally {
