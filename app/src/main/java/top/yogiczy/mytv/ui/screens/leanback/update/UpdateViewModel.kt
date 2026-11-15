@@ -33,6 +33,15 @@ class LeanBackUpdateViewModel : ViewModel() {
     private var _checkCompleted by mutableStateOf(false)
     val checkCompleted get() = _checkCompleted
 
+    /**
+     * 最近一次检查是否失败（断网等）：失败时设置页“应用更新”行要显示
+     * “检查更新失败”而不是“尚未检查”——失败和从未检查是两回事，之前
+     * 只靠 checkCompleted 区分不开，失败后那行一直谎称“尚未检查”。
+     * 取消不算失败；新一轮检查开始就清掉。
+     */
+    private var _checkFailed by mutableStateOf(false)
+    val checkFailed get() = _checkFailed
+
     private var _isUpdateAvailable by mutableStateOf(false)
     val isUpdateAvailable get() = _isUpdateAvailable
 
@@ -68,6 +77,7 @@ class LeanBackUpdateViewModel : ViewModel() {
             // 重查失败也还留着 true，设置页“应用更新”行继续显示“已是最新
             // 版本”，点按重查失败的提示也是“已是最新版本”而不是“检查更新失败”
             _checkCompleted = false
+            _checkFailed = false
             _latestRelease = fetchLatestRelease()
             _isUpdateAvailable = _latestRelease.version.compareVersion(currentVersion) > 0
             _checkCompleted = true
@@ -77,6 +87,7 @@ class LeanBackUpdateViewModel : ViewModel() {
             // 把取消吞掉（调用方要按取消处理）；原样抛出去，状态复位
             // 仍由 finally 做
             if (e is CancellationException) throw e
+            _checkFailed = true
             log.e("检查更新失败", e)
         } finally {
             _isChecking = false
