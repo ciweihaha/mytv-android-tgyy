@@ -805,16 +805,17 @@ class EpgRepositoryTest {
 
     @Test
     fun `getEpgList before threshold returns cache without refreshing`() = runBlocking {
-        // 未到时间点（阈值传 24，任何时刻都算未到）且缓存能解开：直接
-        // 用缓存，不刷新、不下载。地址写 127.0.0.1:9，一旦走刷新去
-        // 下载立刻连接被拒抛错、用例失败
+        // 未到时间点（阈值传 24，任何时刻都算未到）且缓存能解开、里面
+        // 有正在播的节目：直接用缓存，不刷新、不下载。地址写 127.0.0.1:9，
+        // 一旦走刷新去下载立刻连接被拒抛错、用例失败
+        val now = System.currentTimeMillis()
         File(tempFolder.root, "epg.json").writeText(
             Json.encodeToString(
                 listOf(
                     Epg(
                         channel = "CCTV-1",
                         programmes = EpgProgrammeList(
-                            listOf(EpgProgramme(startAt = 1000, endAt = 2000, title = "缓存里的节目"))
+                            listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "缓存里的节目"))
                         )
                     )
                 )
@@ -831,6 +832,45 @@ class EpgRepositoryTest {
         assertEquals(1, result.size)
         assertEquals("CCTV-1", result.first().channel)
         assertEquals("缓存里的节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList before threshold refreshes when cache has no live programme`() = runBlocking {
+        // 未到时间点（阈值传 24）、缓存能解开但里面全是播完的节目
+        // （主源过期只剩昨天数据）：沿用它的话 0 点到阈值之间节目单
+        // 一直是昨天的；没正在播的节目就当过期、直接走刷新，备用源
+        // 有正在播的节目就用备用源
+        val now = System.currentTimeMillis()
+        File(tempFolder.root, "epg.json").writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = now - 7200_000, endAt = now - 3600_000, title = "旧节目"))
+                        )
+                    )
+                )
+            )
+        )
+        val backupXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 1800_000)}" stop="${formatEpgTime(now + 1800_000)}" channel="cctv1"><title>备用源正在播</title></programme>
+            </tv>
+        """.trimIndent()
+        File(tempFolder.root, "epg.xml").writeText(backupXml)
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 24,
+            prefetchedXml = null,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("备用源正在播", result.first().programmes.first().title)
     }
 
     @Test

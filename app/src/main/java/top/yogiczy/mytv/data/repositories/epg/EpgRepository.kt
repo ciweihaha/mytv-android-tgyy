@@ -415,17 +415,19 @@ class EpgRepository : FileCacheRepository("epg.json") {
         try {
             if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
                 // 未到时间点不拉取，但缓存的节目单仍可用（源文件一般覆盖
-                // 多天，凌晨时段的节目多半在里面）：有缓存就返回缓存，
-                // 别直接给空——原先每天 0 点到阈值（默认 2 点）之间完全
-                // 没有节目信息。没缓存（首次启动、清过缓存）或缓存解不
-                // 开时不等时间点、直接走下面的刷新：不拉就一直是空节目
-                // 单，要等阈值过了才恢复；拉一次比空着强
+                // 多天，凌晨时段的节目多半在里面）：有缓存、且里面有正
+                // 在播的节目才直接返回，别直接给空——原先每天 0 点到阈值
+                // （默认 2 点）之间完全没有节目信息。没缓存（首次启动、
+                // 清过缓存）或缓存解不开、或缓存里没有正在播的节目（主
+                // 源过期只剩昨天数据）时不等时间点、直接走下面的刷新：
+                // 不拉就一直是空节目单，要等阈值过了才恢复；拉一次比空
+                // 着强，刷新时主源过期还会试备用源
                 val cached = cachedEpgBeforeThreshold(getCachedData())
-                if (cached != null) {
+                if (cached != null && hasLiveProgramme(cached)) {
                     log.d("未到时间点，不刷新节目单，沿用缓存")
                     return@withContext cached
                 }
-                log.w("节目单缓存不可用，跳过等待直接刷新")
+                log.w("节目单缓存不可用或已过期，跳过等待直接刷新")
             }
 
             // P5：刷新成功时直接返回刚解析出的对象，不再把写盘的 JSON
