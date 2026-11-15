@@ -63,6 +63,7 @@ abstract class LeanbackVideoPlayer(
     private val onPreparedListeners = mutableListOf<() -> Unit>()
     private val onMetadataListeners = mutableListOf<(metadata: Metadata) -> Unit>()
     private val onCutoffListeners = mutableListOf<() -> Unit>()
+    private val onReconnectingListeners = mutableListOf<(reconnecting: Boolean) -> Unit>()
 
     private fun clearAllListeners() {
         onResolutionListeners.clear()
@@ -72,6 +73,7 @@ abstract class LeanbackVideoPlayer(
         onPreparedListeners.clear()
         onMetadataListeners.clear()
         onCutoffListeners.clear()
+        onReconnectingListeners.clear()
     }
 
     protected fun triggerResolution(width: Int, height: Int) {
@@ -98,6 +100,16 @@ abstract class LeanbackVideoPlayer(
 
     protected fun triggerBuffering(buffering: Boolean) {
         onBufferingListeners.forEach { it(buffering) }
+    }
+
+    /**
+     * 正在重连（延迟重试/自动重调等待中）：等上游恢复的那几秒到十几秒
+     * 里画面是冻住的，播失败弹窗又还没出来，用户看不出是在恢复还是
+     * 卡死了；发这个信号让界面显示“正在重连…”。重连开火、播稳、
+     * 报错、切台、释放时都要发 false 清掉，和 triggerBuffering 同款写法
+     */
+    protected fun triggerReconnecting(reconnecting: Boolean) {
+        onReconnectingListeners.forEach { it(reconnecting) }
     }
 
     // 超时可传参、默认读设置里的加载超时：和下面的 triggerCurrentPosition
@@ -157,6 +169,10 @@ abstract class LeanbackVideoPlayer(
 
     fun onCutoff(listener: () -> Unit) {
         onCutoffListeners.add(listener)
+    }
+
+    fun onReconnecting(listener: (reconnecting: Boolean) -> Unit) {
+        onReconnectingListeners.add(listener)
     }
 
     data class PlaybackException(

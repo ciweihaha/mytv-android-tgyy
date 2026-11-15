@@ -118,17 +118,28 @@ internal fun shouldRetryTransientIoError(errorCode: Int, retriesSoFar: Int): Boo
     isTransientIoError(errorCode) && retriesSoFar < LeanbackMedia3VideoPlayer.MAX_IO_ERROR_RETRIES
 
 /**
- * 瞬时网络错第几次重试前等多久：第 1 次 1 秒、第 2 次 2 秒、第 3 次
- * 3 秒。调用处先把 ioErrorRetries 加一再算，入参就是第几次重试；
- * 等多久是纯算式，抽出来方便单元测试直接调用、锁死档位，免得
- * 以后改了倍数或先加后算的顺序、重试节奏悄悄变了没人知道。
+ * 第几次延迟重试前等多久：第 1 次 1 秒、第 2 次 2 秒、第 3 次 3 秒、
+ * 第 4 次 5 秒、第 5 次 8 秒（斐波那契式递增，总等待约 19 秒）。
+ * 上游票据轮换的毛刺经常超过 6 秒，旧的 3 次（1/2/3 秒）会在毛刺
+ * 里全部烧完；拉长到 5 次、窗口约 19 秒才能扛住更长的轮换。
+ * 瞬时网络错和直播位置落后两条延迟重试共用这一档位表。
+ * 调用处先把重试计数加一再算，入参就是第几次重试；等多久是纯算式，
+ * 抽出来方便单元测试直接调用、锁死档位，免得以后改了倍数或先加后算
+ * 的顺序、重试节奏悄悄变了没人知道。
  */
-internal fun transientIoRetryDelayMs(retryNumber: Int): Long = 1000L * retryNumber
+internal fun retryDelayMs(retryNumber: Int): Long = when {
+    retryNumber <= 0 -> 0L
+    retryNumber == 1 -> 1000L
+    retryNumber == 2 -> 2000L
+    retryNumber == 3 -> 3000L
+    retryNumber == 4 -> 5000L
+    else -> 8000L
+}
 
 /**
  * 直播位置落后该不该在同一条线路上再试一次：是 BEHIND_LIVE_WINDOW、
- * 且这条线路上已经试过的次数还没到上限（MAX_BEHIND_LIVE_WINDOW_RETRIES = 3，
- * 最多重试 3 次）。调用处先判后加，入参是“已重试次数”。
+ * 且这条线路上已经试过的次数还没到上限（MAX_BEHIND_LIVE_WINDOW_RETRIES = 5，
+ * 最多重试 5 次，与瞬时网络错同档）。调用处先判后加，入参是“已重试次数”。
  * 顶层函数方便单元测试直接调用，锁死上限；同款写法见瞬时网络错那支。
  */
 internal fun shouldRetryBehindLiveWindow(errorCode: Int, retriesSoFar: Int): Boolean =
@@ -166,22 +177,24 @@ class LeanbackMedia3VideoPlayer(
 
     /**
      * 瞬时网络错重试计数：与 BEHIND_LIVE_WINDOW 同模式——同一条线路
-     * 最多重试 3 次，播稳（READY）后清零；超限上报原始错误走正常换线流程
+     * 最多重试 5 次，播稳（READY）后清零；超限上报原始错误走正常换线流程
      */
     private var ioErrorRetries = 0
 
     /**
-     * 瞬时网络错延迟重试任务：出错后不等就立刻重拉，3 次会在几毫秒内
-     * 烧完——上游故障（分片签名刚过期、CDN 抖动、SCF 换票）一般持续
-     * 一两秒，立刻重拉撞上的还是同一个故障。改成可取消的协程任务，
-     * 按重试次数递增等待（第 1 次 1 秒、第 2 次 2 秒）再重拉，给上游
-     * 留出恢复时间；切台/播稳/释放时取消，避免旧任务在新台上误触发
+     * 延迟重试任务：瞬时网络错与直播位置落后共用。出错后不等就立刻重拉，
+     * 几次会在几毫秒内烧完——上游故障（分片签名刚过期、CDN 抖动、SCF 换票、
+     * 列表过期）一般持续一两秒，立刻重拉撞上的还是同一个故障。改成可取消的
+     * 协程任务，按重试次数递增等待（第 1 次 1 秒、第 2 次 2 秒、第 3 次 3 秒、
+     * 第 4 次 5 秒、第 5 次 8 秒）再重拉，给上游留出恢复时间；切台/播稳/
+     * 释放时取消，避免旧任务在新台上误触发。同一时刻最多一个延迟重试在
+     * 排队：报错只发生在空闲态，新一轮 prepare 会先取消旧任务
      */
-    private var ioErrorRetryJob: Job? = null
+    private var delayedRetryJob: Job? = null
 
     companion object {
-        const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 3
-        const val MAX_IO_ERROR_RETRIES = 3
+        const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 5
+        const val MAX_IO_ERROR_RETRIES = 5
 
         /**
          * P7：SSLContext 只建一次：首次建时 SSLContext.init 配全新
@@ -321,17 +334,27 @@ class LeanbackMedia3VideoPlayer(
         }
 
         override fun onPlayerError(ex: Media3PlaybackException) {
-            // 如果是直播加载位置错误，先重试几次；一直落后说明该线路的
-            // 列表已过期不再更新，继续重试只是无限缓冲，交给上层换线
+            // 如果是直播加载位置错误，先带等待重试几次；一直落后说明该线路的
+            // 列表已过期不再更新，继续重试只是无限缓冲，交给上层换线。
+            // 重试带递增等待：原先立即 seek + prepare 连试，列表过期时
+            // 几毫秒内就烧完上限、直接报 BEHIND_LIVE_WINDOW；列表跳变
+            // （票据轮换那一下）一般一两秒就恢复，等一等再重拉才有意义
             if (ex.errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                 // 先判后加：behindLiveWindowRetries 是“已重试次数”，没到
-                // 上限（3 次）才再试一次；到上限才上报原始错误走换线
+                // 上限（5 次）才再试一次；到上限才上报原始错误走换线
                 if (shouldRetryBehindLiveWindow(ex.errorCode, behindLiveWindowRetries)) {
                     behindLiveWindowRetries++
-                    videoPlayer.seekToDefaultPosition()
-                    videoPlayer.prepare()
+                    triggerReconnecting(true)
+                    delayedRetryJob?.cancel()
+                    delayedRetryJob = coroutineScope.launch {
+                        delay(retryDelayMs(behindLiveWindowRetries))
+                        triggerReconnecting(false)
+                        videoPlayer.seekToDefaultPosition()
+                        videoPlayer.prepare()
+                    }
                 } else {
                     behindLiveWindowRetries = 0
+                    triggerReconnecting(false)
                     triggerError(
                         PlaybackException(ex.errorCodeName, ex.errorCode)
                     )
@@ -339,21 +362,25 @@ class LeanbackMedia3VideoPlayer(
             }
             // 瞬时网络错（2004/2001/2002）：上游抖动、票据过期瞬间或
             // 连接超时，同一条线路再拉一次列表能拿到新票据；直接判死
-            // 刑会让只有一条线路的台永久卡死。重试 3 次还不行再上报
+            // 刑会让只有一条线路的台永久卡死。重试 5 次还不行再上报
             // 原始错误走正常换线流程。重试带递增等待：上游故障是时间
-            // 型的，立刻重拉撞上的还是同一个故障，3 次会在几毫秒内烧
-            // 完；第 1 次等 1 秒、第 2 次等 2 秒再重拉，给上游恢复时间
+            // 型的，立刻重拉撞上的还是同一个故障，几次会在几毫秒内烧
+            // 完；第 1 次等 1 秒、第 2 次等 2 秒、第 3 次等 3 秒、第 4 次
+            // 等 5 秒、第 5 次等 8 秒再重拉，给上游恢复时间
             else if (isTransientIoError(ex.errorCode)) {
                 if (shouldRetryTransientIoError(ex.errorCode, ioErrorRetries)) {
                     ioErrorRetries++
-                    ioErrorRetryJob?.cancel()
-                    ioErrorRetryJob = coroutineScope.launch {
-                        delay(transientIoRetryDelayMs(ioErrorRetries))
+                    triggerReconnecting(true)
+                    delayedRetryJob?.cancel()
+                    delayedRetryJob = coroutineScope.launch {
+                        delay(retryDelayMs(ioErrorRetries))
+                        triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
                     }
                 } else {
                     ioErrorRetries = 0
+                    triggerReconnecting(false)
                     triggerError(
                         PlaybackException(ex.errorCodeName, ex.errorCode)
                     )
@@ -384,11 +411,12 @@ class LeanbackMedia3VideoPlayer(
                 triggerBuffering(true)
             } else if (playbackState == Player.STATE_READY) {
                 // 播起来了：位置落后计数和瞬时网络错计数清零，下次再出错重新数；
-                // 挂起的延迟重试任务也取消（已播稳就不需要它了）
+                // 挂起的延迟重试任务也取消（已播稳就不需要它了），重连提示清掉
                 behindLiveWindowRetries = 0
                 ioErrorRetries = 0
-                ioErrorRetryJob?.cancel()
-                ioErrorRetryJob = null
+                delayedRetryJob?.cancel()
+                delayedRetryJob = null
+                triggerReconnecting(false)
                 triggerReady()
 
                 updatePositionJob?.cancel()
@@ -494,8 +522,9 @@ class LeanbackMedia3VideoPlayer(
     }
 
     override fun release() {
-        ioErrorRetryJob?.cancel()
-        ioErrorRetryJob = null
+        delayedRetryJob?.cancel()
+        delayedRetryJob = null
+        triggerReconnecting(false)
         updatePositionJob?.cancel()
         updatePositionJob = null
         videoPlayer.removeListener(playerListener)
@@ -510,8 +539,9 @@ class LeanbackMedia3VideoPlayer(
         contentTypeAttempts.clear()
         behindLiveWindowRetries = 0
         ioErrorRetries = 0
-        ioErrorRetryJob?.cancel()
-        ioErrorRetryJob = null
+        delayedRetryJob?.cancel()
+        delayedRetryJob = null
+        triggerReconnecting(false)
         prepare(Uri.parse(url))
     }
 
