@@ -152,6 +152,15 @@ class LeanbackMedia3VideoPlayer(
      */
     private var ioErrorRetries = 0
 
+    /**
+     * 瞬时网络错延迟重试任务：出错后不等就立刻重拉，3 次会在几毫秒内
+     * 烧完——上游故障（分片签名刚过期、CDN 抖动、SCF 换票）一般持续
+     * 一两秒，立刻重拉撞上的还是同一个故障。改成可取消的协程任务，
+     * 按重试次数递增等待（第 1 次 1 秒、第 2 次 2 秒）再重拉，给上游
+     * 留出恢复时间；切台/播稳/释放时取消，避免旧任务在新台上误触发
+     */
+    private var ioErrorRetryJob: Job? = null
+
     companion object {
         const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 3
         const val MAX_IO_ERROR_RETRIES = 3
@@ -310,12 +319,18 @@ class LeanbackMedia3VideoPlayer(
             // 瞬时网络错（2004/2001/2002）：上游抖动、票据过期瞬间或
             // 连接超时，同一条线路再拉一次列表能拿到新票据；直接判死
             // 刑会让只有一条线路的台永久卡死。重试 3 次还不行再上报
-            // 原始错误走正常换线流程
+            // 原始错误走正常换线流程。重试带递增等待：上游故障是时间
+            // 型的，立刻重拉撞上的还是同一个故障，3 次会在几毫秒内烧
+            // 完；第 1 次等 1 秒、第 2 次等 2 秒再重拉，给上游恢复时间
             else if (isTransientIoError(ex.errorCode)) {
                 if (shouldRetryTransientIoError(ex.errorCode, ioErrorRetries)) {
                     ioErrorRetries++
-                    videoPlayer.seekToDefaultPosition()
-                    videoPlayer.prepare()
+                    ioErrorRetryJob?.cancel()
+                    ioErrorRetryJob = coroutineScope.launch {
+                        delay(1000L * ioErrorRetries)
+                        videoPlayer.seekToDefaultPosition()
+                        videoPlayer.prepare()
+                    }
                 } else {
                     ioErrorRetries = 0
                     triggerError(
@@ -347,9 +362,12 @@ class LeanbackMedia3VideoPlayer(
                 triggerError(null)
                 triggerBuffering(true)
             } else if (playbackState == Player.STATE_READY) {
-                // 播起来了：位置落后计数和瞬时网络错计数清零，下次再出错重新数
+                // 播起来了：位置落后计数和瞬时网络错计数清零，下次再出错重新数；
+                // 挂起的延迟重试任务也取消（已播稳就不需要它了）
                 behindLiveWindowRetries = 0
                 ioErrorRetries = 0
+                ioErrorRetryJob?.cancel()
+                ioErrorRetryJob = null
                 triggerReady()
 
                 updatePositionJob?.cancel()
@@ -455,6 +473,8 @@ class LeanbackMedia3VideoPlayer(
     }
 
     override fun release() {
+        ioErrorRetryJob?.cancel()
+        ioErrorRetryJob = null
         updatePositionJob?.cancel()
         updatePositionJob = null
         videoPlayer.removeListener(playerListener)
@@ -469,6 +489,8 @@ class LeanbackMedia3VideoPlayer(
         contentTypeAttempts.clear()
         behindLiveWindowRetries = 0
         ioErrorRetries = 0
+        ioErrorRetryJob?.cancel()
+        ioErrorRetryJob = null
         prepare(Uri.parse(url))
     }
 
