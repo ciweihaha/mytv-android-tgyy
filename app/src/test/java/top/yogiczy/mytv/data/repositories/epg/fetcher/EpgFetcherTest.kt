@@ -104,6 +104,23 @@ class EpgFetcherTest {
     }
 
     @Test
+    fun `null body returns empty string`() {
+        // 响应体为 null 时直接回空串，不抛空指针：真实 HTTP 响应
+        // 一般总有 body，但接口上 body 可空（204 之类），这行守卫
+        // 没单测时重构容易顺手删掉——删了这里就空指针
+        val response = Response.Builder()
+            .request(Request.Builder().url("https://example.com/epg").build())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .build()
+
+        val result = defaultFetcher.fetch(response)
+
+        assertEquals("", result)
+    }
+
+    @Test
     fun `leading BOM is stripped from plain xml body`() {
         val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
 
