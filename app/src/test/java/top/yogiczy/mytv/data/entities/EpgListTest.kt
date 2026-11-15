@@ -285,6 +285,20 @@ class EpgListTest {
     }
 
     @Test
+    fun `live programme with nothing after has no next programme`() {
+        // 只有一档正在播、后面没有下一档：nextAfterEnd 与 earliestFuture
+        // 都取不到，next 应回 null——“稍后播放”那行显示“无节目”。
+        // 之前所有单档正在播的用例只断言了 now，没断言 next；兜底
+        // `?: earliestFuture` 被改掉时这里会失败
+        val epgList = EpgList(listOf(liveEpg("CCTV-1 综合", "cctv1")))
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+
+        val current = epgList.currentProgrammes(iptv)
+        assertEquals("正在播", current?.now?.title)
+        assertNull(current?.next)
+    }
+
+    @Test
     fun `next programme does not depend on list order`() {
         // 节目单顺序不保证按时间排：列表里先写晚的、后写早的，最近的
         // 下一个仍应是开始时间最早的那档，而不是列表里的第一档
