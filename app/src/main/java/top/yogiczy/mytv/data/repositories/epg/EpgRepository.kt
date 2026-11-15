@@ -107,7 +107,12 @@ internal fun parseEpgTimeFallback(time: String): Long {
     val formats = listOf("yyyyMMddHHmmssZ", "yyyyMMddHHmmss XXX", "yyyyMMddHHmmssXXX", "yyyyMMddHHmmss")
     for (pattern in formats) {
         try {
-            val parsed = SimpleDateFormat(pattern, Locale.getDefault()).parse(trimmed)
+            // 严格模式：SimpleDateFormat 默认宽容模式会把非法日期顺延
+            // 成有效日期（2 月 30 日算成 3 月 2 日、13 月算成次年 1 月、
+            // 24 点算成次日 0 点），节目会出现在错误的那天；非法日期
+            // 应该解析失败记 0、由调用方按无效节目过滤（见壳 830 轮同款毛病）
+            val parsed = SimpleDateFormat(pattern, Locale.getDefault())
+                .apply { isLenient = false }.parse(trimmed)
             if (parsed != null) return parsed.time
         } catch (_: Exception) {
             // 换下一种写法再试
@@ -186,7 +191,11 @@ class EpgRepository : FileCacheRepository("epg.json") {
 
         // 一个 SimpleDateFormat 实例复用于全部节目（原先每个节目都新建一个，
         // 构造开销不小）；解析在单协程内顺序执行，无线程安全问题
+        // 严格模式：默认宽容模式会把非法日期顺延成有效日期（2 月 30 日
+        // 算成 3 月 2 日），节目会出现在错误的那天；非法日期应解析失败
+        // 记 0、由 isUsableEpgProgramme 过滤（见壳 830 轮同款毛病）
         val timeFormat = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.getDefault())
+            .apply { isLenient = false }
 
         fun parseTime(time: String?): Long {
             if (time == null || time.length < 14) return 0

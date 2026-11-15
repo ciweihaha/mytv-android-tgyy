@@ -69,4 +69,15 @@ class EpgTimeTest {
         assertEquals(0L, parseEpgTimeFallback(""))
         assertEquals(0L, parseEpgTimeFallback("   "))
     }
+
+    @Test
+    fun `invalid dates return zero instead of rolling over`() {
+        // 壳 830 轮姊妹检查：SimpleDateFormat 默认宽容模式会把非法日期
+        // 顺延成有效日期（2 月 30 日算成 3 月 2 日、13 月算成次年 1 月、
+        // 24 点算成次日 0 点），节目会出现在错误的那天；严格模式下
+        // 解析失败记 0，由调用方按无效节目过滤
+        assertEquals(0L, parseEpgTimeFallback("20260230080000+0800"))
+        assertEquals(0L, parseEpgTimeFallback("20261301080000 +0800"))
+        assertEquals(0L, parseEpgTimeFallback("20261112240000 +0800"))
+    }
 }

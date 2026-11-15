@@ -264,6 +264,34 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList drops programmes with invalid dates`() = runBlocking {
+        // 壳 830 轮姊妹检查：主解析与兜底原来都是宽容模式，非法日期
+        // 会顺延成有效日期（2 月 30 日算成 3 月 2 日）进列表、节目
+        // 出现在错误的那天；严格模式下解析失败记 0，isUsableEpgProgramme
+        // 把整条节目过滤掉，好节目不受影响
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <programme start="20260230080000 +0800" stop="20260230090000 +0800" channel="cctv1"><title>不存在的日期</title></programme>
+              <programme start="20261113080000 +0800" stop="20261301090000 +0800" channel="cctv1"><title>不存在的月份</title></programme>
+              <programme start="20261112240000 +0800" stop="20261113010000 +0800" channel="cctv1"><title>不存在的钟点</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList refresh uses prefetched xml over stale cache`() = runBlocking {
         // 缓存是昨天的（过期、必须刷新）：刷新走预下载的 XML，而不是
         // 用旧缓存顶上。阈值传 0 跳过“未到时间点”分支；旧缓存故意写
