@@ -38,6 +38,7 @@ fun LeanbackVideoScreen(
 
         LeanbackVideoPlayerErrorScreen(
             errorProvider = { state.error },
+            reconnectingProvider = { state.isReconnecting },
         )
 
         if (showMetadataProvider()) {

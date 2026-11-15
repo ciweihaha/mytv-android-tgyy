@@ -35,6 +35,14 @@ class LeanbackVideoPlayerState(
     /** 错误 */
     var error by mutableStateOf<String?>(null)
 
+    /** 最近一次播放错误的错误码（Media3 错误码或应用内 1000x），无错误时为 null。
+     * 上层换线/自动重调要按错误码决策（只有重试型错误耗尽才自动重调），
+     * 光看 error 字符串要解析，不如直接记码 */
+    var lastErrorCode by mutableStateOf<Int?>(null)
+
+    /** 正在重连（延迟重试/自动重调等待中）：界面显示“正在重连…” */
+    var isReconnecting by mutableStateOf(false)
+
     /** 元数据 */
     var metadata by mutableStateOf(LeanbackVideoPlayer.Metadata())
 
@@ -44,7 +52,17 @@ class LeanbackVideoPlayerState(
 
     fun prepare(url: String) {
         error = null
+        lastErrorCode = null
         instance.prepare(url)
+    }
+
+    /**
+     * 设置重连提示：播放器自己在延迟重试等待时发信号；主界面在自动重调
+     * 等待时也用它——同一面旗子，两处生产者；重连开火、播稳、报错、
+     * 切台时各方负责清掉
+     */
+    fun setReconnecting(reconnecting: Boolean) {
+        isReconnecting = reconnecting
     }
 
     fun play() {
@@ -92,12 +110,14 @@ class LeanbackVideoPlayerState(
         instance.onError { ex ->
             error = if (ex != null) "${ex.errorCodeName}(${ex.errorCode})"
             else null
+            lastErrorCode = ex?.errorCode
 
             if (error != null) onErrorListeners.forEach { it.invoke() }
 
         }
         instance.onReady { onReadyListeners.forEach { it.invoke() } }
         instance.onBuffering { if (it) error = null }
+        instance.onReconnecting { isReconnecting = it }
         instance.onPrepared { }
         instance.onMetadata { metadata = it }
         instance.onCutoff { onCutoffListeners.forEach { it.invoke() } }

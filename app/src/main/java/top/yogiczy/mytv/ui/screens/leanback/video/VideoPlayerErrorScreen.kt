@@ -19,6 +19,7 @@ import top.yogiczy.mytv.ui.theme.LeanbackTheme
 fun LeanbackVideoPlayerErrorScreen(
     modifier: Modifier = Modifier,
     errorProvider: () -> String? = { null },
+    reconnectingProvider: () -> Boolean = { false },
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         val error = errorProvider()
@@ -45,6 +46,20 @@ fun LeanbackVideoPlayerErrorScreen(
                     color = LocalContentColor.current.copy(alpha = 0.8f),
                 )
             }
+        } else if (reconnectingProvider()) {
+            // 延迟重试/自动重调等待中：画面冻住、报错还没出来，
+            // 只显示轻提示，别用“播放失败”的红字吓人
+            Text(
+                text = "正在重连…",
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(
+                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.8f),
+                        shape = MaterialTheme.shapes.medium,
+                    )
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
         }
     }
 }
