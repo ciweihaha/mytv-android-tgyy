@@ -469,6 +469,34 @@ class EpgListTest {
     }
 
     @Test
+    fun `duplicate channel ids differing only by case keep the first entry`() {
+        // 910d613 把 id 表的键统一存小写：同一台在两个源里 id 大小写
+        // 不同（主源 cctv1、备用源 CCTV1），小写后键撞车；putIfAbsent
+        // 仍留第一次出现的，跟按名那份一致。键没小写时两条都进表、
+        // 查小写 id 只对上第二条；putIfAbsent 写成 put 时第一份被
+        // 第二份盖掉——两种回退这里都会失败
+        val now = System.currentTimeMillis()
+        val epgList = EpgList(
+            listOf(
+                liveEpg("CCTV-1 综合", "CCTV1").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "第一份"))
+                    )
+                ),
+                liveEpg("CCTV-1 综合", "cctv1").copy(
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "第二份"))
+                    )
+                ),
+            )
+        )
+
+        assertEquals(1, epgList.byChannelId.size)
+        val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv1")
+        assertEquals("第一份", epgList.currentProgrammes(iptv)?.now?.title)
+    }
+
+    @Test
     fun `name spelling check ignores digits spaces dash and plus`() {
         assertTrue(isSameEpgChannelName("CCTV综合", "CCTV-1 综合"))
         assertTrue(isSameEpgChannelName("CCTV体育赛事", "CCTV-5+ 体育赛事"))
