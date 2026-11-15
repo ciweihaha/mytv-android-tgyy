@@ -51,7 +51,8 @@ interface EpgFetcher {
          * 走 StringReader 那条路不跳 BOM，带 `<?xml` 声明的源会在
          * "PI must not start with xml" 上抛错（KXml 按列号卡声明位置，
          * BOM 先占了一列）、整个节目单加载失败；字节流那条路本来就
-         * 跳 BOM，这里去掉一个开头的即可
+         * 跳 BOM。开头可能不止一个 BOM（反复转存、拼接过的源）：
+         * removePrefix 只去一个，剩一个照样抛错，全部去掉才行
          */
         fun decodeBody(response: Response): String {
             val stream = response.body?.byteStream() ?: return ""
@@ -65,7 +66,7 @@ interface EpgFetcher {
                 } else {
                     buffered.readBytes().toString(Charsets.UTF_8)
                 }
-                text.removePrefix("\uFEFF")
+                text.dropWhile { it == '\uFEFF' }
             }
         }
     }

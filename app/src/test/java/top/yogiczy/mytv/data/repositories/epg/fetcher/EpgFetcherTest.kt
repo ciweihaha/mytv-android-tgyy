@@ -139,6 +139,27 @@ class EpgFetcherTest {
     }
 
     @Test
+    fun `double leading BOM is stripped from plain xml body`() {
+        // 反复转存、拼接过的源开头可能带两个 BOM：removePrefix 只去
+        // 一个，剩一个 BOM 时 KXml 在 "PI must not start with xml" 上
+        // 抛错、整个节目单加载失败；开头有几个去几个
+        val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
+
+        val result = defaultFetcher.fetch(responseWithBody(("\uFEFF\uFEFF" + xml).toResponseBody()))
+
+        assertEquals(xml, result)
+    }
+
+    @Test
+    fun `double leading BOM is stripped from gzipped body`() {
+        val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
+
+        val result = gzFetcher.fetch(responseWithBody(gzip("\uFEFF\uFEFF" + xml).toResponseBody()))
+
+        assertEquals(xml, result)
+    }
+
+    @Test
     fun `BOM in the middle is left alone`() {
         val xml = "<tv><channel id=\"c1\" />\uFEFF</tv>"
 
