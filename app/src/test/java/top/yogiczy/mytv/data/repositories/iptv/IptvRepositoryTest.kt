@@ -53,16 +53,20 @@ class IptvRepositoryTest {
 
     @Test
     fun `empty group list throws EmptyIptvSourceException`() {
-        assertThrows(EmptyIptvSourceException::class.java) {
+        // 空源报错的文案直接显示在错误页上（MainViewModel 把 ex.message
+        // 放进 LeanbackMainUiState.Error），只断言类型不够：文案被改掉也没人发现
+        val ex = assertThrows(EmptyIptvSourceException::class.java) {
             checkIptvGroupListNotEmpty(IptvGroupList(), simplified = false)
         }
+        assertTrue(ex.message?.contains("直播源里没有频道") == true)
     }
 
     @Test
     fun `empty group list after simplify throws EmptyIptvSourceException`() {
-        assertThrows(EmptyIptvSourceException::class.java) {
+        val ex = assertThrows(EmptyIptvSourceException::class.java) {
             checkIptvGroupListNotEmpty(IptvGroupList(), simplified = true)
         }
+        assertTrue(ex.message?.contains("精简后没有频道") == true)
     }
 
     @Test
