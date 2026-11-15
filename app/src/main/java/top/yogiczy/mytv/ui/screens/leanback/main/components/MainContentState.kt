@@ -59,6 +59,15 @@ internal fun isLastUrlFailed(failedUrlIdx: Int, urlCount: Int): Boolean =
 internal fun shouldSwitchUrlIdx(currentUrlIdx: Int, targetUrlIdx: Int): Boolean =
     currentUrlIdx != targetUrlIdx
 
+/**
+ * 切线路下标归一化：上一条（-1）绕到最后一条、下一条越过末条绕回
+ * 第一条，中间原样返回。调用方只传 -1 到条数之间（上一条/下一条/
+ * 失败切下一条/面板点选），更深的负数到不了这里。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun normalizeIptvUrlIdx(urlIdx: Int, urlCount: Int): Int =
+    (urlIdx + urlCount) % urlCount
+
 @Stable
 class LeanbackMainContentState(
     private val coroutineScope: CoroutineScope,
@@ -318,7 +327,7 @@ class LeanbackMainContentState(
                 playableHosts.contains(getUrlHost(it))
             })
         } else {
-            (urlIdx + _currentIptv.urlList.size) % _currentIptv.urlList.size
+            normalizeIptvUrlIdx(urlIdx, _currentIptv.urlList.size)
         }
 
         val url = iptv.urlList[_currentIptvUrlIdx]
