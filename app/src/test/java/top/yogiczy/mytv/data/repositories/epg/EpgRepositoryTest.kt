@@ -556,6 +556,36 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList keeps primary when backup source is unreachable`() = runBlocking {
+        // 主源解析出了数据、但没有正在播的节目（过期），备用源又拉不
+        // 到（地址连不上、也没有 epg.xml 原文缓存可顶）：这时不该抛
+        // 错、也不该给空节目单，沿用主源的旧数据——面板会回落到有节
+        // 目的第一天，总比空节目单强。loadEpgList 里第二个 try 的
+        // catch 分支（拉备用源失败沿用主源）之前一次也没端到端断言
+        // 过：selectEpgList“两边都没有正在播就留主源”只在单元层测
+        // 过，备用源拉取失败这条路还没走通过
+        val now = System.currentTimeMillis()
+        val staleXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 7200_000)}" stop="${formatEpgTime(now - 3600_000)}" channel="cctv1"><title>昨天节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = staleXml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("昨天节目", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList skips malformed programmes without failing the whole list`() = runBlocking {
         // 1184 轮修完后 parseFromXml 终于能在单测里跑了：1158 轮只靠
         // 读代码确认过的缺属性／自闭合兜底，现在真正锁死。五条坏节目
