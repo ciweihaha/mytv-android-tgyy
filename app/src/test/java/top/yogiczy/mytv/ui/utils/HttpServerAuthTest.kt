@@ -48,4 +48,23 @@ class HttpServerAuthTest {
             )
         )
     }
+
+    @Test
+    fun `attempt exactly at window edge does not count`() {
+        val now = 1_000_000L
+        // 正好 60 秒前的失败已滑出窗口：5 次也不节流；若 < 写成 <=，这里会误判节流
+        assertFalse(
+            isAuthThrottled(
+                listOf(now - 60_000, now - 60_000, now - 60_000, now - 60_000, now - 60_000),
+                now,
+            )
+        )
+        // 差 1 毫秒还在窗口内：5 次应节流
+        assertTrue(
+            isAuthThrottled(
+                listOf(now - 59_999, now - 59_999, now - 59_999, now - 59_999, now - 59_999),
+                now,
+            )
+        )
+    }
 }
