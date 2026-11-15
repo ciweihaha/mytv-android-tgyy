@@ -284,6 +284,18 @@ class GithubGitReleaseParserTest {
     }
 
     @Test
+    fun `assets not an array fails instead of crashing the check`() {
+        // 壳 820 轮姊妹检查的第二档：assets 字段存在但不是数组，
+        // .jsonArray 应报类型错，别让调用方看到类型转换错
+        val data = """{"tag_name": "v1.4.4", "body": "更新说明", "assets": "not-an-array"}"""
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
+        assertTrue(error.message?.contains("JsonArray") == true)
+    }
+
+    @Test
     fun `null body becomes empty description instead of literal null`() = runBlocking {
         val data = """
             {
