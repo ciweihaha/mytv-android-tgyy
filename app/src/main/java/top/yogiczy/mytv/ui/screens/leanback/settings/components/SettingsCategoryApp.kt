@@ -72,20 +72,17 @@ fun LeanbackSettingsCategoryApp(
             // 发了新版、只有重查才能拿到，否则一直给旧版、直到重启应用。
             LeanbackSettingsCategoryListItem(
                 headlineContent = "应用更新",
-                supportingContent = when {
-                    updateViewModel.isUpdateAvailable ->
-                        "最新版本：v${updateViewModel.latestRelease.version}"
-
-                    updateViewModel.isCheckingUpdate -> "正在检查…"
-                    updateViewModel.checkCompleted -> "已是最新版本"
-                    else -> "尚未检查，点击手动检查"
-                },
-                trailingContent = when {
-                    updateViewModel.isUpdateAvailable -> "发现新版本"
-                    updateViewModel.isCheckingUpdate -> "检查中"
-                    updateViewModel.checkCompleted -> "无更新"
-                    else -> "未检查"
-                },
+                supportingContent = updateSupportingText(
+                    updateViewModel.isUpdateAvailable,
+                    updateViewModel.isCheckingUpdate,
+                    updateViewModel.checkCompleted,
+                    updateViewModel.latestRelease.version,
+                ),
+                trailingContent = updateTrailingText(
+                    updateViewModel.isUpdateAvailable,
+                    updateViewModel.isCheckingUpdate,
+                    updateViewModel.checkCompleted,
+                ),
                 onSelected = {
                     if (!updateViewModel.isCheckingUpdate) {
                         coroutineScope.launch {
@@ -107,6 +104,33 @@ fun LeanbackSettingsCategoryApp(
             )
         }
     }
+}
+
+// “应用更新”行两行文案的优先级：有更新 > 检查中 > 已查完 > 没查过。
+// 原来两段 when 直接写在界面里、测不到；抽出来钉死优先级——重查时旧的
+// “有更新”仍在，检查中也不盖掉它；新一轮检查开始会先把 checkCompleted
+// 清掉（UpdateViewModel），所以“检查中”和“已查完”不会同时为真。
+internal fun updateSupportingText(
+    isUpdateAvailable: Boolean,
+    isCheckingUpdate: Boolean,
+    checkCompleted: Boolean,
+    latestVersion: String,
+): String = when {
+    isUpdateAvailable -> "最新版本：v$latestVersion"
+    isCheckingUpdate -> "正在检查…"
+    checkCompleted -> "已是最新版本"
+    else -> "尚未检查，点击手动检查"
+}
+
+internal fun updateTrailingText(
+    isUpdateAvailable: Boolean,
+    isCheckingUpdate: Boolean,
+    checkCompleted: Boolean,
+): String = when {
+    isUpdateAvailable -> "发现新版本"
+    isCheckingUpdate -> "检查中"
+    checkCompleted -> "无更新"
+    else -> "未检查"
 }
 
 @Preview
