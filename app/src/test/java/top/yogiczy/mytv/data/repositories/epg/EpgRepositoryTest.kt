@@ -395,6 +395,56 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList refreshes when cache is from yesterday even though it has a live programme`() = runBlocking {
+        // 壳 851 轮姊妹检查：缓存文件是昨天的、但里面有正在播的节目——
+        // 唯一过期理由是日期。上面那条“缓存是昨天的”用例旧缓存里没
+        // 正在播的节目，日期那条分支被“没正在播的节目也算过期”那条
+        // 盖住了：把日期判断删了它照样通过；只有这条能钉死日期分支。
+        // 阈值传 0 跳过“未到时间点”分支；旧缓存故意写另一台，避免
+        // 断言误判成“读了缓存也算过”
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-2",
+                        programmes = EpgProgrammeList(
+                            listOf(
+                                EpgProgramme(
+                                    startAt = now - 30 * 60 * 1000L,
+                                    endAt = now + 30 * 60 * 1000L,
+                                    title = "缓存里的节目",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now - 25 * 60 * 60 * 1000L)
+
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113090000 +0800" stop="20261113100000 +0800" channel="cctv1"><title>新节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("新节目", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList refreshes when cache is from today but has no live programme`() = runBlocking {
         // 712 轮的场景：缓存文件日期是今天、也能解开，但里面全是
         // 已经播完的节目（凌晨拉到的昨天数据带着今天的时间戳存下
