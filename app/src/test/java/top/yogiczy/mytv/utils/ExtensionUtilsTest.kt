@@ -115,6 +115,22 @@ class IsIPv6Test {
         assertFalse("http://live.example.com:8080/x".isIPv6())
         assertFalse("".isIPv6())
     }
+
+    @Test
+    fun `bracketed ipv6 urls are ipv6`() {
+        // 带方括号的写法：括号内判断，带端口与路径都不影响
+        assertTrue("http://[2409:8087:5e01:34::20]:6610/ZTE_CMS/00000001000000060000000000000131/index.m3u8?IAS".isIPv6())
+        assertTrue("[::1]".isIPv6())
+        assertTrue("[2001:db8::1]:8080".isIPv6())
+        assertTrue("http://[::1]/".isIPv6())
+    }
+
+    @Test
+    fun `bracketed non-ipv6 is not ipv6`() {
+        // 括号里没冒号：IPv4 与普通字符串都不是 IPv6
+        assertFalse("[192.168.0.1]".isIPv6())
+        assertFalse("[not-ipv6]".isIPv6())
+    }
 }
 
 class NextHourStepTest {
