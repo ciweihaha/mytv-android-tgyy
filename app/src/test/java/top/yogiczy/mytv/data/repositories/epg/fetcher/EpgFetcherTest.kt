@@ -52,6 +52,19 @@ class EpgFetcherTest {
     }
 
     @Test
+    fun `extension only in query or fragment does not match`() {
+        // 后缀只出现在问号/井号后面时不算命中：`epg?file=x.xml` 的 .xml
+        // 在参数里，路径本身没后缀，该走 Default 解析器嗅探内容，而
+        // 不是被 xml 解析器认领；只断言 `epg.xml?token=abc` 那档盖不
+        // 住这条——去掉 query/fragment 再比的逻辑被删时，真地址那档
+        // 照样通过，只有这档会失败
+        assertFalse(xmlFetcher.isSupport("https://example.com/epg?file=x.xml"))
+        assertFalse(xmlFetcher.isSupport("https://example.com/epg#x.xml"))
+        assertFalse(gzFetcher.isSupport("https://example.com/epg?file=x.xml.gz"))
+        assertFalse(gzFetcher.isSupport("https://example.com/epg#x.xml.gz"))
+    }
+
+    @Test
     fun `default fetcher returns plain xml body as-is`() {
         val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
 
