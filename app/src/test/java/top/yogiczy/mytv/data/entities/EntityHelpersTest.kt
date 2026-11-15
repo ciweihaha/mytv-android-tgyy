@@ -156,6 +156,47 @@ class EntityHelpersTest {
     }
 
     @Test
+    fun `currentProgrammes returns next only when nothing is live yet`() {
+        // 还没到当天首档节目：正在播是空、稍后播放带上最近的那档；
+        // 若这条退路丢了，面板两行都会显示“无节目”
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now - 20_000, endAt = now - 10_000, title = "已播完"),
+                    EpgProgramme(startAt = now + 10_000, endAt = now + 20_000, title = "即将开始"),
+                    EpgProgramme(startAt = now + 30_000, endAt = now + 40_000, title = "再晚点"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertNull(current?.now)
+        assertEquals("即将开始", current?.next?.title)
+    }
+
+    @Test
+    fun `currentProgrammes picks earliest future regardless of list order`() {
+        // 节目单顺序不保证按时间排：列表里晚的在前、早的在后，稍后播放
+        // 仍应是开始最早的那档
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now + 30_000, endAt = now + 40_000, title = "晚的"),
+                    EpgProgramme(startAt = now + 10_000, endAt = now + 20_000, title = "早的"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertNull(current?.now)
+        assertEquals("早的", current?.next?.title)
+    }
+
+    @Test
     fun `iptvIdx returns global index across groups`() {
         val target = Iptv(name = "目标", channelName = "target")
         val groupList = IptvGroupList(
