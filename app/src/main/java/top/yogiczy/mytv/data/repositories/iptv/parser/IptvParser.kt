@@ -53,7 +53,11 @@ interface IptvParser {
                             name = nameEntry.key,
                             channelName = nameEntry.value.first().channelName,
                             tvgId = nameEntry.value.first().tvgId,
-                            urlList = nameEntry.value.map { it.url },
+                            // 同一地址在源里写了两遍只留一路：不去重的话
+                            // 换线路会看到两条一模一样的、播不通时还
+                            // 会把同一个死地址重试一遍；壳线那边同款
+                            // 拼装本来就去重，这里补上对齐
+                            urlList = nameEntry.value.map { it.url }.distinct(),
                         )
                     })
                 )
