@@ -54,13 +54,6 @@ class IptvRepository : FileCacheRepository("iptv.txt") {
     }
 
     /**
-     * 简化规则
-     */
-    private fun simplifyTest(iptv: Iptv): Boolean {
-        return iptv.name.startsWith("cctv", ignoreCase = true) || iptv.name.endsWith("卫视")
-    }
-
-    /**
      * 获取直播源分组列表
      */
     suspend fun getIptvGroupList(
@@ -134,4 +127,12 @@ internal fun checkIptvGroupListNotEmpty(groupList: IptvGroupList, simplified: Bo
             else "直播源里没有频道，请检查直播源链接"
         )
     }
+}
+
+/**
+ * 精简规则：只留央视（名字以 cctv 开头，不分大小写）与地方卫视
+ * （名字以“卫视”结尾）。顶层函数方便单元测试直接调用。
+ */
+internal fun simplifyTest(iptv: Iptv): Boolean {
+    return iptv.name.startsWith("cctv", ignoreCase = true) || iptv.name.endsWith("卫视")
 }
