@@ -165,4 +165,41 @@ class FileCacheRepositoryTest {
         val cached = repo.cached()
         assertTrue(cached != null && cached in payloads)
     }
+
+    @Test
+    fun `successful write leaves no temp files`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        repo.load(0) { "hello cache" }
+
+        assertEquals("hello cache", repo.cached())
+        // 临时文件是随机名（test.txt_xxx.tmp），只断言目录里没有 .tmp 残留
+        assertTrue(tempFolder.root.listFiles()?.none { it.name.endsWith(".tmp") } == true)
+    }
+
+    @Test
+    fun `overwrite replaces content`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        repo.load(0) { "old" }
+        repo.load(0) { "new" }
+
+        assertEquals("new", repo.cached())
+    }
+
+    @Test
+    fun `failed write leaves no temp files`() = runBlocking {
+        val repo = TestCacheRepo("test.txt")
+        // 缓存位置上是个目录：写临时文件能成功、改名失败走回退直接写、
+        // 直接写也失败抛错；三条路都不应留下临时文件
+        assertTrue(tempFolder.newFolder("test.txt").isDirectory)
+
+        try {
+            repo.load(0) { "fresh data" }
+            org.junit.Assert.fail("缓存位置被目录占住时写缓存应抛错")
+        } catch (_: Exception) {
+            // 预期内的写失败
+        }
+
+        assertTrue(tempFolder.root.listFiles()?.none { it.name.endsWith(".tmp") } == true)
+        assertTrue(java.io.File(tempFolder.root, "test.txt").isDirectory)
+    }
 }
