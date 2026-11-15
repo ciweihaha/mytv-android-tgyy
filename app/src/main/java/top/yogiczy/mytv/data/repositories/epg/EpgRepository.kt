@@ -13,6 +13,7 @@ import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.repositories.FileCacheRepository
 import top.yogiczy.mytv.data.repositories.epg.fetcher.EpgFetcher
+import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.buildGetRequest
 import top.yogiczy.mytv.data.utils.sharedHttpClient
@@ -71,6 +72,19 @@ internal fun hasLiveProgramme(
  */
 internal fun cachedEpgBeforeThreshold(cachedJson: String?): EpgList? =
     decodeEpgListOrNull(cachedJson)
+
+/**
+ * 主源与备用源二选一：主源没有正在播的节目、备用源有，就用备用源；
+ * 其余情况（主源新鲜、两边都没有正在播的）都沿用主源——备用源也
+ * 过期时换过去没有意义，主源至少是用户自己的源、面板还会回落到
+ * 有节目的第一天。顶层函数方便单元测试直接调用。
+ */
+internal fun selectEpgList(
+    primary: EpgList,
+    backup: EpgList,
+    now: Long = System.currentTimeMillis(),
+): EpgList =
+    if (!hasLiveProgramme(primary, now) && hasLiveProgramme(backup, now)) backup else primary
 
 /**
  * 节目时间能不能用：开始或结束解析失败都记 0（退化节目，progress()
@@ -311,6 +325,52 @@ class EpgRepository : FileCacheRepository("epg.json") {
     }
 
     /**
+     * 拉主源、解析、过期时拉备用源兜底：主源返回 200 但数据过期（只剩
+     * 前几天的节目）时最容易中招——解析成功、没有正在播的节目，面板
+     * 回落到昨天那天、主界面当前节目全空，用户看到的就是“节目单没有
+     * 了”。主源拉取失败时也直接试备用源；备用源也失败才抛，外层
+     * getOrRefresh 会拿旧缓存顶上。备用源有正在播的节目就用备用源，
+     * 否则沿用主源（面板会回落到有节目的第一天，总比空节目单强）。
+     * 备用源的 XML 也走同一份 epg.xml 缓存文件：下次主源恢复后刷新
+     * 时重新拉主源，不会一直粘在备用源上。
+     */
+    private suspend fun loadEpgList(
+        xmlUrl: String,
+        backupXmlUrl: String,
+        filteredChannels: List<String>,
+        prefetchedXml: String?,
+    ): EpgList {
+        // 主源拉取失败（网络错、地址错）时直接试备用源，别等外层重试
+        // 整轮失败；备用源拉取也失败时原样抛，外层拿旧缓存顶上
+        var fromBackup = false
+        // P1：启动时已并行拉好的 XML 直接用，不再等直播源就绪后重新下载
+        val primaryXml = prefetchedXml ?: try {
+            epgXmlRepository.getEpgXml(xmlUrl)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            log.w("主节目单源拉取失败，试备用源", e)
+            fromBackup = true
+            epgXmlRepository.getEpgXml(backupXmlUrl)
+        }
+        val primary = parseFromXml(primaryXml, filteredChannels)
+        if (hasLiveProgramme(primary) || fromBackup) return primary
+        // 主源解析出了数据、但里面没有正在播的节目：源数据过期了
+        return try {
+            val backup = parseFromXml(
+                epgXmlRepository.getEpgXml(backupXmlUrl),
+                filteredChannels,
+            )
+            selectEpgList(primary, backup).also {
+                if (it === backup) log.i("主节目单源无正在播节目，已用备用源节目单")
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            log.w("备用节目单源拉取失败，沿用主源数据", e)
+            primary
+        }
+    }
+
+    /**
      * 启动并行化用的节目单 XML 预下载（P1）：与 getEpgList 的刷新判断一致，
      * 只在确实需要刷新时才下载，否则返回 null、让调用方走正常路径；
      * 下载失败也返回 null（正常路径会重试并回落旧缓存），不抛错。
@@ -343,6 +403,7 @@ class EpgRepository : FileCacheRepository("epg.json") {
         filteredChannels: List<String> = emptyList(),
         refreshTimeThreshold: Int,
         prefetchedXml: String? = null,
+        backupXmlUrl: String = Constants.EPG_XML_URL_BACKUP,
     ) = withContext(Dispatchers.Default) {
         try {
             if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
@@ -380,9 +441,7 @@ class EpgRepository : FileCacheRepository("epg.json") {
                     decoded == null ||
                     !hasLiveProgramme(decoded)
             }) {
-                // P1：启动时已并行拉好的 XML 直接用，不再等直播源就绪后重新下载
-                val xmlString = prefetchedXml ?: epgXmlRepository.getEpgXml(xmlUrl)
-                val parsed = parseFromXml(xmlString, filteredChannels)
+                val parsed = loadEpgList(xmlUrl, backupXmlUrl, filteredChannels, prefetchedXml)
                 parsedOnRefresh = parsed
                 Json.encodeToString(parsed.value)
             }

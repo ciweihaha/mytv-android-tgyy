@@ -30,6 +30,13 @@ object Constants {
     const val EPG_XML_URL = "https://ysp.ciweihaha.win/epg.xml"
 
     /**
+     * 备用节目单XML地址：主源拉取失败、或数据过期（解析后没有正在播
+     * 的节目）时兜底。fanmingming 的 e.xml 覆盖 CCTV/卫视多天节目，
+     * 2026-11-15 实测 5.8MB、133 台、今天 4,546 条
+     */
+    const val EPG_XML_URL_BACKUP = "https://live.fanmingming.com/e.xml"
+
+    /**
      * 节目单刷新时间阈值（小时）
      */
     const val EPG_REFRESH_TIME_THRESHOLD = 2 // 不到2点不刷新

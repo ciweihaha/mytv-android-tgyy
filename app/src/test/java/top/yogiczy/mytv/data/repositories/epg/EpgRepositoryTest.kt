@@ -412,6 +412,124 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `selectEpgList uses backup when primary has no live programme`() {
+        val now = System.currentTimeMillis()
+        val primary = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 7200_000, endAt = now - 3600_000, title = "旧节目"))
+                    )
+                )
+            )
+        )
+        val backup = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "备用源正在播"))
+                    )
+                )
+            )
+        )
+
+        assertEquals("备用源正在播", selectEpgList(primary, backup, now).first().programmes.first().title)
+    }
+
+    @Test
+    fun `selectEpgList keeps primary when it has a live programme`() {
+        val now = System.currentTimeMillis()
+        val primary = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "主源正在播"))
+                    )
+                )
+            )
+        )
+        val backup = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 1800_000, endAt = now + 1800_000, title = "备用源正在播"))
+                    )
+                )
+            )
+        )
+
+        assertEquals("主源正在播", selectEpgList(primary, backup, now).first().programmes.first().title)
+    }
+
+    @Test
+    fun `selectEpgList keeps primary when neither has a live programme`() {
+        val now = System.currentTimeMillis()
+        val primary = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 7200_000, endAt = now - 3600_000, title = "旧节目"))
+                    )
+                )
+            )
+        )
+        val backup = EpgList(
+            listOf(
+                Epg(
+                    channel = "CCTV-1 综合",
+                    programmes = EpgProgrammeList(
+                        listOf(EpgProgramme(startAt = now - 7200_000, endAt = now - 3600_000, title = "备用源旧节目"))
+                    )
+                )
+            )
+        )
+
+        assertEquals("旧节目", selectEpgList(primary, backup, now).first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList falls back to backup source when primary has no live programme`() = runBlocking {
+        // 主源 200 但数据过期（只剩已经播完的节目）：解析后没有正在播
+        // 的节目，直接返回主源的话主界面当前节目全空；备用源有正在播
+        // 的节目就用备用源。备用源地址故意写成 127.0.0.1:9：拉取被拒
+        // 后 getOrRefresh 会把预先写好的 epg.xml 缓存顶上来，全程不
+        // 联网；主源走预下载 XML，同样不联网
+        val now = System.currentTimeMillis()
+        val backupXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 1800_000)}" stop="${formatEpgTime(now + 1800_000)}" channel="cctv1"><title>备用源正在播</title></programme>
+            </tv>
+        """.trimIndent()
+        File(tempFolder.root, "epg.xml").writeText(backupXml)
+
+        val staleXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 7200_000)}" stop="${formatEpgTime(now - 3600_000)}" channel="cctv1"><title>昨天节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = staleXml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("备用源正在播", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList skips malformed programmes without failing the whole list`() = runBlocking {
         // 1184 轮修完后 parseFromXml 终于能在单测里跑了：1158 轮只靠
         // 读代码确认过的缺属性／自闭合兜底，现在真正锁死。五条坏节目
