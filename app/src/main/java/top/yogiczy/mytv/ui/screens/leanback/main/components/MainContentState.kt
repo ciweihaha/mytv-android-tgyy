@@ -8,7 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.media3.common.PlaybackException as Media3PlaybackException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.entities.Iptv
@@ -68,6 +70,20 @@ internal fun shouldSwitchUrlIdx(currentUrlIdx: Int, targetUrlIdx: Int): Boolean 
 internal fun normalizeIptvUrlIdx(urlIdx: Int, urlCount: Int): Int =
     (urlIdx + urlCount) % urlCount
 
+/**
+ * 重试耗尽后末条线路失败该不该自动重调同一频道：只有瞬时网络错
+ * （2004/2001/2002）和直播位置落后这两类“重试型”错误才会走到
+ * 重试耗尽——播放器对它们先重试 5 次、耗尽才上报；其他错误（解码、
+ * 解析、DRM、加载超时、CUTOFF）是直接判死刑或另有处理，重调同一条
+ * 线大概率还是同一个错，不自动重调、直接显示错误。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldAutoRetuneAfterExhaustion(errorCode: Int?): Boolean =
+    errorCode == Media3PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+        errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+        errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+        errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+
 @Stable
 class LeanbackMainContentState(
     private val coroutineScope: CoroutineScope,
@@ -76,10 +92,23 @@ class LeanbackMainContentState(
 ) : Loggable() {
     companion object {
         /**
-         * 断流多少次后放弃重备：和播放器里直播位置落后重试上限（3 次）一致，
-         * 第 4 次断流时放弃（见 nextCutoffStreak）
+         * 断流多少次后放弃重备：和播放器里直播位置落后重试上限（5 次）不同，
+         * 断流是位置不动的独立判断，第 4 次断流时放弃（见 nextCutoffStreak）；
+         * 断流放弃后不自动重调（见 handleCurrentUrlFailed），只报 CUTOFF
          */
         const val MAX_CUTOFFS_BEFORE_GIVE_UP = 3
+
+        /**
+         * 重试耗尽后自动重调同一频道的等待：5 秒，给上游票据轮换留出
+         * 恢复时间；只排队一次、总等待不超过 AUTO_RETUNE_MAX_WAIT_MS
+         */
+        const val AUTO_RETUNE_DELAY_MS = 5000L
+
+        /**
+         * 自动重调总等待上限：10 秒。单次等待 5 秒即满足上限，不叠加、
+         * 不重复排队；autoRetuneDone 保证同一轮失败最多重调一次
+         */
+        const val AUTO_RETUNE_MAX_WAIT_MS = 10000L
 
         /**
          * 可播域名记忆攒够多少次变化才刷盘（P8）：连切台时每次都读-改-写
@@ -131,6 +160,14 @@ class LeanbackMainContentState(
     private var cutoffTarget: Pair<Iptv, Int>? = null
     private var cutoffTimestamps: List<Long> = emptyList()
 
+    // 重试耗尽后自动重调的排队任务：等 5 秒再重调同一频道；等待中切台
+    // 就取消，不在新台上误触发
+    private var autoRetuneJob: Job? = null
+
+    // 本轮失败有没有用过自动重调：同一轮失败最多重调一次，重调后的新
+    // 尝试再失败就直接显示错误，不循环；播稳（READY）或换台/换线后重置
+    private var autoRetuneDone = false
+
     private var _isPanelVisible by mutableStateOf(false)
     var isPanelVisible
         get() = _isPanelVisible
@@ -165,6 +202,9 @@ class LeanbackMainContentState(
 
         videoPlayerState.onReady {
             hideTempPanelAfterDelay()
+
+            // 播稳了：上一轮失败的自动重调资格重算，之后再失败可以再重调一次
+            autoRetuneDone = false
 
             // 记忆可播放的域名：下标按 getOrNull 取，万一下标和频道对不上
             // 就跳过这一次记忆，不越界崩溃；播起来是稳定点，顺手把攒着的
@@ -231,10 +271,38 @@ class LeanbackMainContentState(
     }
 
     /**
+     * 重试耗尽后自动重调同一频道：等 5 秒（AUTO_RETUNE_DELAY_MS）再重调，
+     * 给上游票据轮换留出恢复时间；只排队一次，总等待不超过 10 秒上限。
+     * 重调走和手动切台同一条路 changeCurrentIptv（同台同线再准备一次），
+     * 重新请求 SCF 拿新票据；重调后的新尝试重新按正常重试预算走，再失败
+     * 就显示错误，不再重调。等待中用户切台/换线就取消，不在新台上误触发
+     */
+    private fun scheduleAutoRetune() {
+        autoRetuneJob?.cancel()
+        val iptv = _currentIptv
+        val urlIdx = _currentIptvUrlIdx
+        // 报错弹窗是 triggerError 时就挂上的：重调是“还没判死刑”，先把
+        // 弹窗清掉、换成“正在重连…”；重调后的新尝试再失败会重新报
+        videoPlayerState.error = null
+        videoPlayerState.setReconnecting(true)
+        autoRetuneJob = coroutineScope.launch {
+            delay(AUTO_RETUNE_DELAY_MS)
+            autoRetuneJob = null
+            videoPlayerState.setReconnecting(false)
+            // 等待中切走了就不再重调旧台
+            if (iptv == _currentIptv && urlIdx == _currentIptvUrlIdx) {
+                changeCurrentIptv(_currentIptv, _currentIptvUrlIdx)
+            }
+        }
+    }
+
+    /**
      * 当前线路失败：有下一条就切过去，失败的域名从可播放记忆里删掉。
      * 末条失败时，报错那路播放器自己已报了错误，这里只删记忆；断流
      * 放弃那路（reportErrorIfLast）要自己报一个，否则界面一直停在
-     * 冻住的画面上、也不切台
+     * 冻住的画面上、也不切台。末条失败且是重试型错误耗尽（瞬时网络错/
+     * 位置落后）时，等 5 秒自动重调同一频道、模拟手动切台——只有一条
+     * 线路的台手动切台重拉就能恢复；只重调一次，再失败就显示错误
      */
     private fun handleCurrentUrlFailed(reportErrorIfLast: Boolean = false) {
         // 先记下失败的下标：changeCurrentIptv 切线路后下标已变，
@@ -245,7 +313,12 @@ class LeanbackMainContentState(
         if (!isLastUrlFailed(failedUrlIdx, _currentIptv.urlList.size)) {
             changeCurrentIptv(_currentIptv, failedUrlIdx + 1)
         } else {
-            if (reportErrorIfLast && _currentIptv.urlList.isNotEmpty()) {
+            if (!reportErrorIfLast && !autoRetuneDone &&
+                shouldAutoRetuneAfterExhaustion(videoPlayerState.lastErrorCode)
+            ) {
+                autoRetuneDone = true
+                scheduleAutoRetune()
+            } else if (reportErrorIfLast && _currentIptv.urlList.isNotEmpty()) {
                 val cutoff = LeanbackVideoPlayer.PlaybackException.CUTOFF
                 videoPlayerState.error = "${cutoff.errorCodeName}(${cutoff.errorCode})"
             }
@@ -292,6 +365,23 @@ class LeanbackMainContentState(
         _isPanelVisible = false
 
         if (iptv == _currentIptv && urlIdx == null) return
+
+        // 排队中的自动重调被任何一次真正的切台/换线取代：手动切走了，旧台
+        // 的重调不能再在新台上触发；同台同线重备（断流/自动重调本身）也先
+        // 清掉残留任务——开火的任务已在等完后把引用置空，这里只是清残留。
+        // 注意这段必须在上面那个空操作提前返回之后：只是在面板里又点了一
+        // 次正在播的台（空操作）不该取消排队中的重调，否则画面会冻住、
+        // 报错也被清掉了、重连提示也没了，用户只能干等
+        autoRetuneJob?.cancel()
+        autoRetuneJob = null
+        videoPlayerState.setReconnecting(false)
+
+        // 换到别的台/线，重调资格重算：新台的新一轮失败可以再自动重调一次；
+        // 同台同线重备不重置——自动重调那次的资格必须留到重调后的新尝试
+        // 再失败时才耗尽，否则同一次失败能无限重调
+        if (iptv != _currentIptv || (urlIdx != null && urlIdx != _currentIptvUrlIdx)) {
+            autoRetuneDone = false
+        }
 
         if (iptv == _currentIptv && urlIdx != _currentIptvUrlIdx) {
             // 仅当旧频道有播放地址时才处理域名记忆（无地址的提示条目没有 urlList[0]）；
