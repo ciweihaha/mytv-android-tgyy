@@ -131,6 +131,25 @@ class EpgListTest {
     }
 
     @Test
+    fun `entries without a usable id stay out of the id map`() {
+        // byChannelId 注释：没 id 的条目不进表。只断言 epgFor 找不到盖不
+        // 住这条——epgFor 对空 tvgId 本来就直接回 null；直接断言表里
+        // 没有 "" 这个键，守卫被删时这里会失败。空串与只有空白的 id
+        // 都不进：守卫是 isNotBlank，写成 isNotEmpty 时 " " 那条会溜进来
+        val epgList = EpgList(
+            listOf(
+                liveEpg("CCTV-1 综合"),
+                liveEpg("CCTV-2 综合", "   "),
+            )
+        )
+
+        assertTrue(epgList.byChannelId.isEmpty())
+        // 空 id 的节目单不是废数据：按名仍能查到
+        val iptv = Iptv(name = "CCTV-1 综合", channelName = "CCTV-1 综合", tvgId = "")
+        assertEquals("正在播", epgList.currentProgrammes(iptv)?.now?.title)
+    }
+
+    @Test
     fun `returns null for unknown tvg-id`() {
         val epgList = EpgList(listOf(liveEpg("CCTV-1 综合", "cctv1")))
         val iptv = Iptv(name = "CCTV综合", channelName = "CCTV综合", tvgId = "cctv99")
