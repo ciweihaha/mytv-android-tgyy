@@ -47,6 +47,12 @@ class EpgFetcherTest {
     fun `gz fetcher matches urls with query string`() {
         assertTrue(gzFetcher.isSupport("https://example.com/epg.xml.gz"))
         assertTrue(gzFetcher.isSupport("https://example.com/epg.gz?token=abc"))
+        // 大写后缀也认：xml 那边 `EPG.XML` 已钉死大小写不敏感，gz
+        // 这边一次也没断言过——matchExtension 里的 ignoreCase 被人
+        // 顺手拿掉时，xml 那档会红、gz 这档却悄悄失效，真实源里
+        // .XML.GZ / .GZ 的订阅地址就分发不到 gz 解析器了
+        assertTrue(gzFetcher.isSupport("https://example.com/epg.XML.GZ"))
+        assertTrue(gzFetcher.isSupport("https://example.com/epg.GZ"))
         assertFalse(gzFetcher.isSupport("https://example.com/epg.xml"))
         assertFalse(gzFetcher.isSupport("https://example.com/epg"))
     }
