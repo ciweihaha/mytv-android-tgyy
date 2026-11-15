@@ -933,6 +933,34 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `prefetch returns null when download fails`() = runBlocking {
+        // 下载失败也返回 null（正常路径会重试并回落旧缓存），不抛错。
+        // JSON 缓存是昨天的、里面没正在播的节目 → 走到下载那条路；
+        // 地址 127.0.0.1:9（discard 端口、无人监听）→ 连接被拒 →
+        // 返回 null。之前只有两条“不用下载”分支有单测，下载那条路
+        // 一次也没断言过
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-2",
+                        programmes = EpgProgrammeList(
+                            listOf(EpgProgramme(startAt = now - 2000, endAt = now - 1000, title = "旧节目"))
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now - 25 * 60 * 60 * 1000L)
+
+        val result = EpgRepository().downloadEpgXmlIfNeeded("http://127.0.0.1:9/epg.xml", 0)
+
+        assertNull(result)
+    }
+
+    @Test
     fun `getEpgList throws when refresh fails without cache`() = runBlocking {
         // 没缓存可顶时刷新失败就原样抛错，不给空节目单冒充成功
         try {
