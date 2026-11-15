@@ -179,4 +179,64 @@ class DownloaderTest {
         )
         assertEquals("old", file.readText())
     }
+
+    /** 已知总长度时进度回调按百分比变化触发、重复值只报一次、最后到 100。 */
+    @Test
+    fun `progress callback fires increasing percentages ending at 100`() = runBlocking {
+        val body = ByteArray(200_000) { (it % 251).toByte() }
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/big.apk") { exchange ->
+                exchange.sendResponseHeaders(200, body.size.toLong())
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        try {
+            val url = "http://127.0.0.1:${server.address.port}/big.apk"
+            val file = tempFile()
+            val progressValues = mutableListOf<Int>()
+            withTimeout(10_000) {
+                Downloader.downloadTo(url, file.path) { progressValues.add(it) }
+            }
+            assertEquals(body.size.toLong(), file.length())
+            assertTrue("进度回调应至少报两次，实际 $progressValues", progressValues.size >= 2)
+            assertEquals(100, progressValues.last())
+            assertTrue(
+                "进度回调应严格递增（重复值只报一次），实际 $progressValues",
+                progressValues.zipWithNext().all { (a, b) -> a < b },
+            )
+            assertTrue(progressValues.all { it in 0..100 })
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    /** 分块传输（总长度未知）时不报进度：contentLength 为 -1，回调一次也不触发。 */
+    @Test
+    fun `chunked response never fires progress callback`() = runBlocking {
+        val body = "chunked-bytes".toByteArray()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/chunked.apk") { exchange ->
+                // 长度 0 = 分块传输，总长度未知
+                exchange.sendResponseHeaders(200, 0)
+                exchange.responseBody.use { it.write(body) }
+            }
+            start()
+        }
+        try {
+            val url = "http://127.0.0.1:${server.address.port}/chunked.apk"
+            val file = tempFile()
+            val progressValues = mutableListOf<Int>()
+            withTimeout(10_000) {
+                Downloader.downloadTo(url, file.path) { progressValues.add(it) }
+            }
+            assertEquals("chunked-bytes", file.readText())
+            assertTrue(
+                "总长度未知时进度回调一次也不应触发，实际 $progressValues",
+                progressValues.isEmpty(),
+            )
+        } finally {
+            server.stop(0)
+        }
+    }
 }
