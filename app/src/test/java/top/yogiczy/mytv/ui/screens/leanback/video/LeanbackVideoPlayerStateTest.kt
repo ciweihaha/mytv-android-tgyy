@@ -19,6 +19,7 @@ class LeanbackVideoPlayerStateTest {
 
         fun emitResolution(width: Int, height: Int) = triggerResolution(width, height)
         fun emitError(error: LeanbackVideoPlayer.PlaybackException?) = triggerError(error)
+        fun emitBuffering(buffering: Boolean) = triggerBuffering(buffering)
     }
 
     @Test
@@ -106,5 +107,24 @@ class LeanbackVideoPlayerStateTest {
         player.emitError(null)
         assertNull(state.error)
         assertEquals(1, errorNotifications)
+    }
+
+    @Test
+    fun `buffering start clears error, buffering end keeps it`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
+
+        // 开始缓冲（比如切台后重新拉流）：错误横幅清掉
+        player.emitBuffering(true)
+        assertNull(state.error)
+
+        // 再报一次错、缓冲结束：错误留着，不清
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        player.emitBuffering(false)
+        assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
     }
 }
