@@ -87,6 +87,16 @@ class CompareVersionTest {
         assertTrue("1.4.4-rc.1".compareVersion("1.4.4-rc.x") < 0)
         assertTrue("1.4.4-rc.x".compareVersion("1.4.4-rc.1") > 0)
     }
+
+    @Test
+    fun `shorter pre-release label is smaller when it is a prefix`() {
+        // semver：短的若是前缀则更小——`1.4.4-alpha` 比 `1.4.4-alpha.1`
+        // 小；反方向（长的比短的大）已有用例钉死，这档（短的在前、p1
+        // 先耗尽回 -1）一次也没断言过，符号写反了更新检查会把
+        // alpha 与 alpha.1 的先后判错
+        assertTrue("1.4.4-alpha".compareVersion("1.4.4-alpha.1") < 0)
+        assertTrue("1.4.4-rc".compareVersion("1.4.4-rc.1") < 0)
+    }
 }
 
 class IsIPv6Test {
