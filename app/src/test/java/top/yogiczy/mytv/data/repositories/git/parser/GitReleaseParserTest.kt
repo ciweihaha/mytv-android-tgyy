@@ -64,6 +64,33 @@ class GithubGitReleaseParserTest {
         val result = parser.parse(data)
 
         assertEquals("1.4.5", result.version)
+        // 附件没写 size 时记 -1（下载时不校验）：这档在生产注释里
+        // 写了、却一次也没断言过；改成 0 的话下载校验会拿 0 字节比，
+        // 没 size 的发行版就装不上了
+        assertEquals(-1, result.downloadSize)
+    }
+
+    @Test
+    fun `uppercase V prefixed tag is stripped to plain version`() = runBlocking {
+        // 旧版 tag 是大写 V 的 "V3.0.0.238"（生产注释里写了这例，
+        // 测试却只盖了小写 v 与 tv）：只去小写 v 的话版本号留成
+        // "V3.0.0.238"，显示又各拼一个 v，最后变成 "vV3.0.0.238"
+        val data = """
+            {
+              "tag_name": "V3.0.0.238",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-3.0.0.238.apk",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/V3.0.0.238/mytv-3.0.0.238.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals("3.0.0.238", result.version)
     }
 
     @Test
