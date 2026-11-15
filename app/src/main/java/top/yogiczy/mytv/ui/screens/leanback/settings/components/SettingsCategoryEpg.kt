@@ -55,7 +55,7 @@ fun LeanbackSettingsCategoryEpg(
         item {
             LeanbackSettingsCategoryListItem(
                 headlineContent = "节目单刷新时间阈值",
-                supportingContent = "短按增加1小时，长按设为0小时；时间不到${settingsViewModel.epgRefreshTimeThreshold}:00节目单将不会刷新",
+                supportingContent = epgRefreshTimeThresholdHintText(settingsViewModel.epgRefreshTimeThreshold),
                 trailingContent = "${settingsViewModel.epgRefreshTimeThreshold}小时",
                 onSelected = {
                     settingsViewModel.epgRefreshTimeThreshold =
@@ -123,6 +123,13 @@ fun LeanbackSettingsCategoryEpg(
         }
     }
 }
+
+/** 刷新时间阈值写成整点时刻：阈值是整点小时 0–12，显示里带 :00 */
+internal fun epgRefreshTimeThresholdText(threshold: Int): String = "$threshold:00"
+
+/** “节目单刷新时间阈值”那行的说明文案，复用上面的时刻写法 */
+internal fun epgRefreshTimeThresholdHintText(threshold: Int): String =
+    "短按增加1小时，长按设为0小时；时间不到${epgRefreshTimeThresholdText(threshold)}节目单将不会刷新"
 
 @Preview
 @Composable
