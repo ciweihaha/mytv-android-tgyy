@@ -254,4 +254,22 @@ class TvboxIptvParserTest {
         assertEquals("CCTV-1", result[0].iptvList[0].name)
         assertEquals("CCTV-5", result[0].iptvList[1].name)
     }
+
+    @Test
+    fun `degenerate genre line first falls back to other group`() = runBlocking {
+        // 壳 818 轮姊妹检查：退化分组行 `#genre#,#genre#` 在文件第一行：
+        // 去掉两个标记后分组名为空，前面还没有分组可保留，频道应进
+        // “其他”，不能出现空白分组名、也不能崩。天光这边这行以 # 开头
+        // 先被当注释跳过（`,#genre#` 那半边守卫走不到），结果同一档
+        val data = "#genre#,#genre#\nCCTV-1,http://example.com/cctv1"
+
+        assertTrue(parser.isSupport("", data))
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("其他", result[0].name)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1"), result[0].iptvList[0].urlList)
+    }
 }
