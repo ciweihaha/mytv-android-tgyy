@@ -119,6 +119,40 @@ class GithubGitReleaseParserTest {
     }
 
     @Test
+    fun `picks apk asset with uppercase suffix`() = runBlocking {
+        // 壳 820 轮姊妹检查：上游附件名大小写不保证，大写 .APK 也要
+        // 认成安装包；selectApkAsset 里 ignoreCase 写漏时，这档会把
+        // 真包漏掉、报“发行版没有 APK 附件”。天光不按关键词挑包
+        // （没有 original/all 那套），只断言后缀不区分大小写
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk.sha256",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk.sha256",
+                  "size": 128
+                },
+                {
+                  "name": "mytv-1.4.4.APK",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.APK",
+                  "size": 25800000
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(
+            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.APK",
+            result.downloadUrl,
+        )
+        assertEquals(25800000L, result.downloadSize)
+    }
+
+    @Test
     fun `null browser_download_url fails with a clear error instead of a bogus null url`() {
         // JsonNull 也是 JsonPrimitive，content 是字面量 "null"：直接取
         // content 会拼出 "https://mirror.ghproxy.com/null" 当下载地址，
