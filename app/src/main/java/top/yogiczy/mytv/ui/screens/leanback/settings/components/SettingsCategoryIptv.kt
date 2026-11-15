@@ -92,7 +92,7 @@ fun LeanbackSettingsCategoryIptv(
             LeanbackSettingsCategoryListItem(
                 headlineContent = "直播源缓存时间",
                 supportingContent = "短按增加1小时，长按设为0小时",
-                trailingContent = settingsViewModel.iptvSourceCacheTime.humanizeMs(),
+                trailingContent = iptvSourceCacheTimeText(settingsViewModel.iptvSourceCacheTime),
                 onSelected = {
                     settingsViewModel.iptvSourceCacheTime =
                         nextHourStepMs(settingsViewModel.iptvSourceCacheTime, 24)
@@ -168,6 +168,21 @@ fun LeanbackSettingsCategoryIptv(
 internal fun channelChangeFlipSupportingText(flip: Boolean): String =
     if (flip) "方向键上：下一个频道；方向键下：上一个频道"
     else "方向键上：上一个频道；方向键下：下一个频道"
+
+/**
+ * 直播源缓存时间的显示文字：0 → “不缓存”，最大值 → “永久”，其余走
+ * 已钉死的 `humanizeMs`。0 的意思是每次都重新拉源（`getOrRefresh` 里
+ * `已过时间 >= 0` 恒成立），直接显示 `humanizeMs` 的“0秒”会让人以为
+ * 只缓存 0 秒；最大值同理是永不过期。长按回 0、短按 1 小时一档到 24
+ * 小时循环，最大值界面上到不了，但按行为它就是“永久”，一并钉死。
+ */
+internal fun iptvSourceCacheTimeText(cacheTime: Long): String {
+    return when (cacheTime) {
+        0L -> "不缓存"
+        Long.MAX_VALUE -> "永久"
+        else -> cacheTime.humanizeMs()
+    }
+}
 
 @Preview
 @Composable
