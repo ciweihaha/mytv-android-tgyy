@@ -76,6 +76,17 @@ class CompareVersionTest {
         assertTrue("1.4.4-canary.10".compareVersion("1.4.4-canary.2") > 0)
         assertTrue("1.4.4-alpha.1".compareVersion("1.4.4-alpha") > 0)
     }
+
+    @Test
+    fun `numeric pre-release segment is smaller than alphanumeric segment`() {
+        // semver：纯数字段小于字母段——数字段按数值、字母段按字典序，
+        // 且数字段更小；这两档（n1 非空回 -1、n2 非空回 1）之前一次
+        // 也没断言过，符号写反了更新检查会把预发布版的先后判错
+        assertTrue("1.4.4-1".compareVersion("1.4.4-alpha") < 0)
+        assertTrue("1.4.4-alpha".compareVersion("1.4.4-1") > 0)
+        assertTrue("1.4.4-rc.1".compareVersion("1.4.4-rc.x") < 0)
+        assertTrue("1.4.4-rc.x".compareVersion("1.4.4-rc.1") > 0)
+    }
 }
 
 class IsIPv6Test {
