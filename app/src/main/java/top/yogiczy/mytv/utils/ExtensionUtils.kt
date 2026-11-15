@@ -51,6 +51,14 @@ fun nextHourStep(currentHours: Int, maxHours: Int): Int =
 fun nextHourStepMs(currentMs: Long, maxHours: Int): Long =
     nextHourStep((currentMs / 3_600_000).toInt(), maxHours) * 3_600_000L
 
+// 播放器加载超时步进：设置页“播放器加载超时”原来把算式 inline 写在
+// 界面里——5 秒一档、5~30 秒循环；到顶（30 秒）加一档后取余归 0 再夹
+// 回 5 秒。取余里要加 step（% (max + step)）：只 % max 的话 25 秒那档
+// 会算成 0 再夹回 5 秒、到不了 30 秒。超出范围的值（旧版存盘、默认 0）
+// 一步就回到循环里。
+fun nextLoadTimeoutMs(currentMs: Long, minMs: Long, maxMs: Long, stepMs: Long): Long =
+    max(minMs, (currentMs + stepMs) % (maxMs + stepMs))
+
 // 列表初始滚动位置：全 App 8 处都是同一条算式——当前项下标减 2 再夹到 0，
 // 让当前项上方留两行，打开列表就能看到上下文；下标 -1（当前项不在列表里）
 // 减完也是负数，同样夹回 0，就是第一行。以后改“留几行”只改这一处。

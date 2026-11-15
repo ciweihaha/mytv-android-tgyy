@@ -138,6 +138,27 @@ class NextHourStepTest {
     }
 }
 
+class NextLoadTimeoutMsTest {
+    @Test
+    fun `load timeout steps by five seconds and wraps at max`() {
+        // 播放器加载超时：5 秒一档、5~30 秒循环
+        val s = 1000L
+        assertEquals(10 * s, nextLoadTimeoutMs(5 * s, 5 * s, 30 * s, 5 * s))
+        assertEquals(20 * s, nextLoadTimeoutMs(15 * s, 5 * s, 30 * s, 5 * s))
+        // 25 秒那档：只 % max 会算成 0 再夹回 5 秒，到不了 30 秒
+        assertEquals(30 * s, nextLoadTimeoutMs(25 * s, 5 * s, 30 * s, 5 * s))
+        // 到顶回最小
+        assertEquals(5 * s, nextLoadTimeoutMs(30 * s, 5 * s, 30 * s, 5 * s))
+    }
+
+    @Test
+    fun `out of range timeout returns to cycle in one step`() {
+        val s = 1000L
+        assertEquals(5 * s, nextLoadTimeoutMs(0, 5 * s, 30 * s, 5 * s))
+        assertEquals(30 * s, nextLoadTimeoutMs(60 * s, 5 * s, 30 * s, 5 * s))
+    }
+}
+
 /**
  * 列表初始滚动位置：第 170 轮把全 App 8 处一模一样的
  * max(0, 下标 - 2) 抽成了共用的 initialScrollIndex——当前项上方留

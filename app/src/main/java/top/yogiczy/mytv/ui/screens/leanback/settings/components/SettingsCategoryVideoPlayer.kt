@@ -14,7 +14,7 @@ import top.yogiczy.mytv.ui.screens.leanback.settings.LeanbackSettingsViewModel
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.utils.humanizeMs
-import kotlin.math.max
+import top.yogiczy.mytv.utils.nextLoadTimeoutMs
 
 @Composable
 fun LeanbackSettingsCategoryVideoPlayer(
@@ -49,7 +49,7 @@ fun LeanbackSettingsCategoryVideoPlayer(
                 trailingContent = settingsViewModel.videoPlayerLoadTimeout.humanizeMs(),
                 onSelected = {
                     settingsViewModel.videoPlayerLoadTimeout =
-                        max(min, (settingsViewModel.videoPlayerLoadTimeout + step) % (max + step))
+                        nextLoadTimeoutMs(settingsViewModel.videoPlayerLoadTimeout, min, max, step)
                 },
             )
         }
