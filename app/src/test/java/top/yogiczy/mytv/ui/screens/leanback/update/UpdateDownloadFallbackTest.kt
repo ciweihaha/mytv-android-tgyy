@@ -455,4 +455,49 @@ class UpdateDownloadFallbackTest {
         assertTrue(LeanbackToastState.I.visible)
         assertEquals("下载更新失败", LeanbackToastState.I.current.message)
     }
+
+    @Test
+    fun `download start shows start toast`() = runBlocking {
+        // 下载开始就弹“开始下载更新”：下大包、进度回调还没到之前，
+        // 用户全靠这一句知道下载动了；和失败提示同一类，一次也
+        // 没断言过——卡在假下载里、进度回调还没调时断言
+        val viewModel = setupViewModel(proxyUrl)
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<Unit>()
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { _, path, _ ->
+                started.complete(Unit)
+                releaseGate.await()
+                File(path).writeText("apk")
+            }
+
+        val first = async { viewModel.downloadAndUpdate(file, fakeDownload) }
+        started.await()
+        delay(600)
+        assertTrue(LeanbackToastState.I.visible)
+        assertEquals("开始下载更新", LeanbackToastState.I.current.message)
+
+        releaseGate.complete(Unit)
+        first.await()
+        assertTrue(viewModel.updateDownloaded)
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun `successful download shows success toast`() = runBlocking {
+        // 下完弹“下载更新成功”：和失败提示同一类，一次也没断言过；
+        // 提示换场要 300 毫秒，多等一倍再断言
+        val viewModel = setupViewModel(proxyUrl)
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { _, path, _ -> File(path).writeText("apk") }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        delay(600)
+
+        assertTrue(viewModel.updateDownloaded)
+        assertTrue(LeanbackToastState.I.visible)
+        assertEquals("下载更新成功", LeanbackToastState.I.current.message)
+    }
 }
