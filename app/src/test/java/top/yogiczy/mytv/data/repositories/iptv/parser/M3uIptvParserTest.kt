@@ -361,4 +361,33 @@ class M3uIptvParserTest {
             result[0].iptvList[0].urlList,
         )
     }
+
+    @Test
+    fun `duplicate urls collapse and same name in different groups stays separate`() = runBlocking {
+        // 壳 811 轮回镜的后半边：同名两行地址相同只留一路（.distinct()
+        // 一次也没钉过）、同名频道分属两组各留一份；先赢那半边
+        // 1932 轮已做。壳 812 轮是 1932 轮的端到端版——天光的 parse
+        // 本身就是端到端（解析与分组同一层），不用另补
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-id="cctv1" tvg-name="CCTV综合" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-id="cctv1-hd" tvg-name="CCTV-1 高清" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-id="cctv1-ws" tvg-name="CCTV-1" group-title="卫视",CCTV-1
+            http://example.com/cctv1-ws.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(2, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV综合", result[0].iptvList[0].channelName)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+        assertEquals("卫视", result[1].name)
+        assertEquals(1, result[1].iptvList.size)
+        assertEquals("CCTV-1", result[1].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1-ws.m3u8"), result[1].iptvList[0].urlList)
+    }
 }
