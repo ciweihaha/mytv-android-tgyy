@@ -239,6 +239,31 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList parses negative timezone on the main path`() = runBlocking {
+        // 主解析只认 `yyyyMMddHHmmss Z`（时区前有空格）：美洲源的
+        // 负时区 -0800 只能走主解析，兜底测过（1924 轮）、主解析
+        // 一次也没断言过。09:00-0800 是 UTC 17:00，即 +0800 的
+        // 次日 01:00；只看标题断言不到时间，必须断言 startAt/endAt
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113090000 -0800" stop="20261113100000 -0800" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1794589200000L, result.first().programmes.first().startAt)
+        assertEquals(1794592800000L, result.first().programmes.first().endAt)
+    }
+
+    @Test
     fun `getEpgList refresh uses prefetched xml over stale cache`() = runBlocking {
         // 缓存是昨天的（过期、必须刷新）：刷新走预下载的 XML，而不是
         // 用旧缓存顶上。阈值传 0 跳过“未到时间点”分支；旧缓存故意写
