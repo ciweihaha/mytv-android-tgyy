@@ -117,6 +117,14 @@ internal fun isTransientIoError(errorCode: Int): Boolean =
 internal fun shouldRetryTransientIoError(errorCode: Int, retriesSoFar: Int): Boolean =
     isTransientIoError(errorCode) && retriesSoFar < LeanbackMedia3VideoPlayer.MAX_IO_ERROR_RETRIES
 
+/**
+ * 瞬时网络错第几次重试前等多久：第 1 次 1 秒、第 2 次 2 秒、第 3 次
+ * 3 秒。调用处先把 ioErrorRetries 加一再算，入参就是第几次重试；
+ * 等多久是纯算式，抽出来方便单元测试直接调用、锁死档位，免得
+ * 以后改了倍数或先加后算的顺序、重试节奏悄悄变了没人知道。
+ */
+internal fun transientIoRetryDelayMs(retryNumber: Int): Long = 1000L * retryNumber
+
 @OptIn(UnstableApi::class)
 class LeanbackMedia3VideoPlayer(
     private val context: Context,
@@ -327,7 +335,7 @@ class LeanbackMedia3VideoPlayer(
                     ioErrorRetries++
                     ioErrorRetryJob?.cancel()
                     ioErrorRetryJob = coroutineScope.launch {
-                        delay(1000L * ioErrorRetries)
+                        delay(transientIoRetryDelayMs(ioErrorRetries))
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
                     }

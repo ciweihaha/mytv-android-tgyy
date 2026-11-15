@@ -48,4 +48,16 @@ class Media3TransientIoRetryTest {
             ),
         )
     }
+
+    @Test
+    fun `第 1 次重试等 1 秒、第 2 次 2 秒、第 3 次 3 秒`() {
+        assertEquals(1000L, transientIoRetryDelayMs(1))
+        assertEquals(2000L, transientIoRetryDelayMs(2))
+        assertEquals(3000L, transientIoRetryDelayMs(3))
+    }
+
+    @Test
+    fun `还没重试时不等待`() {
+        assertEquals(0L, transientIoRetryDelayMs(0))
+    }
 }
