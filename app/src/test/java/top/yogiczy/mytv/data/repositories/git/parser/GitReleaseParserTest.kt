@@ -190,6 +190,66 @@ class GithubGitReleaseParserTest {
     }
 
     @Test
+    fun `top level array fails instead of crashing on a bad cast`() {
+        // 顶层是数组不是对象（比如地址配成了列表接口）：jsonObject
+        // 应报类型错，别让调用方看到 ClassCastException
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { parser.parse("""[{"tag_name": "v1.4.4"}]""") }
+        }
+        assertTrue(error.message?.contains("JsonObject") == true)
+    }
+
+    @Test
+    fun `missing assets key fails naming the key`() {
+        // 接口返回了错误 JSON（只有 message、没有 assets）：
+        // getValue 应报缺的是 assets 这个键，而不是空附件的错
+        val data = """{"message": "Not Found"}"""
+
+        val error = assertThrows(NoSuchElementException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
+        assertTrue(error.message?.contains("assets") == true)
+    }
+
+    @Test
+    fun `missing tag name key fails naming the key`() {
+        // 同上：错误 JSON 里也没有 tag_name，报缺键而不是版本空串
+        val data = """
+            {
+              "body": "更新说明",
+              "assets": [
+                {
+                  "name": "mytv-1.4.4.apk",
+                  "browser_download_url": "https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val error = assertThrows(NoSuchElementException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
+        assertTrue(error.message?.contains("tag_name") == true)
+    }
+
+    @Test
+    fun `non object asset fails instead of crashing the check`() {
+        // assets 里混进一个非对象元素：取 name 时 jsonObject
+        // 应报类型错，别让整个更新检查抛看不懂的错
+        val data = """
+            {
+              "tag_name": "v1.4.4",
+              "body": "更新说明",
+              "assets": ["not-an-object"]
+            }
+        """.trimIndent()
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { parser.parse(data) }
+        }
+    }
+
+    @Test
     fun `null body becomes empty description instead of literal null`() = runBlocking {
         val data = """
             {
