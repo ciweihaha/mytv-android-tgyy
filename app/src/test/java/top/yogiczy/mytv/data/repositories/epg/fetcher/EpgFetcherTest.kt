@@ -65,6 +65,24 @@ class EpgFetcherTest {
     }
 
     @Test
+    fun `query-only suffix dispatches to default fetcher`() {
+        // 上一档只断言了各解析器认不认领，没断言分发结果：instances
+        // 顺序被人调换（比如 Default 被挪到前面）时，上面四档照样
+        // 通过，分发却变了。这里直接断言 `EpgRepository` 那行
+        // `instances.first { it.isSupport(url) }` 挑到的是 Default
+        assertTrue(
+            EpgFetcher.instances.first {
+                it.isSupport("https://example.com/epg?file=x.xml")
+            } is DefaultEpgFetcher
+        )
+        assertTrue(
+            EpgFetcher.instances.first {
+                it.isSupport("https://example.com/epg?file=x.xml.gz")
+            } is DefaultEpgFetcher
+        )
+    }
+
+    @Test
     fun `default fetcher returns plain xml body as-is`() {
         val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
 
