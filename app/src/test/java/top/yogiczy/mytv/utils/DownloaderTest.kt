@@ -126,4 +126,57 @@ class DownloaderTest {
             server.stop(0)
         }
     }
+
+    /** 404 不写文件：状态码检查在开文件流之前，旧文件原样留着。 */
+    @Test
+    fun `http error status leaves target file untouched`() = runBlocking {
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+            createContext("/missing.apk") { exchange ->
+                exchange.sendResponseHeaders(404, -1)
+                exchange.close()
+            }
+            start()
+        }
+        try {
+            val url = "http://127.0.0.1:${server.address.port}/missing.apk"
+            val file = tempFile().apply { writeText("old") }
+            val thrown = try {
+                withTimeout(10_000) {
+                    Downloader.downloadTo(url, file.path, null)
+                }
+                null
+            } catch (e: Throwable) {
+                e
+            }
+            assertTrue(
+                "404 应原样抛 HttpStatusException，实际是 $thrown",
+                thrown is HttpStatusException && thrown.code == 404,
+            )
+            assertEquals("old", file.readText())
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    /** 连不上服务器包成网络错：不是 HTTP 状态码，走“请检查网络连接”那条路。 */
+    @Test
+    fun `connection refused throws network message and leaves target untouched`() = runBlocking {
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply { start() }
+        val port = server.address.port
+        server.stop(0)
+        val file = tempFile().apply { writeText("old") }
+        val thrown = try {
+            withTimeout(10_000) {
+                Downloader.downloadTo("http://127.0.0.1:$port/x", file.path, null)
+            }
+            null
+        } catch (e: Throwable) {
+            e
+        }
+        assertTrue(
+            "连不上应包成网络错，实际是 $thrown",
+            thrown is Exception && thrown.message?.contains("请检查网络连接") == true,
+        )
+        assertEquals("old", file.readText())
+    }
 }
