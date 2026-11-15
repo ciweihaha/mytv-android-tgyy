@@ -284,11 +284,11 @@ class LeanbackMainContentState(
         // 报错弹窗是 triggerError 时就挂上的：重调是“还没判死刑”，先把
         // 弹窗清掉、换成“正在重连…”；重调后的新尝试再失败会重新报
         videoPlayerState.error = null
-        videoPlayerState.setReconnecting(true)
+        videoPlayerState.isReconnecting = true
         autoRetuneJob = coroutineScope.launch {
             delay(AUTO_RETUNE_DELAY_MS)
             autoRetuneJob = null
-            videoPlayerState.setReconnecting(false)
+            videoPlayerState.isReconnecting = false
             // 等待中切走了就不再重调旧台
             if (iptv == _currentIptv && urlIdx == _currentIptvUrlIdx) {
                 changeCurrentIptv(_currentIptv, _currentIptvUrlIdx)
@@ -374,7 +374,7 @@ class LeanbackMainContentState(
         // 报错也被清掉了、重连提示也没了，用户只能干等
         autoRetuneJob?.cancel()
         autoRetuneJob = null
-        videoPlayerState.setReconnecting(false)
+        videoPlayerState.isReconnecting = false
 
         // 换到别的台/线，重调资格重算：新台的新一轮失败可以再自动重调一次；
         // 同台同线重备不重置——自动重调那次的资格必须留到重调后的新尝试
