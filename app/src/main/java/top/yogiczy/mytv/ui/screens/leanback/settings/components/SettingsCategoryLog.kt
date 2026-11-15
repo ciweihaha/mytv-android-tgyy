@@ -15,6 +15,22 @@ import top.yogiczy.mytv.utils.Logger
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+/**
+ * 日志行前面的等级字母：取等级名的首字母（DEBUG→D、INFO→I、WARN→W、ERROR→E）。
+ * 从界面里抽出来，只为能离线断言字母写没写错；等级名一改字母就跟着变，单测会立刻发现。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun logLevelLetter(level: Logger.LevelType): String =
+    level.toString()[0].toString()
+
+/**
+ * 日志行的正文：消息后面换行跟原因，没有原因时就是消息本身（不留尾巴）。
+ * 从界面里抽出来，只为能离线断言正文拼没拼错；行为与界面上显示的字逐字一致。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun logSupportingText(message: String, cause: String?): String =
+    message + (cause?.let { "\n$it" } ?: "")
+
 @Composable
 fun LeanbackSettingsCategoryLog(
     modifier: Modifier = Modifier,
@@ -38,9 +54,8 @@ fun LeanbackSettingsCategoryLog(
             // 设置页上只能看到“上次启动发生闪退”、看不到崩在哪——
             // CrashHandler 的注释说两个地方都能看到，这里把它补上
             LeanbackSettingsCategoryListItem(
-                headlineContent = "${it.level.toString()[0]} ${it.tag}",
-                supportingContent = it.message +
-                    (it.cause?.let { cause -> "\n$cause" } ?: ""),
+                headlineContent = "${logLevelLetter(it.level)} ${it.tag}",
+                supportingContent = logSupportingText(it.message, it.cause),
                 trailingContent = timeFormat.format(it.time),
             )
         }
