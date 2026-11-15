@@ -10,8 +10,8 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -1283,18 +1283,23 @@ class EpgRepositoryTest {
     }
 
     @Test
-    fun `getEpgList throws when refresh fails without cache`() = runBlocking {
-        // 没缓存可顶时刷新失败就原样抛错，不给空节目单冒充成功
-        try {
-            EpgRepository().getEpgList(
-                "http://127.0.0.1:9/epg.xml",
-                refreshTimeThreshold = 0,
-                prefetchedXml = null,
-                backupXmlUrl = "http://127.0.0.1:9/backup.xml",
-            )
-            fail("没缓存又刷新失败时应抛错")
-        } catch (_: Exception) {
-            // 预期：没旧缓存可顶，刷新失败原样抛错
+    fun `getEpgList throws when refresh fails without cache`() {
+        // 没缓存可顶时刷新失败就原样抛错，不给空节目单冒充成功。
+        // 壳 852 轮姊妹检查：壳那边断言了错误文案，天光这边原来只
+        // 断言抛了错、没断言文案—— raw 的连接错漏出来、或包错文案
+        // 时也照样通过；文案是用户看得到的“请检查网络连接”，该钉死。
+        // 文案与壳不同（天光是“获取远程节目单xml失败”，壳是“获取
+        // 节目单xml失败”），是天光自己的措辞，不是写错了
+        val ex = assertThrows(Exception::class.java) {
+            runBlocking {
+                EpgRepository().getEpgList(
+                    "http://127.0.0.1:9/epg.xml",
+                    refreshTimeThreshold = 0,
+                    prefetchedXml = null,
+                    backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+                )
+            }
         }
+        assertEquals("获取远程节目单xml失败，请检查网络连接", ex.message)
     }
 }
