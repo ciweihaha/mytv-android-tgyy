@@ -125,6 +125,16 @@ internal fun shouldRetryTransientIoError(errorCode: Int, retriesSoFar: Int): Boo
  */
 internal fun transientIoRetryDelayMs(retryNumber: Int): Long = 1000L * retryNumber
 
+/**
+ * 直播位置落后该不该在同一条线路上再试一次：是 BEHIND_LIVE_WINDOW、
+ * 且这条线路上已经试过的次数还没到上限（MAX_BEHIND_LIVE_WINDOW_RETRIES = 3，
+ * 最多重试 3 次）。调用处先判后加，入参是“已重试次数”。
+ * 顶层函数方便单元测试直接调用，锁死上限；同款写法见瞬时网络错那支。
+ */
+internal fun shouldRetryBehindLiveWindow(errorCode: Int, retriesSoFar: Int): Boolean =
+    errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW &&
+        retriesSoFar < LeanbackMedia3VideoPlayer.MAX_BEHIND_LIVE_WINDOW_RETRIES
+
 @OptIn(UnstableApi::class)
 class LeanbackMedia3VideoPlayer(
     private val context: Context,
@@ -314,14 +324,17 @@ class LeanbackMedia3VideoPlayer(
             // 如果是直播加载位置错误，先重试几次；一直落后说明该线路的
             // 列表已过期不再更新，继续重试只是无限缓冲，交给上层换线
             if (ex.errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                if (++behindLiveWindowRetries > MAX_BEHIND_LIVE_WINDOW_RETRIES) {
+                // 先判后加：behindLiveWindowRetries 是“已重试次数”，没到
+                // 上限（3 次）才再试一次；到上限才上报原始错误走换线
+                if (shouldRetryBehindLiveWindow(ex.errorCode, behindLiveWindowRetries)) {
+                    behindLiveWindowRetries++
+                    videoPlayer.seekToDefaultPosition()
+                    videoPlayer.prepare()
+                } else {
                     behindLiveWindowRetries = 0
                     triggerError(
                         PlaybackException(ex.errorCodeName, ex.errorCode)
                     )
-                } else {
-                    videoPlayer.seekToDefaultPosition()
-                    videoPlayer.prepare()
                 }
             }
             // 瞬时网络错（2004/2001/2002）：上游抖动、票据过期瞬间或
