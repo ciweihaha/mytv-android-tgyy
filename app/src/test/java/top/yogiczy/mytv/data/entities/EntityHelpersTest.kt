@@ -331,4 +331,26 @@ class EntityHelpersTest {
         assertEquals("正在播", current?.now?.title)
         assertEquals("先写的下一档", current?.next?.title)
     }
+
+    @Test
+    fun `currentProgrammes picks first when two programmes are live at once`() {
+        // 壳 849 轮姊妹检查：两档节目开始时间相同、同时都在播，正在播
+        // 取先写的那档（循环里 current 只在空时才赋值，后写的顶不掉
+        // 先写的）；1989 轮只钉了下一档的两档平局，正在播这档漏了——
+        // 节目单时间有重叠的脏数据时，正在播取哪档本来是没钉死的
+        val now = 1_000_000L
+        val epg = Epg(
+            channel = "cctv1",
+            programmes = EpgProgrammeList(
+                listOf(
+                    EpgProgramme(startAt = now - 10_000, endAt = now + 10_000, title = "先写的"),
+                    EpgProgramme(startAt = now - 10_000, endAt = now + 20_000, title = "后写的"),
+                )
+            ),
+        )
+
+        val current = epg.currentProgrammes(now)
+        assertEquals("先写的", current?.now?.title)
+        assertNull(current?.next)
+    }
 }
