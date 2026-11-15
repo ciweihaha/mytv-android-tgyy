@@ -147,4 +147,36 @@ class CrashHandlerTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun `报告位置是个空目录时读失败按没有报告处理`() {
+        // 同名位置被目录占住时 readText 抛错：catch 那条路一次也没
+        // 断言过。finally 里删空目录能成，第二次读回 null。
+        val dir = Files.createTempDirectory("crash-test").toFile()
+        try {
+            File(dir, CrashHandler.CRASH_LOG_FILE_NAME).mkdir()
+
+            assertNull(CrashHandler.readPreviousCrashReport(dir))
+            assertFalse(File(dir, CrashHandler.CRASH_LOG_FILE_NAME).exists())
+            assertNull(CrashHandler.readPreviousCrashReport(dir))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `报告位置是非空目录时读失败也不崩删不掉也无妨`() {
+        // 非空目录：读抛错回 null，finally 里删不掉也被吞掉，不抛出来。
+        val dir = Files.createTempDirectory("crash-test").toFile()
+        try {
+            val reportDir = File(dir, CrashHandler.CRASH_LOG_FILE_NAME)
+            reportDir.mkdir()
+            File(reportDir, "stale.txt").writeText("stale")
+
+            assertNull(CrashHandler.readPreviousCrashReport(dir))
+            assertTrue(reportDir.exists())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
 }
