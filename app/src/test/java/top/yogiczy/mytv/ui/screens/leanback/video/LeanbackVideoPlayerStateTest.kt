@@ -127,4 +127,40 @@ class LeanbackVideoPlayerStateTest {
         player.emitBuffering(false)
         assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
     }
+
+    @Test
+    fun `prepare clears the previous error and code before loading the new stream`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
+        assertEquals(10002, state.lastErrorCode)
+
+        // 切台重备：旧错不能留着，否则新流还没播、错误横幅先挂在那
+        state.prepare("http://example.com/live.m3u8")
+        assertNull(state.error)
+        assertNull(state.lastErrorCode)
+    }
+
+    @Test
+    fun `release clears state listeners, later errors no longer notify`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var errorNotifications = 0
+        state.onError { errorNotifications++ }
+
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        assertEquals(1, errorNotifications)
+
+        // 退出播放页释放 state：之后底层再报错也不应再回调旧监听器，
+        // 否则已退出的界面还会收到已释放播放器的错误
+        state.release()
+        player.emitError(LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT)
+        assertEquals(1, errorNotifications)
+        assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
+    }
 }
