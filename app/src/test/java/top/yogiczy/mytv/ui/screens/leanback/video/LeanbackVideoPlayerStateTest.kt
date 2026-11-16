@@ -16,8 +16,12 @@ class LeanbackVideoPlayerStateTest {
         var playCalls = 0
         var pauseCalls = 0
         val prefetchedUrls = mutableListOf<String>()
+        val prepareUrls = mutableListOf<String>()
 
-        override fun prepare(url: String) = Unit
+        override fun prepare(url: String) {
+            prepareUrls.add(url)
+        }
+
         override fun play() {
             playCalls++
         }
@@ -337,5 +341,18 @@ class LeanbackVideoPlayerStateTest {
         player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
         assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
         assertEquals(1, errorNotifications)
+    }
+
+    @Test
+    fun `prepare forwards the url to the player`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        // 切台重备只走状态层：地址要原样落到播放器上，Fake 原先是空实现、
+        // 调了也看不出来；壳 932 轮姊妹检查（快进/选轨/音量那几档天光
+        // 没有对应方法，不搬）
+        state.prepare("http://example.com/live.m3u8")
+        assertEquals(listOf("http://example.com/live.m3u8"), player.prepareUrls)
     }
 }
