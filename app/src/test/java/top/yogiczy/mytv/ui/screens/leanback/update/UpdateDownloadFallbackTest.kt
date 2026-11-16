@@ -228,6 +228,16 @@ class UpdateDownloadFallbackTest {
         assertFalse(viewModel.updateDownloaded)
         assertEquals(listOf(proxyUrl, directUrl), calls)
         assertFalse(file.exists())
+
+        // 提示也要对上：取消不是失败，外层 catch 不应弹“下载更新失败”；
+        // 最后一句提示仍是下载开始那句。提示换场要 300 毫秒，多等一倍
+        // 再断言，和失败提示那档同一写法。壳 897 轮同款用例断言了
+        // snackbar 不是失败提示，天光这边这句一次也没断言过——
+        // 外层 catch 若先弹失败提示再原样抛取消，旧断言全过、用户
+        // 却会看到一句假报错
+        delay(600)
+        assertTrue(LeanbackToastState.I.visible)
+        assertEquals("开始下载更新", LeanbackToastState.I.current.message)
     }
 
     @Test
