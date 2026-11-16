@@ -65,6 +65,32 @@ class LeanbackVideoPlayerStateTest {
     }
 
     @Test
+    fun `resolution with zero width or height keeps the previous aspect ratio`() {
+        // 壳 892 轮姊妹检查：宽或高为 0 是无效分辨率（底层刚起播、
+        // 还没拿到真实尺寸时可能先报一次 0），别把比例打成 0 或无限大；
+        // 之后收到有效分辨率仍要正常改。provider 传 null 走“原始比例”
+        // 那条分支，守卫 `width > 0 && height > 0` 在生产代码里，
+        // 但一次也没断言过
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        player.emitResolution(640, 480)
+        assertEquals(4f / 3f, state.aspectRatio, 0.001f)
+
+        player.emitResolution(0, 1080)
+        assertEquals(4f / 3f, state.aspectRatio, 0.001f)
+        player.emitResolution(640, 0)
+        assertEquals(4f / 3f, state.aspectRatio, 0.001f)
+        player.emitResolution(0, 0)
+        assertEquals(4f / 3f, state.aspectRatio, 0.001f)
+
+        // 无效事件不粘住：之后的有效分辨率照常改比例
+        player.emitResolution(1920, 1080)
+        assertEquals(16f / 9f, state.aspectRatio, 0.001f)
+    }
+
+    @Test
     fun `applyDefaultAspectRatio before any resolution is a no-op for ORIGINAL provider`() {
         var ratio: Float? = null
         val state = LeanbackVideoPlayerState(FakeVideoPlayer()) { ratio }
