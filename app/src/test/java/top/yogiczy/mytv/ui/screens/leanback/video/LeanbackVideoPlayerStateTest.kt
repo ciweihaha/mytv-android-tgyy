@@ -160,6 +160,24 @@ class LeanbackVideoPlayerStateTest {
     }
 
     @Test
+    fun `load timeout error maps to name and code and notifies once`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var errorNotifications = 0
+        state.onError { errorNotifications++ }
+
+        // 壳 941 轮姊妹检查：播放错误的三个值要按值数齐——类型不支持那档
+        // 已钉死六次，加载超时这档一次也没断言过；断流那档（CUTOFF）不走
+        // onError、由主界面直接写字串，不在这里硬加
+        player.emitError(LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT)
+        assertEquals("LOAD_TIMEOUT(10003)", state.error)
+        assertEquals(10003, state.lastErrorCode)
+        assertEquals(1, errorNotifications)
+    }
+
+    @Test
     fun `null error also clears the last error code`() {
         val player = FakeVideoPlayer()
         val state = LeanbackVideoPlayerState(player) { null }
