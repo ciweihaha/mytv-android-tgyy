@@ -460,4 +460,31 @@ class M3uIptvParserTest {
         assertEquals("CCTV-1", result[0].iptvList[0].name)
         assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
     }
+
+    @Test
+    fun `interleaved groups merge into first-appearance order`() = runBlocking {
+        // 分组交错出现：拼接过的源常把同一分组写在两处；groupBy 按
+        // 首次出现顺序拼组，后出现的同名分组并进前面那组、频道按
+        // 出现顺序排——这档之前只测过分组整块连续的源
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-name="湖南卫视" group-title="卫视",湖南卫视
+            http://example.com/hunan.m3u8
+            #EXTINF:-1 tvg-name="CCTV-5" group-title="央视",CCTV-5
+            http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(2, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+        assertEquals("卫视", result[1].name)
+        assertEquals(1, result[1].iptvList.size)
+        assertEquals("湖南卫视", result[1].iptvList[0].name)
+    }
 }
