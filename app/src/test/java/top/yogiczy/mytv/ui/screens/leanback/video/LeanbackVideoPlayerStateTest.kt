@@ -141,6 +141,21 @@ class LeanbackVideoPlayerStateTest {
     }
 
     @Test
+    fun `initial state is the default values before playback starts`() {
+        // 壳 942 轮姊妹检查：刚建好、还没开播那一刻，界面就靠这组默认值
+        // 画第一帧——画面比例 16:9、其余全空。构造时不调 initialize() 也能断：
+        // initialize 只注册监听器，不动状态值。画面比例那档已有用例间接断过，
+        // 错误/错误码/重连标志/元数据四档一次也没断言过
+        val state = LeanbackVideoPlayerState(FakeVideoPlayer()) { null }
+
+        assertEquals(16f / 9f, state.aspectRatio, 0.001f)
+        assertNull(state.error)
+        assertNull(state.lastErrorCode)
+        assertTrue(!state.isReconnecting)
+        assertEquals(LeanbackVideoPlayer.Metadata(), state.metadata)
+    }
+
+    @Test
     fun `error maps to name and code, null error clears it without notifying`() {
         val player = FakeVideoPlayer()
         val state = LeanbackVideoPlayerState(player) { null }
