@@ -1,6 +1,7 @@
 package top.yogiczy.mytv.data.entities
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
@@ -181,5 +182,19 @@ class IptvGroupListTest {
         assertEquals(null, groupList.iptvAt(4))
         assertEquals(null, groupList.iptvAt(-1))
         assertEquals(null, IptvGroupList().iptvAt(0))
+    }
+
+    @Test
+    fun `iptvList is built once and reused on repeated access`() {
+        // 全量频道列表第一次访问时建好、之后直接拿同一份：原来是扩展属性，
+        // 每访问一次就把全部分组重新摊平成一份新列表；千级频道源下临时面板、
+        // 节目单刷新几处按需调用的地方每次都重复分配。改成 lazy 后重复访问
+        // 不该再分配——这档只断内容对不对是测不出来的
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "央视", iptvList = IptvList(listOf(Iptv(name = "CCTV-1")))))
+        )
+
+        assertSame(groupList.iptvList, groupList.iptvList)
+        assertEquals(1, groupList.iptvList.size)
     }
 }
