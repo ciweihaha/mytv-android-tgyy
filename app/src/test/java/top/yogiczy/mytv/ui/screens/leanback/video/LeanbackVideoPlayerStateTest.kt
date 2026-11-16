@@ -13,10 +13,24 @@ class LeanbackVideoPlayerStateTest {
     private class FakeVideoPlayer : LeanbackVideoPlayer(
         CoroutineScope(Dispatchers.Unconfined),
     ) {
+        var playCalls = 0
+        var pauseCalls = 0
+        val prefetchedUrls = mutableListOf<String>()
+
         override fun prepare(url: String) = Unit
-        override fun play() = Unit
-        override fun pause() = Unit
+        override fun play() {
+            playCalls++
+        }
+
+        override fun pause() {
+            pauseCalls++
+        }
+
         override fun setVideoSurfaceView(surfaceView: SurfaceView) = Unit
+
+        override fun prefetchPlaylist(url: String) {
+            prefetchedUrls.add(url)
+        }
 
         fun emitResolution(width: Int, height: Int) = triggerResolution(width, height)
         fun emitError(error: LeanbackVideoPlayer.PlaybackException?) = triggerError(error)
@@ -277,5 +291,32 @@ class LeanbackVideoPlayerStateTest {
         player.emitPosition(2000L, timeoutMs = 100L)
         Thread.sleep(1000)
         assertEquals(1, cutoffNotifications)
+    }
+
+    @Test
+    fun `play and pause are forwarded to the player`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        // 前台恢复/退后台的播放与暂停只走状态层：转不下去播不了、
+        // 停不下来，之前一次也没断言过
+        state.play()
+        assertEquals(1, player.playCalls)
+
+        state.pause()
+        assertEquals(1, player.pauseCalls)
+    }
+
+    @Test
+    fun `prefetchPlaylist is forwarded to the player`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        // 播稳后提前拉上下相邻台的 HLS 列表只走状态层：转不下去，
+        // 换台时就少不了那一次往返，这档一次也没断言过
+        state.prefetchPlaylist("http://example.com/cctv1.m3u8")
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), player.prefetchedUrls)
     }
 }
