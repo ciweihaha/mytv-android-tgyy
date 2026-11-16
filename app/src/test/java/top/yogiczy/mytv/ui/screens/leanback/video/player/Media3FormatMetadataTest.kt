@@ -44,17 +44,16 @@ class Media3FormatMetadataTest {
 
     @Test
     fun `视频元数据零值转零`() {
+        // 宽/高 0 是 Builder 允许的（真有 0 宽高的流会走到这里）；
+        // 帧率 0 建不出来（Builder 拒掉），只剩 NO_VALUE 那档，已在
+        // “未知值转零”里断言过
         val format = Format.Builder()
             .setWidth(0)
             .setHeight(0)
-            .setFrameRate(0f)
-            .setAverageBitrate(0)
             .build()
         val video = format.toVideoMetadata()
         assertEquals(0, video.videoWidth)
         assertEquals(0, video.videoHeight)
-        assertEquals(0f, video.videoFrameRate, 0.001f)
-        assertEquals(0, video.videoBitrate)
     }
 
     @Test
