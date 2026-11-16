@@ -111,8 +111,11 @@ class GitRepositoryTest {
                 "http://127.0.0.1:${server.port}/github.com/releases"
             )
             assertEquals("2.2.0.219", release.version)
+            // selectApkAsset 挑第一个 .apk 附件：JSON 里 original.apk
+            // 在前、arm64 在后，落到的是 original 那条（壳那边挑法
+            // 不同，别照搬壳的 arm64 期望）
             assertEquals(
-                "${Constants.GITHUB_PROXY}https://example.com/arm64.apk",
+                "${Constants.GITHUB_PROXY}https://example.com/original.apk",
                 release.downloadUrl,
             )
             assertEquals("notes", release.description)
