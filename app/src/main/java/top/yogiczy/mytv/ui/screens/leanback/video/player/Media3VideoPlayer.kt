@@ -73,6 +73,42 @@ internal fun Int.noValueToZero(): Int = if (this == Format.NO_VALUE) 0 else this
 internal fun Float.noValueToZero(): Float = if (this == Format.NO_VALUE.toFloat()) 0f else this
 
 /**
+ * Media3 Format 转界面元数据（视频那路）：原来是 metadataListener 回调里
+ * 内联的 copy，单测够不着；抽到顶层方便单元测试直接调用，行为逐字不变。
+ * Format 里未知值是 NO_VALUE(-1)，经 noValueToZero 归一到 0（0 即未知，
+ * 与未收到元数据时一致）；没 colorInfo 时颜色写空串。
+ * 现有元数据传进来时只覆盖视频这 6 个字段，音频、解码器原样保留（copy）；
+ * 颜色是例外——没 colorInfo 时会被写成空串，因为 copy 里颜色字段是无条件
+ * 覆盖的。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun Format.toVideoMetadata(
+    metadata: LeanbackVideoPlayer.Metadata = LeanbackVideoPlayer.Metadata(),
+): LeanbackVideoPlayer.Metadata = metadata.copy(
+    videoMimeType = sampleMimeType ?: "",
+    videoWidth = width.noValueToZero(),
+    videoHeight = height.noValueToZero(),
+    videoColor = colorInfo?.toLogString() ?: "",
+    // 比特率目前仍从 tag 里取，有的返回空，后续需要实时计算；
+    // 帧率已在 1 秒采样循环里用实测渲染帧数补（tag 缺失时）
+    videoFrameRate = frameRate.noValueToZero(),
+    videoBitrate = bitrate.noValueToZero(),
+)
+
+/**
+ * Media3 Format 转界面元数据（音频那路）：同上，只覆盖音频 3 个字段，
+ * 视频、解码器原样保留。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun Format.toAudioMetadata(
+    metadata: LeanbackVideoPlayer.Metadata = LeanbackVideoPlayer.Metadata(),
+): LeanbackVideoPlayer.Metadata = metadata.copy(
+    audioMimeType = sampleMimeType ?: "",
+    audioChannels = channelCount.noValueToZero(),
+    audioSampleRate = sampleRate.noValueToZero(),
+)
+
+/**
  * 播完/回到空闲时位置轮询该不该停：READY 时起的 1 秒轮询只在播放
  * 中才有意义——流一播完（STATE_ENDED，如有限时长的源）位置就
  * 再也不会变，轮询每秒空转、还一直占着协程；回到空闲（STATE_IDLE）
@@ -467,16 +503,7 @@ class LeanbackMedia3VideoPlayer(
             format: Format,
             decoderReuseEvaluation: DecoderReuseEvaluation?,
         ) {
-            metadata = metadata.copy(
-                videoMimeType = format.sampleMimeType ?: "",
-                videoWidth = format.width.noValueToZero(),
-                videoHeight = format.height.noValueToZero(),
-                videoColor = format.colorInfo?.toLogString() ?: "",
-                // 比特率目前仍从 tag 里取，有的返回空，后续需要实时计算；
-                // 帧率已在 1 秒采样循环里用实测渲染帧数补（tag 缺失时）
-                videoFrameRate = format.frameRate.noValueToZero(),
-                videoBitrate = format.bitrate.noValueToZero(),
-            )
+            metadata = format.toVideoMetadata(metadata)
             triggerMetadata(metadata)
         }
 
@@ -495,11 +522,7 @@ class LeanbackMedia3VideoPlayer(
             format: Format,
             decoderReuseEvaluation: DecoderReuseEvaluation?,
         ) {
-            metadata = metadata.copy(
-                audioMimeType = format.sampleMimeType ?: "",
-                audioChannels = format.channelCount.noValueToZero(),
-                audioSampleRate = format.sampleRate.noValueToZero(),
-            )
+            metadata = format.toAudioMetadata(metadata)
             triggerMetadata(metadata)
         }
 
