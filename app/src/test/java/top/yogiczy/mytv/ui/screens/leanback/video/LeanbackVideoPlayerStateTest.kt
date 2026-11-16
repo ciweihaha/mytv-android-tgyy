@@ -160,6 +160,22 @@ class LeanbackVideoPlayerStateTest {
     }
 
     @Test
+    fun `null error also clears the last error code`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        assertEquals(10002, state.lastErrorCode)
+
+        // 进缓冲时底层报空错误清显示：错误码也要一起清掉，否则主界面
+        // 仍按残留的 10002 决策换线——新流还没播就可能先换一次线路
+        player.emitError(null)
+        assertNull(state.error)
+        assertNull(state.lastErrorCode)
+    }
+
+    @Test
     fun `buffering start clears error, buffering end keeps it`() {
         val player = FakeVideoPlayer()
         val state = LeanbackVideoPlayerState(player) { null }
