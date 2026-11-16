@@ -200,6 +200,37 @@ class UpdateDownloadFallbackTest {
     }
 
     @Test
+    fun `cancelled direct retry does not show failure toast and rethrows cancellation`() = runBlocking {
+        val viewModel = setupViewModel(proxyUrl)
+        val calls = mutableListOf<String>()
+        val file = tempFile()
+        // 代理先挂（普通网络错）走直链重试，直链那次中途被取消：取消不是
+        // 下载失败——外层 catch 应删残文件、原样抛取消异常，不弹“下载更新
+        // 失败”。这档之前没有任何单测：旧的取消用例全是代理那次就取消，
+        // 走的是内层 catch；直链重试时取消走的是外层 catch，漏了那行
+        // 守卫时这里会吞掉取消、弹失败提示
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { url, path, _ ->
+                calls.add(url)
+                if (url == proxyUrl) throw RuntimeException("proxy down")
+                File(path).writeText("apk")
+                throw CancellationException("cancelled")
+            }
+
+        try {
+            viewModel.downloadAndUpdate(file, fakeDownload)
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            assertEquals("cancelled", ex.message)
+        }
+
+        // 取消不是下载失败：不记下载成功、不留残文件；直链那次确实跑过
+        assertFalse(viewModel.updateDownloaded)
+        assertEquals(listOf(proxyUrl, directUrl), calls)
+        assertFalse(file.exists())
+    }
+
+    @Test
     fun `cancelled download resets updating flag so retry works`() = runBlocking {
         // 第一轮下载卡在假下载里、从外面取消；第二轮下应能正常下。
         // 1865 轮只钉死了失败路径的 finally 复位，取消路径一次也
