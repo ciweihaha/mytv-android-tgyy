@@ -69,4 +69,21 @@ class PanelAutoCloseStateTest {
         assertEquals(2, fired.get())
         job.cancel()
     }
+
+    @Test
+    fun `rapid re-activations fire only once`() = runBlocking {
+        // 遥控器连按时 active 会被连续调多次：防抖加合并通道应只
+        // 触发一次——通道若改成无上限缓冲，这里会触发 5 次，面板
+        // 关一次后又被重复触发；旧用例只测过隔 500 毫秒再 active，
+        // 没测过短时间内的连续 active
+        val fired = AtomicInteger(0)
+        val state = PanelAutoCloseState(timeout = 300) { fired.incrementAndGet() }
+        val job = launch { state.observe() }
+        repeat(5) { state.active() }
+        delay(150)
+        assertEquals(0, fired.get())
+        delay(450)
+        assertEquals(1, fired.get())
+        job.cancel()
+    }
 }
