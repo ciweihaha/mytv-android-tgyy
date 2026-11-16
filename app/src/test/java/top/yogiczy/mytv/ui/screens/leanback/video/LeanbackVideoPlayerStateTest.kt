@@ -319,4 +319,23 @@ class LeanbackVideoPlayerStateTest {
         state.prefetchPlaylist("http://example.com/cctv1.m3u8")
         assertEquals(listOf("http://example.com/cctv1.m3u8"), player.prefetchedUrls)
     }
+
+    @Test
+    fun `repeated initialize does not double-register, error notifies only once`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+        state.initialize()
+
+        var errorNotifications = 0
+        state.onError { errorNotifications++ }
+
+        // initialize() 先清空播放器的监听器再重注册（首播准备时同步报的
+        // 错要有人接，又不能重复接）：要是清空那步丢了，初始化两次就
+        // 会挂两份桥接闭包、一次报错通知两次，主界面换线路的逻辑会被
+        // 触发两次。壳 931 轮姊妹检查
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+        assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
+        assertEquals(1, errorNotifications)
+    }
 }
