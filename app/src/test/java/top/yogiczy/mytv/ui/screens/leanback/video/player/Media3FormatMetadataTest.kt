@@ -118,6 +118,21 @@ class Media3FormatMetadataTest {
     }
 
     @Test
+    fun `音频元数据零值转零`() {
+        // 声道数/采样率 0 是 Builder 允许的（壳 925 轮已对 Media3 源码核过，
+        // 只有 setFrameRate 有入参校验）；0 即未知，和 NO_VALUE 那档一样归零
+        // 壳 925 姊妹检查：视频零值那档天光早有单测，音频零值一次也没断过
+        val format = Format.Builder()
+            .setChannelCount(0)
+            .setSampleRate(0)
+            .build()
+        val audio = format.toAudioMetadata()
+        assertEquals(0, audio.audioChannels)
+        assertEquals(0, audio.audioSampleRate)
+        assertEquals("", audio.audioMimeType)
+    }
+
+    @Test
     fun `音频元数据保留旧的视频与解码器`() {
         val old = LeanbackVideoPlayer.Metadata(
             videoMimeType = "video/hevc",
