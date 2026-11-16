@@ -52,4 +52,21 @@ class PanelAutoCloseStateTest {
         assertEquals(1, fired.get())
         job.cancel()
     }
+
+    @Test
+    fun `fires again when re-activated after it has fired`() = runBlocking {
+        // 超时 200 毫秒：触发一次后、再 active 一次，应再触发一次；
+        // observe 若只取一次就停，面板一辈子只自动关一次
+        val fired = AtomicInteger(0)
+        val state = PanelAutoCloseState(timeout = 200) { fired.incrementAndGet() }
+        val job = launch { state.observe() }
+        state.active()
+        delay(400)
+        assertEquals(1, fired.get())
+
+        state.active()
+        delay(400)
+        assertEquals(2, fired.get())
+        job.cancel()
+    }
 }
