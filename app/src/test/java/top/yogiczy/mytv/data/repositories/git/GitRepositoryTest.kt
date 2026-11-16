@@ -114,6 +114,28 @@ class GitRepositoryTest {
     }
 
     @Test
+    fun `raw.githubusercontent.com source throws unsupported before any network call`() {
+        // 壳 956 轮的教训：别把 raw.githubusercontent.com 当成 GitHub——
+        // "raw.githubusercontent.com" 并不含 "github.com" 子串（Python
+        // 实测 False），GitHub 解析器认不出它；天光也没有 Custom 解析
+        // 器，自定义源走明确报错那档，不联网、不静默兜底。将来有人给
+        // GitHub 的 isSupport 放宽成含 "github" 就认、或给天光加 Custom
+        // 解析器时，这用例会先红、逼着把自定义源语义说清楚
+        var thrown: Throwable? = null
+        runBlocking {
+            try {
+                GitRepository().latestRelease(
+                    "https://raw.githubusercontent.com/owner/repo/main/releases/latest"
+                )
+            } catch (e: Exception) {
+                thrown = e
+            }
+        }
+        assertTrue(thrown is IllegalArgumentException)
+        assertTrue(thrown?.message?.contains("不支持的更新源") == true)
+    }
+
+    @Test
     fun latestRelease_success_returnsParsedRelease() = runBlocking {
         val server = TestHttpServer().apply { start() }
         try {
