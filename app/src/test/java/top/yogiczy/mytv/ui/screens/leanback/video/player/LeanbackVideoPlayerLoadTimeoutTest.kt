@@ -89,4 +89,33 @@ class LeanbackVideoPlayerLoadTimeoutTest {
             errors,
         )
     }
+
+    @Test
+    fun `release cancels the pending load timeout, no timeout after release`() {
+        val player = FakeVideoPlayer()
+        val errors = mutableListOf<LeanbackVideoPlayer.PlaybackException>()
+        player.onError { it?.let { errors.add(it) } }
+
+        // 切台/退出播放页时释放播放器：挂起的加载超时必须停掉，
+        // 否则它会在已释放的播放器上继续报 LOAD_TIMEOUT
+        player.emitPrepared(timeoutMs = 100L)
+        player.release()
+
+        Thread.sleep(1000)
+        assertTrue(errors.isEmpty())
+    }
+
+    @Test
+    fun `listeners cleared on release do not receive later errors`() {
+        val player = FakeVideoPlayer()
+        val errors = mutableListOf<LeanbackVideoPlayer.PlaybackException>()
+        player.onError { it?.let { errors.add(it) } }
+
+        // 释放会清掉全部监听器：之后再触发错误也不应再回调旧监听器，
+        // 否则已退出的界面还会收到已释放播放器的错误
+        player.release()
+        player.emitError(LeanbackVideoPlayer.PlaybackException.UNSUPPORTED_TYPE)
+
+        assertTrue(errors.isEmpty())
+    }
 }

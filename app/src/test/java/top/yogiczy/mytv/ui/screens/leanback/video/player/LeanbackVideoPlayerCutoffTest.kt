@@ -20,6 +20,8 @@ class LeanbackVideoPlayerCutoffTest {
 
         fun emitPosition(position: Long, timeoutMs: Long) =
             triggerCurrentPosition(position, timeoutMs)
+
+        fun emitPrepared(timeoutMs: Long) = triggerPrepared(timeoutMs)
     }
 
     @Test
@@ -83,5 +85,20 @@ class LeanbackVideoPlayerCutoffTest {
         // 若重复上报会重设计时，计时会被推到 900ms 之后、现在应还是 0 次
         Thread.sleep(50)
         assertEquals(1, cutoffCount)
+    }
+
+    @Test
+    fun `prepare cancels the pending cutoff, a stall from the old stream does not fire`() {
+        val player = FakeVideoPlayer()
+        var cutoffCount = 0
+        player.onCutoff { cutoffCount++ }
+
+        // 位置冻住、断流计时已挂起时切台重备：prepare 会清掉旧的
+        // 断流计时，否则旧流的断流会在新流上误报一次
+        player.emitPosition(1000L, timeoutMs = 300L)
+        player.emitPrepared(timeoutMs = 5000L)
+
+        Thread.sleep(1000)
+        assertEquals(0, cutoffCount)
     }
 }
