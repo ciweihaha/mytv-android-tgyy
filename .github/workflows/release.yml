@@ -13,6 +13,22 @@ jobs:
       - name: 代码迁出
         uses: actions/checkout@v7
 
+      # 第 2144 轮：tag 版本必须与代码里的 versionName 一致才放行。
+      # v2.2.23 的教训：tag 打在 ec40633a 上，但那笔代码的 versionName
+      # 还是 2.2.22，流水线原样构建、只改了文件名——装上"2.2.23"的
+      # 电视里显示的还是 2.2.22，更新检查永远报有更新。老规矩是先提
+      # 交升版、再打 tag（v2.2.21、v2.2.22 都是这么走的），这一步
+      # 就是把老规矩钉死：对不上直接失败，不让错版包发出去。
+      - name: 校验 tag 版本与代码版本号一致
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          CODE_VERSION=$(sed -n 's/.*versionName = "\([0-9.]*\)".*/\1/p' app/build.gradle.kts | head -n 1)
+          if [ "$TAG_VERSION" != "$CODE_VERSION" ]; then
+            echo "::error::tag 是 v$TAG_VERSION，但代码里 versionName 是 $CODE_VERSION：先提交升版再打 tag"
+            exit 1
+          fi
+          echo "tag 与代码版本号一致：$TAG_VERSION"
+
       - name: 构建Java环境
         uses: actions/setup-java@v6
         with:
