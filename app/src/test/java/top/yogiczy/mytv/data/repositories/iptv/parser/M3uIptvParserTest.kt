@@ -445,4 +445,19 @@ class M3uIptvParserTest {
         assertEquals(listOf("http://example.com/cctv2.m3u8"), result[0].iptvList[1].urlList)
         assertTrue(result[0].iptvList.none { it.urlList.contains("http://example.com/garbage.m3u8") })
     }
+
+    @Test
+    fun `url line with surrounding whitespace is trimmed`() = runBlocking {
+        // 地址行首尾带空白：手改文件常在地址后留空格；scan 循环里
+        // candidate 先 trim 再存，不去掉的话地址带空格播不了——
+        // 这档一次也没断言过
+        val data = "#EXTM3U\n#EXTINF:-1 tvg-name=\"CCTV-1\" group-title=\"央视\",CCTV-1\n  http://example.com/cctv1.m3u8  \n"
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+    }
 }
