@@ -246,6 +246,28 @@ class LeanbackVideoPlayerStateTest {
     }
 
     @Test
+    fun `release clears ready listeners, later ready signals no longer notify`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var readyNotifications = 0
+        state.onReady { readyNotifications++ }
+
+        player.emitReady()
+        assertEquals(1, readyNotifications)
+
+        // 退出播放页释放 state：之后底层再报就绪也不应再回调旧监听器，
+        // 否则已退出的界面还会收到已释放播放器的状态变化。先证活再断：
+        // 光断释放后 0 次不够，监听器压根没注册上也会是 0（壳 930 轮教训）。
+        // 壳 939 轮姊妹检查：缓冲那半天光没有对应物——状态层不对外暴露
+        // 缓冲监听器，只在进缓冲时清错误；只补就绪这半
+        state.release()
+        player.emitReady()
+        assertEquals(1, readyNotifications)
+    }
+
+    @Test
     fun `reconnecting flag follows the player reconnecting signal`() {
         val player = FakeVideoPlayer()
         val state = LeanbackVideoPlayerState(player) { null }
