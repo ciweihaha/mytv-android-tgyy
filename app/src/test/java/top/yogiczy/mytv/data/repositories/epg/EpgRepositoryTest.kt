@@ -668,6 +668,61 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList skips programme for undeclared channel`() = runBlocking {
+        // 壳 891 轮姊妹检查：节目挂在没声明过的频道 id 上时直接丢掉——
+        // 它挂不到任何台上，只会在按名匹配时凭空多出节目。天光这边
+        // `channelProgrammes[channelId]?.add` 查不到就跳过，行为在，
+        // 但一直没断言过：只测过“没写 channel 属性”（channelId 为 null），
+        // 没测过“写了、但这个 id 从没声明过 channel”
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>本台节目</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="unknown"><title>野节目</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("本台节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList finds title after desc`() = runBlocking {
+        // 壳 891 轮姊妹检查：子元素顺序不是 title 在前时（desc 在前），
+        // 按标签名取 title 仍能找到。旧实现取第一个子元素会把简介错
+        // 当标题；天光这边内层循环按标签名扫 title，行为在，但一直
+        // 没断言过——只测过“只有简介没标题”（跳过整条）、没测过
+        // “简介在前、标题在后”
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><desc>简介在前</desc><title>正标题</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("正标题", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `getEpgList skips channel without display-name`() = runBlocking {
         // 没 display-name 的频道不进列表、它名下的节目也一起丢掉，
         // 不拖垮整份节目单；有名字的频道照常解析
