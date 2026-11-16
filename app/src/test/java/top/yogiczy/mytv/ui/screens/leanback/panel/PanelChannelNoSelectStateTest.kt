@@ -53,4 +53,23 @@ class PanelChannelNoSelectStateTest {
         assertEquals("", state.channelNo)
         job.cancel()
     }
+
+    @Test
+    fun `second input round confirms after the first one clears`() = runBlocking {
+        // 第一轮 4 位立即确认并清空调；再输第二轮，应再次确认——
+        // observe 若只取一次就停，第二轮输完永远等不到确认
+        val confirmed = mutableListOf<String>()
+        val state = LeanbackPanelChannelNoSelectState(onChannelNoConfirm = { confirmed.add(it) })
+        val job = launch { state.observe() }
+        repeat(4) { state.input(1) }
+        delay(500)
+        assertEquals(listOf("1111"), confirmed)
+        assertEquals("", state.channelNo)
+
+        repeat(4) { state.input(2) }
+        delay(500)
+        assertEquals(listOf("1111", "2222"), confirmed)
+        assertEquals("", state.channelNo)
+        job.cancel()
+    }
 }
