@@ -114,7 +114,7 @@ class GitRepositoryTest {
     }
 
     @Test
-    fun `raw.githubusercontent.com source throws unsupported before any network call`() {
+    fun latestRelease_rawGithubusercontent_throwsUnsupportedBeforeNetwork() {
         // 壳 956 轮的教训：别把 raw.githubusercontent.com 当成 GitHub——
         // "raw.githubusercontent.com" 并不含 "github.com" 子串（Python
         // 实测 False），GitHub 解析器认不出它；天光也没有 Custom 解析
