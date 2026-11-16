@@ -417,4 +417,32 @@ class M3uIptvParserTest {
         // isSupport 空串那档已有用例，parse("") 出空列表一次也没断言过
         assertTrue(parser.parse("").isEmpty())
     }
+
+    @Test
+    fun `unbalanced quote in EXTINF skips the channel`() = runBlocking {
+        // 壳 886 轮姊妹检查：引号没闭合的残缺行——逗号落在没闭合的
+        // 引号里，substringAfterFirstUnquotedComma 取不到；tvg-name
+        // 正则也要闭合引号才匹配得到，两边都没有就整条跳过；后面那
+        // 行地址也不能误填到上一条好频道上
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-name="CCTV-9,CCTV-10
+            http://example.com/garbage.m3u8
+            #EXTINF:-1 tvg-name="CCTV-2" group-title="央视",CCTV-2
+            http://example.com/cctv2.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+        assertEquals("CCTV-2", result[0].iptvList[1].name)
+        assertEquals(listOf("http://example.com/cctv2.m3u8"), result[0].iptvList[1].urlList)
+        assertTrue(result[0].iptvList.none { it.urlList.contains("http://example.com/garbage.m3u8") })
+    }
 }
