@@ -74,9 +74,9 @@ private fun PanelPlayerInfoResolution(
  * 网速显示文案：设备不支持流量统计时显示“未知”，不到 1024*999 字节/秒
  * 显示 KB/s、以上显示 MB/s。KB 这一档原来是整数除法：157 轮把算式修对
  * 后网速不到 1KB/s 时算出来是几百没错，但这里一除又截回 0，屏幕上还是
- * 0KB/s；MB 那档原来是“先整数除、再浮点除”：每秒 1101005 字节先按 Long
- * 截掉 1024 以内的零头再除 1024f、固定少算零头；两档都改成浮点除、
- * 留一位小数。顶层函数方便单元测试直接调用；DecimalFormat 由调用处
+ * 0KB/s；MB 那档原来是“先整数除、再浮点除”：netSpeed / 1024 先按 Long
+ * 截掉 1024 以内的零头，再除 1024f；两档都改成浮点除、留一位小数，
+ * 零头保留。顶层函数方便单元测试直接调用；DecimalFormat 由调用处
  * 复用（面板开着时网速每秒变一次、每次重组都新建一个是纯浪费）。
  */
 internal fun formatNetSpeedText(netSpeed: Long?, speedFormat: DecimalFormat): String = when {

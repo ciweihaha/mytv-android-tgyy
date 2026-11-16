@@ -58,14 +58,15 @@ class PanelPlayerInfoNetSpeedTest {
 
     @Test
     fun `just below the megabyte threshold still shows kilobytes`() {
-        // 阈值是 1024*999：差 1 字节仍走 KB 那档，1022.999… 留一位小数进到 1023
-        assertEquals("网速：1023KB/s", formatNetSpeedText(1024 * 999 - 1, DecimalFormat("#.#")))
+        // 阈值是 1024*999 = 1022976：差 1 字节仍走 KB 那档，
+        // 1022975/1024 = 998.999…，留一位小数进到 999
+        assertEquals("网速：999KB/s", formatNetSpeedText(1024 * 999 - 1, DecimalFormat("#.#")))
     }
 
     @Test
     fun `at and above the threshold shows megabytes`() {
         val format = DecimalFormat("#.#")
-        // 正好 1024*999 字节/秒：0.999…MB/s，留一位小数显示 1MB/s
+        // 正好 1024*999 = 1022976 字节/秒：0.975…MB/s，留一位小数显示 1MB/s
         assertEquals("网速：1MB/s", formatNetSpeedText(1024 * 999, format))
         assertEquals("网速：1.5MB/s", formatNetSpeedText(1572864, format))
         assertEquals("网速：5MB/s", formatNetSpeedText(5242880, format))
