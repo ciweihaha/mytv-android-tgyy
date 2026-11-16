@@ -118,4 +118,32 @@ class ToastStateTest {
             scope.cancel()
         }
     }
+
+    @Test
+    fun `到期藏起后再发新提示仍能正常显示并到期藏起`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        val state = LeanbackToastState(scope)
+        val observeJob = scope.launch { state.observe() }
+        try {
+            state.showToast("A", duration = LeanbackToastProperty.Duration.Custom(500))
+            delay(200)
+            assertTrue(state.visible)
+
+            delay(800)
+            assertFalse(state.visible)
+
+            // 再发一条：应正常显示、到期再藏起；observe 若只取一次
+            // 就停，第二条到期也不会藏起
+            state.showToast("B", duration = LeanbackToastProperty.Duration.Custom(500))
+            delay(200)
+            assertTrue(state.visible)
+            assertEquals("B", state.current.message)
+
+            delay(800)
+            assertFalse(state.visible)
+        } finally {
+            observeJob.cancel()
+            scope.cancel()
+        }
+    }
 }
