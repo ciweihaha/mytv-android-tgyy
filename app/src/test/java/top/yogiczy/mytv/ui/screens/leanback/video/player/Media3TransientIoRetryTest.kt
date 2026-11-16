@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import top.yogiczy.mytv.data.utils.Constants
 
 class Media3TransientIoRetryTest {
     @Test
@@ -63,5 +64,21 @@ class Media3TransientIoRetryTest {
         assertEquals(0L, retryDelayMs(0))
         assertEquals(0L, retryDelayMs(-1))
         assertEquals(8000L, retryDelayMs(6))
+    }
+
+    @Test
+    fun `单次退避最长 8 秒、短于 15 秒加载超时`() {
+        // 退避期间旧的 watchdog 还在跑：报错后走重试那路不调
+        // triggerError（只有上报错误那路才调，调了才取消旧 watchdog），
+        // 重试只在 prepare() 后才调 triggerPrepared 重启它——单次退避
+        // 必须短于加载超时，否则退避还没等完就先报 LOAD_TIMEOUT、
+        // 重试链断掉（壳 915 轮同款）。档位表只钉了各自的数，没钉
+        // 两数的关系——以后有人把超时改短、或把退避封顶抬上去，这里先响。
+        assertTrue(retryDelayMs(1) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
+        assertTrue(retryDelayMs(2) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
+        assertTrue(retryDelayMs(3) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
+        assertTrue(retryDelayMs(4) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
+        assertTrue(retryDelayMs(5) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
+        assertTrue(retryDelayMs(6) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
     }
 }
