@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 
@@ -20,6 +21,11 @@ class LeanbackVideoPlayerStateTest {
         fun emitResolution(width: Int, height: Int) = triggerResolution(width, height)
         fun emitError(error: LeanbackVideoPlayer.PlaybackException?) = triggerError(error)
         fun emitBuffering(buffering: Boolean) = triggerBuffering(buffering)
+        fun emitReady() = triggerReady()
+        fun emitReconnecting(reconnecting: Boolean) = triggerReconnecting(reconnecting)
+        fun emitMetadata(metadata: LeanbackVideoPlayer.Metadata) = triggerMetadata(metadata)
+        fun emitPosition(position: Long, timeoutMs: Long) =
+            triggerCurrentPosition(position, timeoutMs)
     }
 
     @Test
@@ -162,5 +168,65 @@ class LeanbackVideoPlayerStateTest {
         player.emitError(LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT)
         assertEquals(1, errorNotifications)
         assertEquals("UNSUPPORTED_TYPE(10002)", state.error)
+    }
+
+    @Test
+    fun `ready forwards to state listeners`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var readyNotifications = 0
+        state.onReady { readyNotifications++ }
+
+        // 播稳了：底层 onReady 应原样转给状态层监听器（主界面靠它清
+        // 掉“正在加载”与重连提示），这档一次也没断言过
+        player.emitReady()
+        assertEquals(1, readyNotifications)
+    }
+
+    @Test
+    fun `reconnecting flag follows the player reconnecting signal`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        // 延迟重试等上游恢复时界面显示“正在重连…”：开与关两档
+        // 一次也没断言过
+        player.emitReconnecting(true)
+        assertTrue(state.isReconnecting)
+
+        player.emitReconnecting(false)
+        assertTrue(!state.isReconnecting)
+    }
+
+    @Test
+    fun `metadata updates are forwarded to the state`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        // 底层报分辨率/编解码器等元数据：状态层应原样存下来供调试
+        // 信息屏读，初始空元数据、收到后才有值
+        assertEquals(0, state.metadata.videoWidth)
+        player.emitMetadata(LeanbackVideoPlayer.Metadata(videoWidth = 1920, videoHeight = 1080))
+        assertEquals(1920, state.metadata.videoWidth)
+        assertEquals(1080, state.metadata.videoHeight)
+    }
+
+    @Test
+    fun `cutoff forwards to state listeners`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var cutoffNotifications = 0
+        state.onCutoff { cutoffNotifications++ }
+
+        // 位置冻住满超时：底层断流应原样转给状态层监听器（主界面
+        // 靠它决定同一条线路短时间内反复断流时不再重备）
+        player.emitPosition(1000L, timeoutMs = 100L)
+        Thread.sleep(1000)
+        assertEquals(1, cutoffNotifications)
     }
 }
