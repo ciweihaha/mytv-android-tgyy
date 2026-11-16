@@ -70,6 +70,22 @@ private fun PanelPlayerInfoResolution(
     )
 }
 
+/**
+ * 网速显示文案：设备不支持流量统计时显示“未知”，不到 1024*999 字节/秒
+ * 显示 KB/s、以上显示 MB/s。KB 这一档原来是整数除法：157 轮把算式修对
+ * 后网速不到 1KB/s 时算出来是几百没错，但这里一除又截回 0，屏幕上还是
+ * 0KB/s；MB 那档原来是“先整数除、再浮点除”：每秒 1101005 字节先按 Long
+ * 截掉 1024 以内的零头再除 1024f、固定少算零头；两档都改成浮点除、
+ * 留一位小数。顶层函数方便单元测试直接调用；DecimalFormat 由调用处
+ * 复用（面板开着时网速每秒变一次、每次重组都新建一个是纯浪费）。
+ */
+internal fun formatNetSpeedText(netSpeed: Long?, speedFormat: DecimalFormat): String = when {
+    // 设备不支持流量统计时显示未知（见 nextNetSpeed），而不是永远 0KB/s
+    netSpeed == null -> "网速：未知"
+    netSpeed < 1024 * 999 -> "网速：${speedFormat.format(netSpeed / 1024f)}KB/s"
+    else -> "网速：${speedFormat.format(netSpeed / 1024f / 1024f)}MB/s"
+}
+
 @Composable
 private fun PanelPlayerInfoNetSpeed(
     modifier: Modifier = Modifier,
@@ -78,20 +94,8 @@ private fun PanelPlayerInfoNetSpeed(
     // 网速格式器记住复用：面板开着时网速每秒变一次、每次重组都新建一个
     // DecimalFormat 是纯浪费；只在主线程重组里用，无线程安全问题
     val speedFormat = remember { DecimalFormat("#.#") }
-    // KB 这一档原来是整数除法：157 轮把算式修对后，网速不到 1KB/s
-    // 时算出来是几百没错，但这里一除又截回 0，屏幕上还是 0KB/s；
-    // 和 MB 那档一样改成浮点除、留一位小数，不到 1KB/s 显示 0.5KB/s
-    // MB 这一档原来是“先整数除、再浮点除”：netSpeed / 1024 先按 Long
-    // 截掉 1024 以内的零头，再除 1024f——每秒 1101005 字节本是 1.05MB/s
-    // 该显示 1.1MB/s，截完只剩 1.0498 就显示成 1.0MB/s，固定少算 0.1MB/s；
-    // 和 KB 那档一样改成两次浮点除，零头保留，显示就对上了
     Text(
-        text = when {
-            // 设备不支持流量统计时显示未知（见 nextNetSpeed），而不是永远 0KB/s
-            netSpeed == null -> "网速：未知"
-            netSpeed < 1024 * 999 -> "网速：${speedFormat.format(netSpeed / 1024f)}KB/s"
-            else -> "网速：${speedFormat.format(netSpeed / 1024f / 1024f)}MB/s"
-        },
+        text = formatNetSpeedText(netSpeed, speedFormat),
         modifier = modifier,
     )
 }
