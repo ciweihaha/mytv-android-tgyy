@@ -31,10 +31,11 @@ internal fun formatVideoBitrateKbps(bitrate: Int): String =
 /**
  * 0（或空串）即未知：第 76 轮把 Media3 的 NO_VALUE（-1）归一成了
  * 0，直接显示会把“未知”读成实测的 0（“帧率: 0.0”“比特率: 0 kbps”）
+ * 顶层函数方便单元测试直接调用；负值按原样显示，这里不管归一。
  */
-private fun Float.orUnknown(): String = if (this == 0f) "未知" else toString()
-private fun Int.orUnknown(): String = if (this == 0) "未知" else toString()
-private fun String.orUnknown(): String = if (isBlank()) "未知" else this
+internal fun Float.orUnknown(): String = if (this == 0f) "未知" else toString()
+internal fun Int.orUnknown(): String = if (this == 0) "未知" else toString()
+internal fun String.orUnknown(): String = if (isBlank()) "未知" else this
 
 @Composable
 fun LeanbackVideoPlayerMetadata(
