@@ -126,6 +126,26 @@ class LeanbackVideoPlayerCutoffTest {
     }
 
     @Test
+    fun `new position after prepare re-arms the cutoff, a stall on the new stream still fires`() {
+        val player = FakeVideoPlayer()
+        var cutoffCount = 0
+        player.onCutoff { cutoffCount++ }
+
+        // 壳 928 轮姊妹检查：重备取消旧计时那半上面已钉死，但“重备后新位置
+        // 照常重设”一次也没断言过——prepare 只清计时、不碰 currentPosition，
+        // 新流位置一动计时必须重新开始，否则新流冻住也报不出断流
+        player.emitPosition(1000L, timeoutMs = 300L)
+        player.emitPrepared(timeoutMs = 5000L)
+
+        Thread.sleep(1000)
+        assertEquals(0, cutoffCount)
+
+        player.emitPosition(2000L, timeoutMs = 100L)
+        Thread.sleep(1000)
+        assertEquals(1, cutoffCount)
+    }
+
+    @Test
     fun `release cancels the pending cutoff, a frozen position does not fire after release`() {
         val player = FakeVideoPlayer()
         var cutoffCount = 0
