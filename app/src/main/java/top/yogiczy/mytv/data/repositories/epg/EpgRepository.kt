@@ -22,6 +22,7 @@ import java.io.StringReader
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import kotlin.time.Duration.Companion.nanoseconds
 
 /**
  * 容错解码节目单缓存：正常路径已是原子写（临时文件＋改名，见
@@ -200,6 +201,7 @@ class EpgRepository : FileCacheRepository("epg.json") {
         xmlString: String,
         filteredChannels: List<String> = emptyList(),
     ) = withContext(Dispatchers.Default) {
+        val parseStartNs = System.nanoTime()
         // 不走 android.util.Xml.newPullParser()：它在真机上就是转调
         // XmlPullParserFactory.newInstance().newPullParser()，但在单元
         // 测试里 android.jar 的桩返回 null（isReturnDefaultValues），
@@ -327,7 +329,10 @@ class EpgRepository : FileCacheRepository("epg.json") {
             )
         })
 
-        log.i("解析节目单完成，共${epgList.size}个频道")
+        log.i(
+            "解析节目单完成，共${epgList.size}个频道",
+            duration = (System.nanoTime() - parseStartNs).nanoseconds,
+        )
         return@withContext epgList
     }
 
