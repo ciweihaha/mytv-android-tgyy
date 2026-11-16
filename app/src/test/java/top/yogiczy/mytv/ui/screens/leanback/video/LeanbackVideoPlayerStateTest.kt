@@ -255,4 +255,27 @@ class LeanbackVideoPlayerStateTest {
         Thread.sleep(1000)
         assertEquals(1, cutoffNotifications)
     }
+
+    @Test
+    fun `release clears cutoff listeners, later cutoffs no longer notify`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var cutoffNotifications = 0
+        state.onCutoff { cutoffNotifications++ }
+
+        player.emitPosition(1000L, timeoutMs = 100L)
+        Thread.sleep(1000)
+        assertEquals(1, cutoffNotifications)
+
+        // 退出播放页释放 state：之后底层再断流也不应再回调旧监听器，
+        // 否则已退出的界面还会收到已释放播放器的断流、误触换线路。
+        // 壳 929 轮姊妹检查：转发那档天光已有用例钉死（上一条），
+        // 释放后不再通知这档只断过错误、没断过断流
+        state.release()
+        player.emitPosition(2000L, timeoutMs = 100L)
+        Thread.sleep(1000)
+        assertEquals(1, cutoffNotifications)
+    }
 }
