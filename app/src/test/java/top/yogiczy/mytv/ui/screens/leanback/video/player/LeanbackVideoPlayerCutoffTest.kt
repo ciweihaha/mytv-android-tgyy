@@ -88,6 +88,29 @@ class LeanbackVideoPlayerCutoffTest {
     }
 
     @Test
+    fun `position change while cutoff pending restarts the deadline, old deadline does not fire`() {
+        val player = FakeVideoPlayer()
+        var cutoffCount = 0
+        player.onCutoff { cutoffCount++ }
+
+        // 位置一动、断流计时挂起时位置又动了：旧计时必须取消、新计时
+        // 从新位置重新开始，否则正常播放中位置每秒都在变、旧计时
+        // 会在超时后误报一次断流
+        player.emitPosition(1000L, timeoutMs = 100L)
+        Thread.sleep(50)
+        player.emitPosition(2000L, timeoutMs = 500L)
+
+        // 此时约 350ms：旧计时（100ms）早该到了、新计时（550ms）还没到；
+        // 若旧计时没取消，这里已经是 1 次
+        Thread.sleep(300)
+        assertEquals(0, cutoffCount)
+
+        // 新计时到期：只报一次
+        Thread.sleep(500)
+        assertEquals(1, cutoffCount)
+    }
+
+    @Test
     fun `prepare cancels the pending cutoff, a stall from the old stream does not fire`() {
         val player = FakeVideoPlayer()
         var cutoffCount = 0
