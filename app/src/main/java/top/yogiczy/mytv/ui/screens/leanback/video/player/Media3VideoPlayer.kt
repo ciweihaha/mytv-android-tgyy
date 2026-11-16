@@ -351,6 +351,12 @@ class LeanbackMedia3VideoPlayer(
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
+                        // 重试也要重启加载超时 watchdog：triggerPrepared()
+                        // 只在 prepare() 里调，重试直接调 ExoPlayer 的
+                        // prepare() 会绕过它，watchdog 仍锚定最初那次
+                        // prepare()——加载超时会在后几次重试前先报
+                        // LOAD_TIMEOUT（壳 877 轮 P2-2 同款）。
+                        triggerPrepared()
                     }
                 } else {
                     behindLiveWindowRetries = 0
@@ -377,6 +383,11 @@ class LeanbackMedia3VideoPlayer(
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
+                        // 重试也要重启加载超时 watchdog：同上，延迟重试
+                        // 直接调 ExoPlayer 的 prepare() 会绕过
+                        // triggerPrepared()，watchdog 仍锚定最初那次
+                        // prepare()（壳 877 轮 P2-2 同款）。
+                        triggerPrepared()
                     }
                 } else {
                     ioErrorRetries = 0
