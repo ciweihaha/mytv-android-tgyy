@@ -279,4 +279,24 @@ class TvboxIptvParserTest {
         // isSupport 空串那档已有用例，parse("") 出空列表一次也没断言过
         assertTrue(parser.parse("").isEmpty())
     }
+
+    @Test
+    fun `spaces after comma in genre and channel lines are tolerated`() = runBlocking {
+        // 分组行与频道行逗号后带空格：手改文件常写成 `央视, #genre#`；
+        // 分组判断那路先 trimStart、地址那路先 trim，这两档一次也没断言过
+        val data = """
+            央视, #genre#
+            CCTV-1, http://example.com/cctv1.m3u8
+            CCTV-5,http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
 }
