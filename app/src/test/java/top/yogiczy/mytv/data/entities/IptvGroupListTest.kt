@@ -4,7 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvGroupIdx
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
 
 class IptvGroupListTest {
     @Test
@@ -127,5 +129,57 @@ class IptvGroupListTest {
 
         assertEquals(-1, groupList.iptvGroupIdx(Iptv(name = "不存在")))
         assertEquals(-1, IptvGroupList().iptvGroupIdx(Iptv(name = "不存在")))
+    }
+
+    @Test
+    fun `iptvIdx accumulates offsets across groups`() {
+        // 全局下标是 iptvAt 与 channelNoText 的底座：iptvGroupIdx
+        // 有单测，iptvIdx 本身一次也没直接断言过——跨分组的偏移累加
+        // （第二组起的下标要加上前面各组的大小）只在 channelNoText
+        // 里被间接用到，且旧用例全是单分组、偏移恒为 0
+        val a = Iptv(name = "A")
+        val b = Iptv(name = "B")
+        val target = Iptv(name = "目标")
+        val c = Iptv(name = "C")
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "分组1", iptvList = IptvList(listOf(a, b))),
+                IptvGroup(name = "空分组", iptvList = IptvList(emptyList())),
+                IptvGroup(name = "分组3", iptvList = IptvList(listOf(target, c))),
+            )
+        )
+
+        assertEquals(0, groupList.iptvIdx(a))
+        assertEquals(1, groupList.iptvIdx(b))
+        assertEquals(2, groupList.iptvIdx(target))
+        assertEquals(3, groupList.iptvIdx(c))
+        assertEquals(-1, groupList.iptvIdx(Iptv(name = "不存在")))
+        assertEquals(-1, IptvGroupList().iptvIdx(a))
+    }
+
+    @Test
+    fun `iptvAt returns channels by global index and null out of bounds`() {
+        // 按全局下标取频道：上下键切台、输台号选台、启动恢复上次频道
+        // 都调它——这函数一次也没断言过；下标越界（含负数）回 null
+        // 是调用方兜底的依据，空分组不能把偏移算错
+        val a = Iptv(name = "A")
+        val b = Iptv(name = "B")
+        val target = Iptv(name = "目标")
+        val c = Iptv(name = "C")
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "分组1", iptvList = IptvList(listOf(a, b))),
+                IptvGroup(name = "空分组", iptvList = IptvList(emptyList())),
+                IptvGroup(name = "分组3", iptvList = IptvList(listOf(target, c))),
+            )
+        )
+
+        assertEquals(a, groupList.iptvAt(0))
+        assertEquals(b, groupList.iptvAt(1))
+        assertEquals(target, groupList.iptvAt(2))
+        assertEquals(c, groupList.iptvAt(3))
+        assertEquals(null, groupList.iptvAt(4))
+        assertEquals(null, groupList.iptvAt(-1))
+        assertEquals(null, IptvGroupList().iptvAt(0))
     }
 }
