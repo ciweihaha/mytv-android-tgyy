@@ -101,4 +101,19 @@ class LeanbackVideoPlayerCutoffTest {
         Thread.sleep(1000)
         assertEquals(0, cutoffCount)
     }
+
+    @Test
+    fun `release cancels the pending cutoff, a frozen position does not fire after release`() {
+        val player = FakeVideoPlayer()
+        var cutoffCount = 0
+        player.onCutoff { cutoffCount++ }
+
+        // 退出播放页释放播放器：位置冻住挂起的断流计时必须停掉，
+        // 否则它会在已释放的播放器上继续报断流、重新准备同一条流
+        player.emitPosition(1000L, timeoutMs = 100L)
+        player.release()
+
+        Thread.sleep(1000)
+        assertEquals(0, cutoffCount)
+    }
 }
