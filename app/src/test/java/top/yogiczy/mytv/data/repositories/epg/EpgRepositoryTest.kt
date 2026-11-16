@@ -22,7 +22,11 @@ import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.repositories.epg.fetcher.EpgFetcher
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
+import java.net.InetAddress
+import java.net.ServerSocket
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,6 +43,44 @@ class EpgRepositoryTest {
     /** 按解析器主格式（yyyyMMddHHmmss Z，默认时区）格式化时间戳，供 XML 单测拼正在播的节目 */
     private fun formatEpgTime(millis: Long): String =
         SimpleDateFormat("yyyyMMddHHmmss Z", Locale.getDefault()).format(Date(millis))
+
+    /**
+     * 最小 HTTP 服务（2223 轮 GitRepositoryTest 同款写法：com.sun.net.httpserver
+     * 不在 Android 单测的编译 classpath 里）。任何 GET 都回同一份节目单 XML，
+     * 供“主源拉取失败走备用源”那档用。
+     */
+    private class TestHttpServer(private val body: String) {
+        private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val port: Int get() = serverSocket.localPort
+
+        private val thread = Thread({
+            try {
+                while (!serverSocket.isClosed) {
+                    serverSocket.accept().use { socket ->
+                        val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                        var line: String?
+                        do {
+                            line = reader.readLine()
+                        } while (line != null && line.isNotEmpty())
+                        val content = body.toByteArray()
+                        val out = socket.getOutputStream()
+                        out.write(
+                            "HTTP/1.1 200 OK\r\nContent-Length: ${content.size}\r\nConnection: close\r\n\r\n"
+                                .toByteArray()
+                        )
+                        out.write(content)
+                        out.flush()
+                    }
+                }
+            } catch (_: Exception) {
+                // 服务关闭
+            }
+        }, "test-http-server").apply { isDaemon = true }
+
+        fun start() = thread.start()
+
+        fun stop() = runCatching { serverSocket.close() }
+    }
 
     @Test
     fun `clearCache also clears the raw xml cache`() {
@@ -633,6 +675,36 @@ class EpgRepositoryTest {
         assertEquals(1, result.size)
         assertEquals("CCTV-1 综合", result.first().channel)
         assertEquals("昨天节目", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList falls back to backup url when primary fetch fails`() = runBlocking {
+        // loadEpgList 里“主源拉取失败直接试备用源”那条路之前一次也
+        // 没走通过：现有备用源用例全传 prefetchedXml，主源拉取根本
+        // 没发生。主源写成 127.0.0.1:9（连不上），备用源走本地服务
+        // 回正在播的节目；fromBackup 为真时直接返回备用源解析结果
+        val now = System.currentTimeMillis()
+        val backupXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 1800_000)}" stop="${formatEpgTime(now + 1800_000)}" channel="cctv1"><title>备用源正在播</title></programme>
+            </tv>
+        """.trimIndent()
+        val server = TestHttpServer(backupXml).apply { start() }
+        try {
+            val result = EpgRepository().getEpgList(
+                "http://127.0.0.1:9/epg.xml",
+                refreshTimeThreshold = 0,
+                backupXmlUrl = "http://127.0.0.1:${server.port}/backup.xml",
+            )
+
+            assertEquals(1, result.size)
+            assertEquals("CCTV-1 综合", result.first().channel)
+            assertEquals("备用源正在播", result.first().programmes.first().title)
+        } finally {
+            server.stop()
+        }
     }
 
     @Test
