@@ -96,4 +96,20 @@ class LeanbackDoubleBackPressedExitStateTest {
         now += 800
         assertTrue(s.allowExit)
     }
+
+    @Test
+    fun `复位秒数为 0 时按完立即复位`() {
+        // 确认窗口是 [300, 0)：空区间，按完 allowExit 永远是 false——
+        // 若 0 被当成默认值 2 秒处理，800 毫秒后 allowExit 还会是 true
+        val s = LeanbackDoubleBackPressedExitState(
+            resetSeconds = 0,
+            clock = { now },
+        )
+        assertTrue(s.backPress())
+        now += 800
+        assertFalse(s.allowExit)
+        assertTrue(s.backPress())
+        now += 800
+        assertFalse(s.allowExit)
+    }
 }
