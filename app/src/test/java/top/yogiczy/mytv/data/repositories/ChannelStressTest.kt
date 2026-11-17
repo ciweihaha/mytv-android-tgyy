@@ -1,6 +1,10 @@
 package top.yogiczy.mytv.data.repositories
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -15,6 +19,7 @@ import top.yogiczy.mytv.data.entities.recordRecentChannel
 import top.yogiczy.mytv.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.data.repositories.epg.buildEpgFilterSet
 import top.yogiczy.mytv.data.repositories.epg.keepEpgChannelNormalized
+import top.yogiczy.mytv.data.repositories.epg.parseEpgTimeFallback
 import top.yogiczy.mytv.data.repositories.iptv.parser.M3uIptvParser
 import top.yogiczy.mytv.data.repositories.iptv.parser.TvboxIptvParser
 import java.text.SimpleDateFormat
@@ -202,5 +207,95 @@ class ChannelStressTest {
         val first = M3uIptvParser().parse(data)
         val second = M3uIptvParser().parse(data)
         assertEquals(first, second)
+    }
+
+    @Test
+    fun `parsing large sources concurrently gives the same results as sequential`() = runBlocking {
+        // 换源刷新、节目单刷新、面板打开可能同时触发解析：解析器是
+        // 无状态挂起函数，多路并发跑同一份大源，结果必须和串行一字
+        // 不差；解析里没有共享可变状态可写坏，并发只拼 CPU
+        val m3uData = buildLargeM3u()
+        val tvboxData = buildLargeTvbox()
+        val sequentialM3u = M3uIptvParser().parse(m3uData)
+        val sequentialTvbox = TvboxIptvParser().parse(tvboxData)
+
+        val results = withContext(Dispatchers.Default) {
+            (0 until 4).map { async { M3uIptvParser().parse(m3uData) } } +
+                (0 until 4).map { async { TvboxIptvParser().parse(tvboxData) } }
+        }.awaitAll()
+
+        assertEquals(8, results.size)
+        results.take(4).forEach { assertEquals(sequentialM3u, it) }
+        results.drop(4).forEach { assertEquals(sequentialTvbox, it) }
+    }
+
+    @Test
+    fun `parsing the same large epg concurrently gives identical results`() = runBlocking {
+        // 节目单主源与备用源、缓存刷新与面板读取可能同时解析同一份
+        // XML：解析跑在 Dispatchers.Default 线程池里，多路并发下
+        // 每路的节目数、正在播那档都必须和串行一致。缓存文件是共享
+        // 的：多路并发写走原子改名，最后落盘的那份永远是完整的
+        val xml = buildLargeEpg()
+        val sequential = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+        assertEquals(500, sequential.size)
+
+        val results = withContext(Dispatchers.Default) {
+            (0 until 8).map {
+                async {
+                    EpgRepository().getEpgList(
+                        "http://127.0.0.1:9/epg.xml",
+                        refreshTimeThreshold = 0,
+                        prefetchedXml = xml,
+                        backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+                    )
+                }
+            }
+        }.awaitAll()
+
+        assertEquals(8, results.size)
+        results.forEach { assertEquals(sequential, it) }
+    }
+
+    @Test
+    fun `epg time fallback parsing from many threads agrees`() = runBlocking {
+        // 坏时间格式的源每条节目都走备用解析：四个 SimpleDateFormat
+        // 是按线程各存一份复用的（SimpleDateFormat 不是线程安全的，
+        // 跨线程共用会在并发下悄悄算错时间、节目贴错档）。16 路并
+        // 发、各 500 次混合写法，算出的时刻必须和串行一字不差
+        val samples = listOf(
+            "20261112080000+0800" to 1794441600000L,
+            "20261112080000 +08:00" to 1794441600000L,
+            "20261112080000+08:00" to 1794441600000L,
+            "20261112080000Z" to 1794470400000L,
+            "20261112080000-0800" to 1794499200000L,
+        )
+        val expected = samples.map { (text, instant) -> text to instant }
+
+        val results = withContext(Dispatchers.Default) {
+            (0 until 16).map {
+                async {
+                    buildList {
+                        repeat(100) {
+                            expected.forEach { (text, _) -> add(parseEpgTimeFallback(text)) }
+                        }
+                    }
+                }
+            }
+        }.awaitAll()
+
+        assertEquals(16, results.size)
+        results.forEach { parsed ->
+            assertEquals(500, parsed.size)
+            expected.forEachIndexed { index, (_, instant) ->
+                repeat(100) { round ->
+                    assertEquals(instant, parsed[round * expected.size + index])
+                }
+            }
+        }
     }
 }
