@@ -15,6 +15,9 @@ class SettingsCategoryUIScaleTest {
     fun `step from just below maximum lands on maximum`() {
         // 1.9 再加一档到顶：浮点累积可能略超 2.0，钳住后正好是 2.0
         assertEquals(2.0f, nextScaleRatio(1.9f), 1e-5f)
+        // 1.95 再加一档必超 2.0（float32 下是 2.05）：只有上限钳制真的
+        // 起作用才会回到 2.0，1.9 那档加完正好是 2.0、钳没钳住测不出来
+        assertEquals(2.0f, nextScaleRatio(1.95f), 1e-5f)
     }
 
     @Test
