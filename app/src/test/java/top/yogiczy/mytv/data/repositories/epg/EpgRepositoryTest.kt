@@ -1501,8 +1501,11 @@ class EpgRepositoryTest {
                 }
             }
             assertEquals(404, ex.code)
-            assertTrue(ex.message?.contains("服务器返回 404") == true)
-            assertFalse(ex.message?.contains("请检查网络连接") == true)
+            // 状态错文案收紧成全句：原来只断 contains“服务器返回 404”＋
+            // 不含“请检查网络连接”，前后缀（“获取远程节目单xml失败：”与
+            // “，请检查节目单地址”）丢了也不会红；2337/2352 轮同款教训，
+            // 用户看得到的文案要钉死全句。
+            assertEquals("获取远程节目单xml失败：服务器返回 404，请检查节目单地址", ex.message)
             // 壳 1012 轮姊妹检查：它那边单源断“只请求一次”，天光是主备
             // 两源——主源 1 次＋备用源 1 次、共 2 次才是“状态错不重试”。
             // fetchXml 与 getOrRefresh 里都没有重试循环，今天不断次数，
@@ -1532,8 +1535,8 @@ class EpgRepositoryTest {
                 }
             }
             assertEquals(500, ex.code)
-            assertTrue(ex.message?.contains("服务器返回 500") == true)
-            assertFalse(ex.message?.contains("请检查网络连接") == true)
+            // 与 404 同款收紧成全句（2337/2352 轮同款教训）。
+            assertEquals("获取远程节目单xml失败：服务器返回 500，请检查节目单地址", ex.message)
             // 与 404 同款：主源 1 次＋备用源 1 次、共 2 次，不重试。
             // 500 在天光是“服务器一时的问题”分档（重试判定在播放器层），
             // 节目单拉取层本身没有重试循环，别把“只请求两次”误读成
