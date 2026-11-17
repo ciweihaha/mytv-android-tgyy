@@ -211,12 +211,11 @@ class GitRepositoryTest {
                 }
             }
             assertEquals(404, ex.code)
-            // 2347 轮只记录、2351 轮复核后补：500 那档钉了文案全句，404
-            // 只断了码值——模板是同一条（“获取最新发行版失败：服务器返回
-            // ${code}，请检查更新源地址”），但 2337 轮教训是只断半句测不出
-            // 后半句丢了；404 的文案也要单独断一次。
-            assertTrue(ex.message?.contains("服务器返回 404") == true)
-            assertTrue(ex.message?.contains("请检查网络连接") == false)
+            // 2354 轮收紧成全句：2351 轮补的是 contains 半句（“服务器返回
+            // 404”＋不含“请检查网络连接”），前后缀丢了也不会红；注释里
+            // “500 那档钉了文案全句”那句也是错话——500 那档当时同样只断
+            // 了 contains，这轮两档一起收紧（2337/2352/2353 轮同款教训）。
+            assertEquals("获取最新发行版失败：服务器返回 404，请检查更新源地址", ex.message)
         } finally {
             server.stop()
         }
@@ -277,8 +276,8 @@ class GitRepositoryTest {
                 }
             }
             assertEquals(500, ex.code)
-            assertTrue(ex.message?.contains("服务器返回 500") == true)
-            assertTrue(ex.message?.contains("请检查网络连接") == false)
+            // 与 404 同款收紧成全句（2354 轮；2337/2352/2353 轮同款教训）。
+            assertEquals("获取最新发行版失败：服务器返回 500，请检查更新源地址", ex.message)
         } finally {
             server.stop()
         }
