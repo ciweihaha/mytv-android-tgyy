@@ -132,7 +132,14 @@ class GitRepositoryTest {
             }
         }
         assertTrue(thrown is IllegalArgumentException)
-        assertTrue(thrown?.message?.contains("不支持的更新源") == true)
+        // 2357 轮收紧成全句：原来只断 contains“不支持的更新源”，“，仅支持
+        // GitHub / Gitee：<地址>”这半句丢了也不会红——将来谁改了支持的源
+        // 列表却忘了改文案，半句断言测不出来；地址是测试自己给的固定值，
+        // 全句相等断得住（2337/2352 轮同款教训）。
+        assertEquals(
+            "不支持的更新源，仅支持 GitHub / Gitee：https://example.com/releases/latest",
+            thrown?.message,
+        )
     }
 
     @Test
@@ -154,7 +161,11 @@ class GitRepositoryTest {
             }
         }
         assertTrue(thrown is IllegalArgumentException)
-        assertTrue(thrown?.message?.contains("不支持的更新源") == true)
+        // 与上一档同款收紧成全句（2357 轮）。
+        assertEquals(
+            "不支持的更新源，仅支持 GitHub / Gitee：https://raw.githubusercontent.com/owner/repo/main/releases/latest",
+            thrown?.message,
+        )
     }
 
     @Test
