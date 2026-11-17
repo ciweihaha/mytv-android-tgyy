@@ -99,6 +99,16 @@ class DownloaderTest {
                 "404 应原样抛 HttpStatusException，实际是 $thrown",
                 thrown is HttpStatusException && thrown.code == 404,
             )
+            // 2346 轮只记录、2351 轮复核后补：500 那档钉了文案全句，404
+            // 只断了码值——文案模板是同一条（“下载文件失败：服务器返回
+            // ${code}，请检查下载链接”），但 2337 轮教训是只断半句测不出
+            // 后半句丢了；404 的文案也要单独断一次，三处（直播源/节目单/
+            // 发行版）才一致。
+            assertTrue(
+                "404 的文案应报服务器返回 404、不是网络错，实际是 ${thrown?.message}",
+                thrown?.message?.contains("服务器返回 404") == true &&
+                    thrown?.message?.contains("请检查网络连接") == false,
+            )
         } finally {
             server.stop(0)
         }
