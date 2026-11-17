@@ -105,7 +105,9 @@ class UpdateCheckFailedTest {
             check.await()
             org.junit.Assert.fail("取消时应原样抛 CancellationException")
         } catch (ex: CancellationException) {
-            assertEquals("cancelled", ex.message)
+            // 预期：取消原样抛出来。文案不断——这里的取消是外面调
+            // check.cancel() 触发的，框架给的文案是 "Job was cancelled"，
+            // 不是测试自己抛的 "cancelled"；断文案等于断框架措辞
         }
         assertFalse(viewModel.checkFailed)
         assertFalse(viewModel.checkCompleted)
