@@ -395,11 +395,14 @@ class LeanbackMedia3VideoPlayer(
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
-                        // 重试也要重启加载超时 watchdog：triggerPrepared()
+                        // 重试后也要重启加载超时 watchdog：triggerPrepared()
                         // 只在 prepare() 里调，重试直接调 ExoPlayer 的
-                        // prepare() 会绕过它，watchdog 仍锚定最初那次
-                        // prepare()——加载超时会在后几次重试前先报
-                        // LOAD_TIMEOUT（壳 877 轮 P2-2 同款）。
+                        // prepare() 会绕过它，所以下面显式再调一次。但重启
+                        // 发生在退避等完之后——等待期间旧 watchdog 还在跑，
+                        // 若它剩下的时间比本次退避短，就先报一个假
+                        // LOAD_TIMEOUT（超时 5 秒时第 5 次退避必撞：剩下的
+                        // 时间最多 5 秒、短于 8 秒；默认 15 秒时报错晚于
+                        // 7 秒才撞上第 5 次退避；壳 877 轮 P2-2 是旧机理）。
                         triggerPrepared()
                     }
                 } else {
@@ -427,10 +430,12 @@ class LeanbackMedia3VideoPlayer(
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
-                        // 重试也要重启加载超时 watchdog：同上，延迟重试
+                        // 重试后也要重启加载超时 watchdog：同上，延迟重试
                         // 直接调 ExoPlayer 的 prepare() 会绕过
-                        // triggerPrepared()，watchdog 仍锚定最初那次
-                        // prepare()（壳 877 轮 P2-2 同款）。
+                        // triggerPrepared()，所以下面显式再调一次。但重启
+                        // 发生在退避等完之后——等待期间旧 watchdog 还在跑，
+                        // 若它剩下的时间比本次退避短，就先报一个假
+                        // LOAD_TIMEOUT（壳 1036 轮同款）。
                         triggerPrepared()
                     }
                 } else {

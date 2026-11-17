@@ -71,8 +71,10 @@ class Media3TransientIoRetryTest {
         // 退避期间旧的 watchdog 还在跑：报错后走重试那路不调
         // triggerError（只有上报错误那路才调，调了才取消旧 watchdog），
         // 重试只在 prepare() 后才调 triggerPrepared 重启它——单次退避
-        // 必须短于加载超时，否则退避还没等完就先报 LOAD_TIMEOUT、
-        // 重试链断掉（壳 915 轮同款）。档位表只钉了各自的数，没钉
+        // 必须短于加载超时，否则报错一来就撞上旧 watchdog、连第 1 次
+        // 退避都等不完。注意这只保“报错刚发生时”那档——报错来得晚、
+        // 旧 watchdog 剩下的时间比本次退避短，照样先报假 LOAD_TIMEOUT
+        // （壳 1036 轮同款）。档位表只钉了各自的数，没钉
         // 两数的关系——以后有人把超时改短、或把退避封顶抬上去，这里先响。
         assertTrue(retryDelayMs(1) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
         assertTrue(retryDelayMs(2) < Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
