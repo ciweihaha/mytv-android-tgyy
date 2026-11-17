@@ -334,4 +334,22 @@ class IptvGroupListTest {
         assertEquals(listOf(cctv1, cctvPlus), groupList.searchIptv("CCTV+1").value)
         assertEquals(listOf(cctv1, cctvPlus), groupList.searchIptv("cctv1").value)
     }
+
+    @Test
+    fun `search matches channelName alone when name and tvg-id do not`() {
+        // matchesChannelQuery 三档里只靠频道名命中的那档一直没单独测过：
+        // 现有用例里名字与频道名要么是同一个值、要么只靠 tvg-id 命中。
+        // 这台名字是“综合频道”、tvg-id 是“xyz”，都不含查询词，
+        // 只有频道名含 “CCTV-1 综合”——搜 “cctv1” 必须只靠频道名命中；
+        // 谁把 channelName 那档删了，这台就漏了，另一台不受影响
+        val byChannelName = Iptv(name = "综合频道", channelName = "CCTV-1 综合", tvgId = "xyz")
+        val other = Iptv(name = "体育频道", channelName = "CCTV-5 体育", tvgId = "cctv5")
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "全部", iptvList = IptvList(listOf(byChannelName, other))))
+        )
+
+        assertEquals(listOf(byChannelName), groupList.searchIptv("cctv1").value)
+        assertEquals(true, matchesChannelQuery(byChannelName, "cctv1"))
+        assertEquals(false, matchesChannelQuery(other, "cctv1"))
+    }
 }
