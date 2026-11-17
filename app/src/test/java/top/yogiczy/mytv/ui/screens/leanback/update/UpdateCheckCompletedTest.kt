@@ -30,6 +30,21 @@ class UpdateCheckCompletedTest {
     }
 
     @Test
+    fun `failed recheck keeps known latestRelease version`() = runBlocking {
+        val viewModel = LeanBackUpdateViewModel()
+
+        viewModel.checkUpdate("2.2.10") { GitRelease(version = "9.9.9") }
+        assertEquals("9.9.9", viewModel.latestRelease.version)
+
+        // 重查失败：catch 不改 _latestRelease，设置页仍显示已知的 9.9.9，
+        // 不能悄悄回到 "0.0.0" 默认值——只断 isUpdateAvailable 测不出来，
+        // catch 里把 _latestRelease 复位了它照样是 true
+        viewModel.checkUpdate("2.2.10") { throw RuntimeException("network down") }
+        assertEquals("9.9.9", viewModel.latestRelease.version)
+        assertTrue(viewModel.isUpdateAvailable)
+    }
+
+    @Test
     fun `first check failing leaves checkCompleted false`() = runBlocking {
         val viewModel = LeanBackUpdateViewModel()
 
