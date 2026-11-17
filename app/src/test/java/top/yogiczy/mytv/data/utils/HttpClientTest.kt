@@ -1,7 +1,6 @@
 package top.yogiczy.mytv.data.utils
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -27,8 +26,13 @@ class HttpClientTest {
             buildGetRequest("live.ciweihaha.win/live.m3u", "直播源地址")
             fail("expected an exception for a url without scheme")
         } catch (ex: Exception) {
-            assertTrue(ex.message?.contains("直播源地址格式不正确") == true)
-            assertTrue(ex.message?.contains("live.ciweihaha.win/live.m3u") == true)
+            // 2358 轮收紧成全句：原来两行 contains（“直播源地址格式不正确”
+            // ＋原地址）合起来已接近全句，但“，请检查地址：”这半句丢了也
+            // 不会红；模板是同一条（HttpClient.kt:51），全句相等断得住。
+            assertEquals(
+                "直播源地址格式不正确，请检查地址：live.ciweihaha.win/live.m3u",
+                ex.message,
+            )
         }
     }
 
@@ -39,18 +43,30 @@ class HttpClientTest {
             buildGetRequest("live.ciweihaha.win/live.m3u", "直播源地址")
             fail("expected InvalidSourceUrlException for a url without scheme")
         } catch (ex: InvalidSourceUrlException) {
-            assertTrue(ex.message?.contains("直播源地址格式不正确") == true)
+            // 与上一档同款收紧成全句（2358 轮）。
+            assertEquals(
+                "直播源地址格式不正确，请检查地址：live.ciweihaha.win/live.m3u",
+                ex.message,
+            )
         }
     }
 
     @Test
     fun `buildGetRequest rejects blank and space-containing urls`() {
-        for (bad in listOf("", "   ", "http://exa mple.com/live.m3u")) {
+        // 三档输入、同一条模板：空串与纯空格也要原样带进文案——用户看到
+        // 自己输的东西才能去检查地址；若将来谁把地址先 trim 再拼进文案，
+        // 纯空格那档的尾部空格没了会先红，逼着把语义说清楚（2358 轮收紧）。
+        val cases = listOf(
+            "" to "节目单地址格式不正确，请检查地址：",
+            "   " to "节目单地址格式不正确，请检查地址：   ",
+            "http://exa mple.com/live.m3u" to "节目单地址格式不正确，请检查地址：http://exa mple.com/live.m3u",
+        )
+        for ((bad, expected) in cases) {
             try {
                 buildGetRequest(bad, "节目单地址")
                 fail("expected an exception for [$bad]")
             } catch (ex: Exception) {
-                assertTrue(ex.message?.contains("节目单地址格式不正确") == true)
+                assertEquals(expected, ex.message)
             }
         }
     }
@@ -76,7 +92,11 @@ class HttpClientTest {
             buildGetRequest("rtmp://example.com/live", "直播源地址")
             fail("expected an exception for a non-http scheme")
         } catch (ex: Exception) {
-            assertTrue(ex.message?.contains("直播源地址格式不正确") == true)
+            // 与无协议那档同款收紧成全句（2358 轮）。
+            assertEquals(
+                "直播源地址格式不正确，请检查地址：rtmp://example.com/live",
+                ex.message,
+            )
         }
     }
 }
