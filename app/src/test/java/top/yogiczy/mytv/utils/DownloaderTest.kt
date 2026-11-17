@@ -104,6 +104,43 @@ class DownloaderTest {
         }
     }
 
+    /** 服务器回 500 时原样抛 HttpStatusException，不包成网络错、不写文件。 */
+    @Test
+    fun `http 500 throws HttpStatusException with the status code and leaves target untouched`() =
+        runBlocking {
+            val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
+                createContext("/error.apk") { exchange ->
+                    exchange.sendResponseHeaders(500, -1)
+                    exchange.close()
+                }
+                start()
+            }
+            try {
+                val url = "http://127.0.0.1:${server.address.port}/error.apk"
+                val file = tempFile().apply { writeText("old") }
+                val thrown = try {
+                    withTimeout(10_000) {
+                        Downloader.downloadTo(url, file.path, null)
+                    }
+                    null
+                } catch (e: Throwable) {
+                    e
+                }
+                assertTrue(
+                    "500 应原样抛 HttpStatusException，实际是 $thrown",
+                    thrown is HttpStatusException && thrown.code == 500,
+                )
+                assertTrue(
+                    "500 的文案应报服务器返回 500、不是网络错，实际是 ${thrown?.message}",
+                    thrown?.message?.contains("服务器返回 500") == true &&
+                        thrown?.message?.contains("请检查网络连接") == false,
+                )
+                assertEquals("old", file.readText())
+            } finally {
+                server.stop(0)
+            }
+        }
+
     /** 正常路不受影响：小文件一次下完、内容一致。 */
     @Test
     fun `downloads small file completely`() = runBlocking {
