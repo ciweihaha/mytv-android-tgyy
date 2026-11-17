@@ -111,6 +111,45 @@ class UpdateCheckFailedTest {
         }
         assertFalse(viewModel.checkFailed)
         assertFalse(viewModel.checkCompleted)
+        // 取消的重查不改已知状态：失败那次本来就没查到更新，取消后仍是没有
+        // （壳 965 轮同款断言）
+        assertFalse(viewModel.isUpdateAvailable)
+    }
+
+    @Test
+    fun `cancelled recheck after success keeps known update`() = runBlocking {
+        val viewModel = LeanBackUpdateViewModel()
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<GitRelease>()
+
+        viewModel.checkUpdate("2.2.10") { GitRelease(version = "9.9.9") }
+        assertTrue(viewModel.checkCompleted)
+        assertTrue(viewModel.isUpdateAvailable)
+        assertEquals("9.9.9", viewModel.latestRelease.version)
+
+        // 第二轮检查卡在拉取上、随后取消：取消不是失败，查到的更新不能丢——
+        // catch 不改 _latestRelease / _isUpdateAvailable，取消那条路连 catch
+        // 都不进（原样抛）；只断失败重查那档（2239 轮）测不出取消这条路，
+        // 只断全新状态取消那档也测不出来（那时本来就没已知更新）
+        val check = async {
+            viewModel.checkUpdate("2.2.10") {
+                started.complete(Unit)
+                releaseGate.await()
+            }
+        }
+        started.await()
+        assertFalse(viewModel.checkFailed)
+        check.cancel()
+        try {
+            check.await()
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            // 预期：取消原样抛出来，文案不断（2244 轮修法教训）
+        }
+        assertFalse(viewModel.checkFailed)
+        assertFalse(viewModel.checkCompleted)
+        assertTrue(viewModel.isUpdateAvailable)
+        assertEquals("9.9.9", viewModel.latestRelease.version)
     }
 
     @Test
