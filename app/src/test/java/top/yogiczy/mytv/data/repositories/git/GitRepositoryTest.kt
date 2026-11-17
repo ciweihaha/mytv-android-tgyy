@@ -211,6 +211,12 @@ class GitRepositoryTest {
                 }
             }
             assertEquals(404, ex.code)
+            // 2347 轮只记录、2351 轮复核后补：500 那档钉了文案全句，404
+            // 只断了码值——模板是同一条（“获取最新发行版失败：服务器返回
+            // ${code}，请检查更新源地址”），但 2337 轮教训是只断半句测不出
+            // 后半句丢了；404 的文案也要单独断一次。
+            assertTrue(ex.message?.contains("服务器返回 404") == true)
+            assertTrue(ex.message?.contains("请检查网络连接") == false)
         } finally {
             server.stop()
         }
