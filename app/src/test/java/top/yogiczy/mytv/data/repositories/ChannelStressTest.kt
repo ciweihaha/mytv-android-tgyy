@@ -239,9 +239,17 @@ class ChannelStressTest {
         // 节目单主源与备用源、缓存刷新与面板读取可能同时解析同一份
         // XML：解析跑在 Dispatchers.Default 线程池里，多路并发下
         // 每路的节目数、正在播那档都必须和串行一致。缓存文件是共享
-        // 的：多路并发写走原子改名，最后落盘的那份永远是完整的
+        // 的：多路并发写走原子改名，最后落盘的那份永远是完整的。
+        // 8 路共用同一个仓库实例：只各建新实例测不到“仓库实例本身
+        // 无共享可变状态”这一点——实例字段只有 log（本身无状态，
+        // 共享的日志历史在同一把锁里同步写）与各建的 EpgXmlRepository
+        //（字段也只有 log），FileCacheRepository 里也没有可变实例
+        // 状态；解析用的状态全是 parseFromXml 里的局部变量，时间
+        // 格式器主路径每调用现建、备用解析按线程各存一份。
+        // prefetchedXml 下内层 EpgXmlRepository 根本不会被碰到。
         val xml = buildLargeEpg()
-        val sequential = EpgRepository().getEpgList(
+        val repository = EpgRepository()
+        val sequential = repository.getEpgList(
             "http://127.0.0.1:9/epg.xml",
             refreshTimeThreshold = 0,
             prefetchedXml = xml,
@@ -249,10 +257,15 @@ class ChannelStressTest {
         )
         assertEquals(500, sequential.size)
 
+        // 先清缓存再并发：否则 8 路全读到串行那次刚写好的缓存、根本
+        // 没走到并发解析；清掉后每路都发现无缓存、各自解析再写回同
+        // 一份 epg.json，内容相同、改名原子，结果必须和串行一字不差
+        repository.clearCache()
+
         val results = withContext(Dispatchers.Default) {
             (0 until 8).map {
                 async {
-                    EpgRepository().getEpgList(
+                    repository.getEpgList(
                         "http://127.0.0.1:9/epg.xml",
                         refreshTimeThreshold = 0,
                         prefetchedXml = xml,
