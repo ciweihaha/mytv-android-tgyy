@@ -299,4 +299,34 @@ class TvboxIptvParserTest {
         assertEquals(listOf("http://example.com/cctv1.m3u8"), result[0].iptvList[0].urlList)
         assertEquals("CCTV-5", result[0].iptvList[1].name)
     }
+
+    @Test
+    fun `leading BOM does not pollute first group name`() = runBlocking {
+        // Windows 记事本存的 TXT 常带 UTF-8 BOM：不去掉的话首行分组名
+        // 会带上一个看不见的 \uFEFF——trim() 去不掉它，分组名就和干
+        // 净的“央视”对不上；M3U 那边 isSupport 已跳 BOM，这里入口
+        // 统一去掉
+        val data = "\uFEFF央视,#genre#\nCCTV-1,http://example.com/cctv1.m3u8"
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视", result[0].name)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+    }
+
+    @Test
+    fun `leading BOM before first channel does not pollute its name`() = runBlocking {
+        // 频道在分组行之前时（回退到“其他”），BOM 在首个频道行上：
+        // 同样在入口去掉，频道名干净、分组仍是“其他”
+        val data = "\uFEFFCCTV-1,http://example.com/cctv1.m3u8\n央视,#genre#\nCCTV-5,http://example.com/cctv5.m3u8"
+
+        val result = parser.parse(data)
+
+        assertEquals(2, result.size)
+        assertEquals("其他", result[0].name)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("央视", result[1].name)
+        assertEquals("CCTV-5", result[1].iptvList[0].name)
+    }
 }

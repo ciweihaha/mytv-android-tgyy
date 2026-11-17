@@ -9,7 +9,13 @@ class TvboxIptvParser : IptvParser {
     }
 
     override suspend fun parse(data: String): IptvGroupList {
-        val lines = data.split("\r\n", "\n")
+        // Windows 记事本存的 TXT 常带 UTF-8 BOM：BOM 只在文件开头，
+        // 不去掉的话首行分组名（或首个频道名）会带上一个看不见的
+        // \uFEFF——trim() 去不掉它（\uFEFF 不算空白），分组名就和干
+        // 净的“央视”对不上；M3U 那边 isSupport 已跳 BOM、节目单
+        // decodeBody 也去 BOM，这里在入口统一去掉（只去开头，中间
+        // 的 BOM 不动，和 decodeBody 一致）
+        val lines = data.dropWhile { it == '\uFEFF' }.split("\r\n", "\n")
         val iptvList = mutableListOf<IptvParser.IptvResponseItem>()
 
         var groupName: String? = null
