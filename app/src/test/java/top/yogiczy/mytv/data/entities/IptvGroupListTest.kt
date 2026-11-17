@@ -313,4 +313,25 @@ class IptvGroupListTest {
 
         assertEquals(listOf(first, second), groupList.searchIptv("cctv1").value)
     }
+
+    @Test
+    fun `search treats plus sign the same as dash`() {
+        // 归一化注释写了去“-”“+”，但只测过“-”、空白、大小写：
+        // 查询词里的“+”和频道名里的“+”都要当成不存在再比——
+        // 搜 “CCTV+1” 要命中 “CCTV-1 综合”，名里带“+”的台
+        // 搜 “cctv1” 也要命中；谁把 filterNot 里的 '+' 删了，
+        // 这两档都会漏
+        val cctv1 = Iptv(name = "CCTV-1 综合", channelName = "CCTV-1 综合", tvgId = "cctv1")
+        val cctvPlus = Iptv(name = "CCTV+1", channelName = "CCTV+1", tvgId = "plus1")
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "全部", iptvList = IptvList(listOf(cctv1, cctvPlus))))
+        )
+
+        // “+”直接归一化掉，和“-”一个结果
+        assertEquals("cctv1", normalizeChannelText("CCTV+1"))
+        assertEquals("cctv1", normalizeChannelText("CCTV-1"))
+        // 查询词带“+”命中“-”命名的台，名里带“+”的台也被“cctv1”命中
+        assertEquals(listOf(cctv1, cctvPlus), groupList.searchIptv("CCTV+1").value)
+        assertEquals(listOf(cctv1, cctvPlus), groupList.searchIptv("cctv1").value)
+    }
 }
