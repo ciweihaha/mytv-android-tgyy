@@ -22,6 +22,7 @@ import top.yogiczy.mytv.data.entities.EpgList
 import top.yogiczy.mytv.data.entities.EpgProgramme
 import top.yogiczy.mytv.data.entities.EpgProgrammeList
 import top.yogiczy.mytv.data.repositories.epg.fetcher.EpgFetcher
+import top.yogiczy.mytv.data.utils.HttpStatusException
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -76,6 +77,49 @@ class EpgRepositoryTest {
                 // 服务关闭
             }
         }, "test-http-server").apply { isDaemon = true }
+
+        fun start() = thread.start()
+
+        fun stop() = runCatching { serverSocket.close() }
+    }
+
+    /**
+     * 只回状态码的本地假服务器（GitRepositoryTest 同款写法）：主源与备用源
+     * 都指到它时，fetchXml 里 `if (ex is HttpStatusException) throw ex`
+     * 那行才走得到——只测“连不上包中文错”那档，删了这行也不会红。
+     * /servererror.xml 回 500，其余一律 404。
+     */
+    private class TestStatusHttpServer {
+        private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+        val port: Int get() = serverSocket.localPort
+
+        private val thread = Thread({
+            try {
+                while (!serverSocket.isClosed) {
+                    serverSocket.accept().use { socket ->
+                        val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                        val requestLine = reader.readLine() ?: return@use
+                        var line: String?
+                        do {
+                            line = reader.readLine()
+                        } while (line != null && line.isNotEmpty())
+                        val out = socket.getOutputStream()
+                        val statusLine = if (requestLine.startsWith("GET /servererror.xml ")) {
+                            "HTTP/1.1 500 Internal Server Error"
+                        } else {
+                            "HTTP/1.1 404 Not Found"
+                        }
+                        out.write(
+                            "$statusLine\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                                .toByteArray()
+                        )
+                        out.flush()
+                    }
+                }
+            } catch (_: Exception) {
+                // 服务关闭
+            }
+        }, "test-status-http-server").apply { isDaemon = true }
 
         fun start() = thread.start()
 
@@ -1428,5 +1472,60 @@ class EpgRepositoryTest {
             }
         }
         assertEquals("获取远程节目单xml失败，请检查网络连接", ex.message)
+    }
+
+    @Test
+    fun `getEpgList throws HttpStatusException as-is when both sources return 404`() {
+        // 服务器回了明确状态码就原样抛：不是网络问题，别包成“请检查网络
+        // 连接”误导用户去查网络。主源 404 后 loadEpgList 会试备用源，
+        // 备用源也指到同一台假服务器的 404 路径，抛出来的才是主源那
+        // 个 HttpStatusException 本身——fetchXml 的 catch 里那行
+        // `if (ex is HttpStatusException) throw ex` 删了也不会红之前，
+        // 这档一次也没断言过；连不上那档已有用例（包成中文错）。
+        // 没缓存可顶：getOrRefresh 刷新失败时没旧缓存可回落，原样抛出来。
+        val server = TestStatusHttpServer().apply { start() }
+        try {
+            val ex = assertThrows(HttpStatusException::class.java) {
+                runBlocking {
+                    EpgRepository().getEpgList(
+                        "http://127.0.0.1:${server.port}/notfound.xml",
+                        refreshTimeThreshold = 0,
+                        prefetchedXml = null,
+                        backupXmlUrl = "http://127.0.0.1:${server.port}/notfound.xml",
+                    )
+                }
+            }
+            assertEquals(404, ex.code)
+            assertTrue(ex.message?.contains("服务器返回 404") == true)
+            assertFalse(ex.message?.contains("请检查网络连接") == true)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `getEpgList throws HttpStatusException as-is when both sources return 500`() {
+        // 与 404 同款：500 也要原样抛，码值不同就是两档（2249 轮同款教训：
+        // 错误映射要按码值数齐，404 钉了不等于 500 钉了；2250 轮同款教训：
+        // 仓库层与下载器是两处独立的生产代码，节目单这处 fetchXml 是
+        // 第四处，前面三处补了不等于这处也补了）
+        val server = TestStatusHttpServer().apply { start() }
+        try {
+            val ex = assertThrows(HttpStatusException::class.java) {
+                runBlocking {
+                    EpgRepository().getEpgList(
+                        "http://127.0.0.1:${server.port}/servererror.xml",
+                        refreshTimeThreshold = 0,
+                        prefetchedXml = null,
+                        backupXmlUrl = "http://127.0.0.1:${server.port}/servererror.xml",
+                    )
+                }
+            }
+            assertEquals(500, ex.code)
+            assertTrue(ex.message?.contains("服务器返回 500") == true)
+            assertFalse(ex.message?.contains("请检查网络连接") == true)
+        } finally {
+            server.stop()
+        }
     }
 }
