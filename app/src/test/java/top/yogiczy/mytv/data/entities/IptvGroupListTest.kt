@@ -287,4 +287,30 @@ class IptvGroupListTest {
 
         assertEquals(listOf(first), groupList.recentIptvList(listOf("cctv1")).value)
     }
+
+    @Test
+    fun `search keeps same-name channels with different addresses`() {
+        // 搜索注释里写了“同名不同地址的台各留各的”，但只在收藏夹那份测过；
+        // 搜索这边只测过完全相同对象去重——名字、频道名相同、地址不同
+        // 的两条是不同的 Iptv 对象，distinct 不该去重；谁把 distinct
+        // 改成按频道名去重，搜索会少一条
+        val first = Iptv(
+            name = "CCTV-1",
+            channelName = "cctv1",
+            urlList = listOf("http://a.com/1.m3u8"),
+        )
+        val second = Iptv(
+            name = "CCTV-1",
+            channelName = "cctv1",
+            urlList = listOf("http://b.com/1.m3u8"),
+        )
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "央视", iptvList = IptvList(listOf(first))),
+                IptvGroup(name = "全部", iptvList = IptvList(listOf(second))),
+            )
+        )
+
+        assertEquals(listOf(first, second), groupList.searchIptv("cctv1").value)
+    }
 }
