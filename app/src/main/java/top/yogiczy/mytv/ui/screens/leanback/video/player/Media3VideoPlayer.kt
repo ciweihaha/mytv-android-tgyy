@@ -3,6 +3,7 @@ package top.yogiczy.mytv.ui.screens.leanback.video.player
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import android.view.SurfaceView
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -141,6 +142,23 @@ internal fun nextUntriedContentType(attempts: Map<Int, Boolean>): Int? = when {
 }
 
 /**
+ * 直播流过早播完（STATE_ENDED）该不该按断流报：只认直播流（就绪时
+ * 时长未知）、且就绪后还没播满 MAX_PREMATURE_LIVE_END_MS 就播完。
+ * 凤凰 FLV 源站每条连接 2–5 秒就断（ffmpeg 对照证实是源站关连接，
+ * 不是播放器问题）：播完后位置轮询停了、断流计时要 15 秒才到，
+ * 到之前界面一直冻在最后一帧、然后悄悄重备同一条死线无限循环。
+ * 就绪 10 秒内播完一定是源死了，不是正常播完——直播流没有“播完”
+ * 这一说；有总时长的是点播（readyAsLive 为 false），不报。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldReportPrematureLiveEnd(
+    readyAsLive: Boolean,
+    readyAtMs: Long,
+    nowMs: Long,
+): Boolean = readyAsLive && readyAtMs >= 0L &&
+    nowMs - readyAtMs <= LeanbackMedia3VideoPlayer.MAX_PREMATURE_LIVE_END_MS
+
+/**
  * 瞬时网络错：拉列表或分片时 HTTP 回了错误状态（上游一抖回 503、
  * 票据过期那一下回 403）、连接失败或超时。ExoPlayer 内部已重试
  * 过几次才上报，但直接判死刑会让只有一条线路的台永久卡死；
@@ -226,6 +244,14 @@ class LeanbackMedia3VideoPlayer(
     private var ioErrorRetries = 0
 
     /**
+     * 就绪时刻（SystemClock.elapsedRealtime）与就绪时是不是直播流
+     * （时长未知）：直播流过早播完的判断用。每次 prepare 清零，
+     * 就绪时才记；缓冲后再次就绪会重新记，窗口按最近一次就绪算
+     */
+    private var readyAtMs: Long = -1L
+    private var readyAsLive: Boolean = false
+
+    /**
      * 延迟重试任务：瞬时网络错与直播位置落后共用。出错后不等就立刻重拉，
      * 几次会在几毫秒内烧完——上游故障（分片签名刚过期、CDN 抖动、SCF 换票、
      * 列表过期）一般持续一两秒，立刻重拉撞上的还是同一个故障。改成可取消的
@@ -239,6 +265,14 @@ class LeanbackMedia3VideoPlayer(
     companion object {
         const val MAX_BEHIND_LIVE_WINDOW_RETRIES = 5
         const val MAX_IO_ERROR_RETRIES = 5
+
+        /**
+         * 直播流就绪后这么久内播完算“过早播完”（见
+         * shouldReportPrematureLiveEnd）：凤凰 FLV 源站 2–5 秒就断，
+         * 10 秒留足余量；播稳超过 10 秒才断的走原有断流计时重备，
+         * 不改那条路的行为
+         */
+        const val MAX_PREMATURE_LIVE_END_MS = 10_000L
 
         /**
          * P7：SSLContext 只建一次：首次建时 SSLContext.init 配全新
@@ -333,6 +367,11 @@ class LeanbackMedia3VideoPlayer(
     @OptIn(UnstableApi::class)
     private fun prepare(uri: Uri, contentType: Int? = null) {
         val dataSourceFactory = getDataSourceFactory()
+
+        // 新一轮准备：就绪计时清零，等这次就绪再记；否则上一条台的
+        // 就绪时刻会留到这条台上，播完误判过早
+        readyAtMs = -1L
+        readyAsLive = false
 
         val mediaItem = MediaItem.fromUri(uri)
 
@@ -474,6 +513,10 @@ class LeanbackMedia3VideoPlayer(
                 // 挂起的延迟重试任务也取消（已播稳就不需要它了），重连提示清掉
                 behindLiveWindowRetries = 0
                 ioErrorRetries = 0
+                // 记就绪时刻与是不是直播流：过早播完的判断用
+                // （时长未知即直播流；点播有总时长，不报）
+                readyAtMs = SystemClock.elapsedRealtime()
+                readyAsLive = videoPlayer.duration == C.TIME_UNSET
                 delayedRetryJob?.cancel()
                 delayedRetryJob = null
                 triggerReconnecting(false)
@@ -496,6 +539,22 @@ class LeanbackMedia3VideoPlayer(
                         delay(1000)
                     }
                 }
+            }
+
+            // 直播流就绪后没播几秒就播完：源站断了流（如凤凰 FLV 每条
+            // 连接 2–5 秒就关），不是正常播完。立刻按断流报，走换线/
+            // 报错流程；挂着的断流计时要先取消，否则 15 秒后它一到
+            // 又悄悄重备同一条死线。播稳超过 10 秒才播完的不动，走原
+            // 有断流计时重备那条路
+            if (playbackState == Player.STATE_ENDED &&
+                shouldReportPrematureLiveEnd(
+                    readyAsLive,
+                    readyAtMs,
+                    SystemClock.elapsedRealtime(),
+                )
+            ) {
+                cancelCutoffTimeout()
+                triggerError(PlaybackException.CUTOFF)
             }
 
             if (playbackState != Player.STATE_BUFFERING) {

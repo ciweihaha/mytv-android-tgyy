@@ -125,6 +125,17 @@ abstract class LeanbackVideoPlayer(
         cutoffTimeoutJob = null
     }
 
+    /**
+     * 断流计时取消：直播流提前播完（STATE_ENDED）按断流上报后，位置轮询
+     * 停之前挂的断流任务还在排队——15 秒后它一到就重备同一条死线，
+     * 把刚报出的错误又盖掉、回到 2 秒一播的死循环。报断流前先取消它；
+     * 播完后（ENDED）位置不再动，也不会再有新的断流任务。
+     */
+    protected fun cancelCutoffTimeout() {
+        cutoffTimeoutJob?.cancel()
+        cutoffTimeoutJob = null
+    }
+
     protected fun triggerMetadata(metadata: Metadata) {
         onMetadataListeners.forEach { it(metadata) }
     }
