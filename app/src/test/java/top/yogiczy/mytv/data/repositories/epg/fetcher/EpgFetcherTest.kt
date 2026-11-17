@@ -89,6 +89,25 @@ class EpgFetcherTest {
     }
 
     @Test
+    fun `dispatch picks xml and gz fetchers before default`() {
+        // 上一档只断了 query-only 后缀走 Default，没断正向分发：
+        // Default 的 isSupport 永远 true，被挪到前面时 .xml / .xml.gz
+        // 全变成 Default 嗅探，上一档照样通过、一个用例都不会红。
+        // 这里直接断言 `instances.first { it.isSupport(url) }`
+        // 挑到的是谁（直播源那边 IptvParserTest 有同款三分发用例）
+        assertTrue(
+            EpgFetcher.instances.first {
+                it.isSupport("https://example.com/epg.xml")
+            } is XmlEpgFetcher
+        )
+        assertTrue(
+            EpgFetcher.instances.first {
+                it.isSupport("https://example.com/epg.xml.gz")
+            } is XmlGzEpgFetcher
+        )
+    }
+
+    @Test
     fun `default fetcher returns plain xml body as-is`() {
         val xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><tv><channel id=\"c1\" /></tv>"
 
