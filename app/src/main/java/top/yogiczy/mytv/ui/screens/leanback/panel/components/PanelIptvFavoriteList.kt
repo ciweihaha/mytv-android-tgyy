@@ -43,6 +43,7 @@ import kotlin.math.max
 @Composable
 fun LeanbackPanelIptvFavoriteList(
     modifier: Modifier = Modifier,
+    title: String = "收藏",
     iptvListProvider: () -> IptvList = { IptvList() },
     epgListProvider: () -> EpgList = { EpgList() },
     currentIptvProvider: () -> Iptv = { Iptv() },
@@ -93,7 +94,7 @@ fun LeanbackPanelIptvFavoriteList(
             CompositionLocalProvider(
                 LocalTextStyle provides MaterialTheme.typography.labelMedium,
             ) {
-                Text(text = "收藏")
+                Text(text = title)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "${iptvList.size}个频道",

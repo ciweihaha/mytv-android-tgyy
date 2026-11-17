@@ -1546,4 +1546,103 @@ class EpgRepositoryTest {
             server.stop()
         }
     }
+
+    @Test
+    fun `getEpgList keeps programmes written before their channel tag`() = runBlocking {
+        // XMLTV 不保证 channel 标签一定在 programme 标签前面：节目
+        // 写在频道声明前面时，原先因查不到频道被悄悄丢掉、整台显示
+        // 无节目；现在先攒着、声明到了再接过去
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>先到的节目</title></programme>
+              <programme start="20261113090000 +0800" stop="20261113100000 +0800" channel="cctv1"><title>后到的节目</title></programme>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(2, result.first().programmes.size)
+        assertEquals("先到的节目", result.first().programmes[0].title)
+        assertEquals("后到的节目", result.first().programmes[1].title)
+    }
+
+    @Test
+    fun `getEpgList drops programmes whose channel is never declared`() = runBlocking {
+        // 攒着的节目等到解析结束还没等到频道声明（id 写错、或被过滤
+        // 掉的台）才丢掉，不会凭空多出一个没名字的频道
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctvX"><title>没声明的台的节目</title></programme>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `getEpgList keeps out-of-order programmes for filtered channels only when kept`() = runBlocking {
+        // 先到的节目攒着、频道声明到了但被过滤掉：节目跟着频道一起丢掉，
+        // 不会漏进别的台；留下来的台乱序节目照常接过去
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv2"><title>被滤掉的台的节目</title></programme>
+              <programme start="20261113080000 +0800" stop="20261113090000 +0800" channel="cctv1"><title>新闻联播</title></programme>
+              <channel id="cctv2"><display-name>CCTV-2 综合</display-name></channel>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            filteredChannels = listOf("CCTV-1 综合"),
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals(1, result.first().programmes.size)
+        assertEquals("新闻联播", result.first().programmes.first().title)
+    }
+
+    @Test
+    fun `keepEpgChannelNormalized matches the old linear check`() {
+        // 归一化集合版与原来线性扫的语义一致：大小写不敏感、id 或
+        // 显示名任一对上就留、两个都对不上就丢、空集全留、缺 id 或
+        // 缺名就丢；只改实现、不改判断结果
+        val normalized = buildEpgFilterSet(listOf("CCTV-1 综合", "cctv1"))
+
+        assertTrue(keepEpgChannelNormalized("cctv1", "CCTV-1 综合", normalized))
+        assertTrue(keepEpgChannelNormalized("CCTV1", "CCTV1", normalized))
+        assertTrue(keepEpgChannelNormalized("cctv1", "cctv-1 综合", normalized))
+        assertFalse(keepEpgChannelNormalized("cctv2", "CCTV-2 财经", normalized))
+        assertTrue(keepEpgChannelNormalized("cctv1", "CCTV-1 综合", emptySet()))
+        assertFalse(keepEpgChannelNormalized(null, "CCTV-1 综合", normalized))
+        assertFalse(keepEpgChannelNormalized("cctv1", null, normalized))
+        // 过滤集里大小写重复的条目归一化后去重，不影响判断
+        assertEquals(2, buildEpgFilterSet(listOf("CCTV1", "cctv1", "CCTV-1 综合")).size)
+    }
 }

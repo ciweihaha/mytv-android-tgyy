@@ -89,6 +89,12 @@ class LeanbackMainContentState(
     private val coroutineScope: CoroutineScope,
     private val videoPlayerState: LeanbackVideoPlayerState,
     private val iptvGroupList: IptvGroupList,
+    /**
+     * 切到新频道时的回调：主界面用它记最近观看（经 SettingsViewModel
+     * 写 SP，面板直接读到新名单）。同台换线/断流重备不算切台，不回调；
+     * 无播放地址的占位频道（源格式不支持的提示条目）也不回调。
+     */
+    private val onRecentChannel: (Iptv) -> Unit = {},
 ) : Loggable() {
     companion object {
         /**
@@ -209,9 +215,13 @@ class LeanbackMainContentState(
             // 记忆可播放的域名：下标按 getOrNull 取，万一下标和频道对不上
             // 就跳过这一次记忆，不越界崩溃；播起来是稳定点，顺手把攒着的
             // 镜像刷盘（P8），连切台时没播起来的变化仍攒着
+            // 空域名不记：没写协议又没内容的地址 getUrlHost 给空串，记进
+            // 去后所有空域名的地址都会被当成可播，下次切台优先选到死地址上
             _currentIptv.urlList.getOrNull(_currentIptvUrlIdx)?.let {
-                playableHosts().add(getUrlHost(it))
-                markPlayableHostsChanged()
+                getUrlHost(it).takeIf { host -> host.isNotEmpty() }?.let { host ->
+                    playableHosts().add(host)
+                    markPlayableHostsChanged()
+                }
             }
             flushPlayableHosts()
 
@@ -366,6 +376,10 @@ class LeanbackMainContentState(
 
         if (iptv == _currentIptv && urlIdx == null) return
 
+        // 是不是真换了台：同台换线、断流重备（同台同线再准备一次）不算
+        // 换台，最近观看只记真换台；下面无地址的占位频道提前返回，不记
+        val isNewChannel = iptv != _currentIptv
+
         // 排队中的自动重调被任何一次真正的切台/换线取代：手动切走了，旧台
         // 的重调不能再在新台上触发；同台同线重备（断流/自动重调本身）也先
         // 清掉残留任务——开火的任务已在等完后把引用置空，这里只是清残留。
@@ -408,6 +422,9 @@ class LeanbackMainContentState(
             return
         }
 
+        // 真换了台才记最近观看：换线/重备不记，无地址的占位频道上面已返回
+        if (isNewChannel) onRecentChannel(iptv)
+
         _currentIptvUrlIdx = if (urlIdx == null) {
             // 优先从记忆中选择可播放的域名：域名表只从设置里读一次记下来，
             // 原来每比一条地址就重读一次，一个台有多条备用地址时就重复读好几次；
@@ -440,11 +457,13 @@ fun rememberLeanbackMainContentState(
     coroutineScope: CoroutineScope = rememberCoroutineScope(),
     videoPlayerState: LeanbackVideoPlayerState = rememberLeanbackVideoPlayerState(),
     iptvGroupList: IptvGroupList = IptvGroupList(),
+    onRecentChannel: (Iptv) -> Unit = {},
 ) = remember {
     LeanbackMainContentState(
         coroutineScope = coroutineScope,
         videoPlayerState = videoPlayerState,
         iptvGroupList = iptvGroupList,
+        onRecentChannel = onRecentChannel,
     )
 }
 

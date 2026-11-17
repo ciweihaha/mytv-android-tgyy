@@ -80,4 +80,15 @@ class EpgTimeTest {
         assertEquals(0L, parseEpgTimeFallback("20261301080000 +0800"))
         assertEquals(0L, parseEpgTimeFallback("20261112240000 +0800"))
     }
+
+    @Test
+    fun `repeated fallback calls return the same instant`() {
+        // 兜底格式器改成按线程复用后：同一线程反复调同一输入，结果必
+        // 须和第一次一字不变——SimpleDateFormat 复用时若带了可变状态，
+        // 第二次解析就会走样
+        val input = "20261112080000+08:00"
+        val first = parseEpgTimeFallback(input)
+        repeat(100) { assertEquals(first, parseEpgTimeFallback(input)) }
+        assertEquals(eightOclockPlus0800, first)
+    }
 }

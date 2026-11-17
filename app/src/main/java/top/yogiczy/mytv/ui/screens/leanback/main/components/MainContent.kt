@@ -39,6 +39,8 @@ import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.recentIptvList
+import top.yogiczy.mytv.data.entities.recordRecentChannel
 import top.yogiczy.mytv.ui.screens.leanback.classicpanel.LeanbackClassicPanelScreen
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackVisible
 import top.yogiczy.mytv.ui.screens.leanback.monitor.LeanbackMonitorScreen
@@ -88,6 +90,14 @@ fun LeanbackMainContent(
     val mainContentState = rememberLeanbackMainContentState(
         videoPlayerState = videoPlayerState,
         iptvGroupList = iptvGroupList,
+        // 切到新频道记一次最近观看：经 SettingsViewModel 写 SP，面板
+        // 读到的就是新名单；同台换线/断流重备不回调，不会刷乱顺序
+        onRecentChannel = { iptv ->
+            settingsViewModel.iptvRecentChannelList = recordRecentChannel(
+                settingsViewModel.iptvRecentChannelList,
+                iptv.channelName,
+            )
+        },
     )
 
     // 设置里改画面比例后立即生效：defaultAspectRatioProvider 只在分辨率变化
@@ -118,6 +128,13 @@ fun LeanbackMainContent(
     // 才取，也顺带直接拿记好的这一份
     val iptvFavoriteImmutableList = remember(settingsViewModel.iptvChannelFavoriteList) {
         settingsViewModel.iptvChannelFavoriteList.toImmutableList()
+    }
+
+    // 最近观看的频道列表也只在名单或直播源变了时重算：recentIptvList
+    // 每次调都要按名建一次表，面板每次重组都现算就是每按一次键扫一遍
+    // 全量频道；和收藏名单一样，名单本身变了才重算
+    val iptvRecentList = remember(settingsViewModel.iptvRecentChannelList, iptvGroupList) {
+        iptvGroupList.recentIptvList(settingsViewModel.iptvRecentChannelList)
     }
 
     // 收藏开关只写一份共用：原来普通面板和经典面板各写了一份一模一样的
@@ -290,6 +307,7 @@ fun LeanbackMainContent(
                     onIptvSelected = { mainContentState.changeCurrentIptv(it) },
                     onIptvFavoriteToggle = onIptvFavoriteToggle,
                     iptvFavoriteListProvider = { iptvFavoriteImmutableList },
+                    iptvRecentListProvider = { iptvRecentList },
                     iptvFavoriteListVisibleProvider = { settingsViewModel.iptvChannelFavoriteListVisible },
                     onIptvFavoriteListVisibleChange = {
                         settingsViewModel.iptvChannelFavoriteListVisible = it

@@ -108,8 +108,20 @@ internal fun isUsableEpgProgramme(programme: EpgProgramme): Boolean =
  * 查不到、面板一直显示“无节目”。按贴时区、冒号时区、贴着秒的冒号时区／`Z`、
  * 无时区（按本地时区，XMLTV 没写时区时就是本地时间）的顺序逐个试，全失败才记 0；仍是单条
  * 容错，不拖垮整个节目单。只在主解析失败时调，主路径仍复用那一个
- * SimpleDateFormat 实例。顶层函数方便单元测试直接调用。
+ * SimpleDateFormat 实例。
+ * 四个格式器按线程各存一份复用：SimpleDateFormat 不是线程安全的、不能
+ * 跨线程共用，但每次失败都现建 4 个也很浪费——坏时间格式的源每条节目
+ * 都要走 4 次构造；ThreadLocal 让同一线程（解析跑在单个协程里）复用同一份。
+ * 顶层函数方便单元测试直接调用。
  */
+private val epgTimeFallbackFormats: ThreadLocal<List<SimpleDateFormat>> =
+    ThreadLocal.withInitial {
+        listOf("yyyyMMddHHmmssZ", "yyyyMMddHHmmss XXX", "yyyyMMddHHmmssXXX", "yyyyMMddHHmmss")
+            .map { pattern ->
+                SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }
+            }
+    }
+
 internal fun parseEpgTimeFallback(time: String): Long {
     val trimmed = time.trim()
     if (trimmed.length < 14) return 0
@@ -119,15 +131,14 @@ internal fun parseEpgTimeFallback(time: String): Long {
     // 贴着秒的冒号时区（`20261112080000+08:00`）与 `Z`（`20261112080000Z`）也一样：
     // 前两档认不走（`Z` 不认冒号、带空格那档缺空格），无时区档会悄悄按本地时间解析，
     // 所以单独加一档贴着秒的 `XXX`（认 `+08:00` 与 `Z` 两种）夹在无时区档前面。
-    val formats = listOf("yyyyMMddHHmmssZ", "yyyyMMddHHmmss XXX", "yyyyMMddHHmmssXXX", "yyyyMMddHHmmss")
-    for (pattern in formats) {
+    // 严格模式：SimpleDateFormat 默认宽容模式会把非法日期顺延
+    // 成有效日期（2 月 30 日算成 3 月 2 日、13 月算成次年 1 月、
+    // 24 点算成次日 0 点），节目会出现在错误的那天；非法日期
+    // 应该解析失败记 0、由调用方按无效节目过滤（见壳 830 轮同款毛病）
+    val formats = epgTimeFallbackFormats.get() ?: return 0
+    for (format in formats) {
         try {
-            // 严格模式：SimpleDateFormat 默认宽容模式会把非法日期顺延
-            // 成有效日期（2 月 30 日算成 3 月 2 日、13 月算成次年 1 月、
-            // 24 点算成次日 0 点），节目会出现在错误的那天；非法日期
-            // 应该解析失败记 0、由调用方按无效节目过滤（见壳 830 轮同款毛病）
-            val parsed = SimpleDateFormat(pattern, Locale.getDefault())
-                .apply { isLenient = false }.parse(trimmed)
+            val parsed = format.parse(trimmed)
             if (parsed != null) return parsed.time
         } catch (_: Exception) {
             // 换下一种写法再试
@@ -148,16 +159,35 @@ internal fun keepEpgChannel(
     channelId: String?,
     channelName: String?,
     filteredChannels: Set<String>,
+): Boolean = keepEpgChannelNormalized(channelId, channelName, buildEpgFilterSet(filteredChannels))
+
+/**
+ * 过滤集归一化：调用方传进来的频道名/tvg-id 大小写混杂（备用源的 id
+ * 是大写 CCTV1、直播源的 tvg-id 是小写 cctv1），比对时两边都得忽略
+ * 大小写；解析时每个频道都现建一次归一化集合、或每次都线性扫一遍
+ * 过滤集（约 112 项 × 约 500 个频道 ≈ 5 万多次短串比较）都是浪费。
+ * 解析入口一次建成小写的集合，后面每次只做两次哈希查找。顶层函数
+ * 方便单元测试直接调用。
+ */
+internal fun buildEpgFilterSet(filteredChannels: Collection<String>): Set<String> =
+    filteredChannels.map { it.lowercase(Locale.ROOT) }.toSet()
+
+/**
+ * 用已归一化的过滤集判断频道要不要留：和 keepEpgChannel 同一语义，
+ * 只是过滤集已提前建成小写集合，单次判断是两次哈希查找而不是线性扫。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun keepEpgChannelNormalized(
+    channelId: String?,
+    channelName: String?,
+    normalizedFilter: Set<String>,
 ): Boolean {
     if (channelId == null || channelName == null) return false
-    if (filteredChannels.isEmpty()) return true
+    if (normalizedFilter.isEmpty()) return true
     // 大小写不敏感：备用源的频道 id 是大写（CCTV1）、直播源的 tvg-id
-    // 是小写（cctv1），大小写敏感比会对不上、整台被滤掉。any + equals
-    // ignoreCase 线性扫一遍过滤集：过滤集约 112 项、节目单频道约
-    // 500 个，5 万多次短串比较可忽略；Set 在这里只起去重作用
-    return filteredChannels.any {
-        it.equals(channelName, ignoreCase = true) || it.equals(channelId, ignoreCase = true)
-    }
+    // 是小写（cctv1），大小写敏感比会对不上、整台被滤掉
+    return normalizedFilter.contains(channelName.lowercase(Locale.ROOT)) ||
+        normalizedFilter.contains(channelId.lowercase(Locale.ROOT))
 }
 
 /**
@@ -234,10 +264,15 @@ class EpgRepository : FileCacheRepository("epg.json") {
         // 复制整个列表，是 O(n²)；大节目单（多频道×多天）下很慢
         val channelNames = mutableMapOf<String, String>()
         val channelProgrammes = mutableMapOf<String, MutableList<EpgProgramme>>()
-        // 过滤列表转 Set 去重：keepEpgChannel 里按忽略大小写比对，
-        // Set 在这里只起去重作用；过滤集约 112 项、节目单频道约
-        // 500 个，线性扫一遍是 5 万多次短串比较、可忽略
-        val filteredChannelSet = filteredChannels.toSet()
+        // 先到节目、后到频道声明的节目先攒着：XMLTV 不保证 channel 标签
+        // 一定在 programme 标签前面，源生成器换个顺序、先写的节目就因
+        // 查不到频道被悄悄丢掉，整台显示无节目；频道声明到了就把攒着的
+        // 节目一次接过去，到解析结束还没等到声明的（没名字的台、被过滤
+        // 掉的台）才丢掉
+        val pendingProgrammes = mutableMapOf<String, MutableList<EpgProgramme>>()
+        // 过滤列表一次建成小写的集合：后面每个频道只做两次哈希查找，
+        // 不再每次线性扫一遍过滤集（见 buildEpgFilterSet）
+        val normalizedFilterSet = buildEpgFilterSet(filteredChannels)
 
         var eventType = parser.eventType
         while (eventType != XmlPullParser.END_DOCUMENT) {
@@ -269,12 +304,17 @@ class EpgRepository : FileCacheRepository("epg.json") {
                         // 空值先判掉：keepEpgChannel 里也判空，但这里要把两个
                         // 值收窄成非空、后面才能当 Map 的键和值直接存
                         if (channelId != null && channelName != null &&
-                            keepEpgChannel(channelId, channelName, filteredChannelSet)
+                            keepEpgChannelNormalized(channelId, channelName, normalizedFilterSet)
                         ) {
                             channelNames[channelId] = channelName
                             // 与原先 `epgMap[id] = Epg(...)` 的语义一致：重复的 channel
                             // 标签会重置该频道的节目列表
                             channelProgrammes[channelId] = mutableListOf()
+                            // 频道声明到了：把之前攒着的、归这个频道的节目一次
+                            // 接过去；重复声明时攒着的已在第一次接过，不会重复接
+                            pendingProgrammes.remove(channelId)?.let {
+                                channelProgrammes[channelId]?.addAll(it)
+                            }
                         }
                     } else if (parser.name == "programme") {
                         val channelId = parser.getAttributeValue(null, "channel")
@@ -310,7 +350,17 @@ class EpgRepository : FileCacheRepository("epg.json") {
                             // 时间退化的节目（解析失败记 0、结束早于等于
                             // 开始）不进列表，见 isUsableEpgProgramme
                             if (isUsableEpgProgramme(programme)) {
-                                channelProgrammes[channelId]?.add(programme)
+                                // 频道已声明就直接挂进去；频道还没声明（节目写在
+                                // channel 标签前面）先攒着，等声明到了再接过去；
+                                // 没写 channel 属性的节目直接丢掉，和原来一致
+                                // （原来 channelProgrammes[null] 查不到、也进不去）
+                                val programmes = channelId?.let { channelProgrammes[it] }
+                                if (programmes != null) {
+                                    programmes.add(programme)
+                                } else if (channelId != null) {
+                                    pendingProgrammes.getOrPut(channelId) { mutableListOf() }
+                                        .add(programme)
+                                }
                             }
                         }
                     }

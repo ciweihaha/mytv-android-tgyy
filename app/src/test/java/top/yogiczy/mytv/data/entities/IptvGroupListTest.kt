@@ -8,6 +8,8 @@ import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.favoriteIptvList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvGroupIdx
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.recentIptvList
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.searchIptv
 
 class IptvGroupListTest {
     @Test
@@ -196,5 +198,90 @@ class IptvGroupListTest {
 
         assertSame(groupList.iptvList, groupList.iptvList)
         assertEquals(1, groupList.iptvList.size)
+    fun `iptvIdx finds channel across groups and returns minus one when missing`() {
+        // 索引表版 iptvIdx：跨分组、重复台只认第一次出现的位置、找不
+        // 到回 -1，和原来逐组扫的语义一致
+        val target = Iptv(name = "目标", channelName = "target")
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "分组1", iptvList = IptvList(listOf(Iptv(name = "A")))),
+                IptvGroup(name = "分组2", iptvList = IptvList(listOf(Iptv(name = "B"), target))),
+                IptvGroup(name = "分组3", iptvList = IptvList(listOf(target))),
+            )
+        )
+
+        assertEquals(0, groupList.iptvIdx(Iptv(name = "A")))
+        assertEquals(2, groupList.iptvIdx(target))
+        assertEquals(1, groupList.iptvGroupIdx(target))
+        assertEquals(-1, groupList.iptvIdx(Iptv(name = "不存在")))
+        assertEquals(-1, IptvGroupList().iptvIdx(target))
+        // 下标与按下标取台互为逆运算
+        assertEquals(target, groupList.iptvAt(groupList.iptvIdx(target)))
+    }
+
+    @Test
+    fun `search matches name ignoring case dashes and spaces`() {
+        val cctv1 = Iptv(name = "CCTV-1 综合", channelName = "CCTV-1 综合", tvgId = "cctv1")
+        val cctv2 = Iptv(name = "CCTV-2 财经", channelName = "CCTV-2 财经", tvgId = "cctv2")
+        val hnws = Iptv(name = "湖南卫视", channelName = "湖南卫视", tvgId = "hnws")
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "全部", iptvList = IptvList(listOf(cctv1, cctv2, hnws))))
+        )
+
+        // “cctv1” 命中 “CCTV-1 综合”，“cctv2” 不串台
+        assertEquals(listOf(cctv1), groupList.searchIptv("cctv1").value)
+        assertEquals(listOf(cctv2), groupList.searchIptv("CCTV-2").value)
+        // 中文子串命中，空白查询词给空列表、不返回全量频道
+        assertEquals(listOf(hnws), groupList.searchIptv("湖南").value)
+        assertEquals(listOf(cctv1, cctv2), groupList.searchIptv("CCTV").value)
+        assertEquals(0, groupList.searchIptv("").size)
+        assertEquals(0, groupList.searchIptv("   ").size)
+        assertEquals(0, groupList.searchIptv("不存在的台").size)
+    }
+
+    @Test
+    fun `search also matches tvg-id and dedups identical channels`() {
+        // tvg-name 是纯 id 的源：名字里没有 cctv 字样时靠 tvg-id 命中；
+        // 同一台在两个分组里出现时搜索结果只留一个
+        val byId = Iptv(name = "综合", channelName = "综合", tvgId = "cctv1")
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "分组1", iptvList = IptvList(listOf(byId))),
+                IptvGroup(name = "分组2", iptvList = IptvList(listOf(byId))),
+            )
+        )
+
+        assertEquals(listOf(byId), groupList.searchIptv("cctv1").value)
+    }
+
+    @Test
+    fun `recent list follows recent order and skips missing channels`() {
+        val cctv1 = Iptv(name = "CCTV-1", channelName = "cctv1")
+        val cctv2 = Iptv(name = "CCTV-2", channelName = "cctv2")
+        val hnws = Iptv(name = "湖南卫视", channelName = "hnws")
+        val groupList = IptvGroupList(
+            listOf(IptvGroup(name = "全部", iptvList = IptvList(listOf(cctv1, cctv2, hnws))))
+        )
+
+        // 最近名单最前面的是最后看过的；不在源里的名字直接跳过、不占位
+        assertEquals(
+            listOf(hnws, cctv1),
+            groupList.recentIptvList(listOf("hnws", "不存在的台", "cctv1")).value
+        )
+        assertEquals(0, groupList.recentIptvList(emptyList()).size)
+    }
+
+    @Test
+    fun `recent list keeps only first occurrence of duplicated channel`() {
+        val first = Iptv(name = "CCTV-1", channelName = "cctv1", urlList = listOf("http://a.com/1.m3u8"))
+        val second = Iptv(name = "CCTV-1", channelName = "cctv1", urlList = listOf("http://b.com/1.m3u8"))
+        val groupList = IptvGroupList(
+            listOf(
+                IptvGroup(name = "央视", iptvList = IptvList(listOf(first))),
+                IptvGroup(name = "全部", iptvList = IptvList(listOf(second))),
+            )
+        )
+
+        assertEquals(listOf(first), groupList.recentIptvList(listOf("cctv1")).value)
     }
 }

@@ -9,18 +9,27 @@ class TvboxIptvParser : IptvParser {
     }
 
     override suspend fun parse(data: String): IptvGroupList {
-        // Windows 记事本存的 TXT 常带 UTF-8 BOM：BOM 只在文件开头，
+        val iptvList = mutableListOf<IptvParser.IptvResponseItem>()
+        val length = data.length
+        // BOM：Windows 记事本存的 TXT 常带 UTF-8 BOM，只在文件开头，
         // 不去掉的话首行分组名（或首个频道名）会带上一个看不见的
         // \uFEFF——trim() 去不掉它（\uFEFF 不算空白），分组名就和干
-        // 净的“央视”对不上；M3U 那边 isSupport 已跳 BOM、节目单
-        // decodeBody 也去 BOM，这里在入口统一去掉（只去开头，中间
-        // 的 BOM 不动，和 decodeBody 一致）
-        val lines = data.dropWhile { it == '\uFEFF' }.split("\r\n", "\n")
-        val iptvList = mutableListOf<IptvParser.IptvResponseItem>()
+        // 净的“央视”对不上；只跳开头的 BOM，中间的不动（和节目单
+        // decodeBody 一致）
+        var pos = 0
+        while (pos < length && data[pos] == '\uFEFF') pos++
 
         var groupName: String? = null
-        lines.forEach { line ->
-            if (line.isBlank() || line.startsWith("#")) return@forEach
+        // 按下标逐行扫，不 split 整份复制：大源几 MB 时 split 会先把整份
+        // 行列表拷一份；语义与原来 split("\r\n", "\n") 一致——行尾的 \r
+        // 去掉，其余内容一字不动（M3U 解析器同款写法）
+        while (pos < length) {
+            val lineEnd = data.indexOf('\n', pos).let { if (it < 0) length else it }
+            var line = data.substring(pos, lineEnd)
+            if (line.endsWith('\r')) line = line.dropLast(1)
+            pos = lineEnd + 1
+
+            if (line.isBlank() || line.startsWith("#")) continue
 
             // 先统一中文逗号：分组行 `央视，#genre#` 也要认
             val normalized = line.replace("，", ",")
@@ -43,12 +52,12 @@ class TvboxIptvParser : IptvParser {
                 // 地址截断、播不了；多地址本来就是用 # 分隔（见下），
                 // 逗号不是多地址分隔符。名字在第一个逗号之前，不会受影响
                 val res = normalized.split(",", limit = 2)
-                if (res.size < 2) return@forEach
+                if (res.size < 2) continue
 
                 // 无名行直接跳过：名字空着进列表就是一行空白频道，选台时
                 // 看不到名字、收藏与节目单也都按名字找它；M3U 解析器那边
                 // 没名字没 tvg-name 就跳过，这里保持一致
-                if (res[0].trim().isEmpty()) return@forEach
+                if (res[0].trim().isEmpty()) continue
 
                 // 空地址段直接丢弃：`CCTV-1,` 或 `CCTV-1,http://a#` 这种行
                 // 原先会把空字符串塞进 urlList，播放时白白走一次错误重试
@@ -59,7 +68,7 @@ class TvboxIptvParser : IptvParser {
                 // 不了，但那是播放器的事，不该由解析器悄悄丢频道）
                 val urls = res[1].split("#").map { it.trim() }.filter { it.isNotEmpty() }
                     .let { segments -> segments.filter { it.contains("://") }.ifEmpty { segments } }
-                if (urls.isEmpty()) return@forEach
+                if (urls.isEmpty()) continue
 
                 iptvList.addAll(urls.map { url ->
                     IptvParser.IptvResponseItem(

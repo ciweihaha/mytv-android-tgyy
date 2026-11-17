@@ -66,9 +66,16 @@ object Constants {
     const val HTTP_RETRY_INTERVAL = 3000L
 
     /**
-     * 播放器 userAgent
+     * 播放器 userAgent：默认用浏览器 UA，不能含 ExoPlayer——
+     * 凤凰三个台（fh/fhzx、fh/fhzixun、fh/fhhk）走腾讯云函数中转到
+     * fengshows 的 FLV 流：上游会拦截 UA 里含 ExoPlayer 的请求，
+     * 改发一个 HTML 下载页（share.fengshows.com/download.html），
+     * 播放器拿到的就不是 FLV 而是 HTML，解封装失败、三个台都播不了；
+     * 浏览器/Dalvik UA 则正常拿到 FLV 流（实测）。用户在设置里改过
+     * 的 UA 不受影响，这里只是没改过时的默认值。
      */
-    const val VIDEO_PLAYER_USER_AGENT = "ExoPlayer"
+    const val VIDEO_PLAYER_USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 11; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     /**
      * 日志历史最大保留条数

@@ -2,6 +2,8 @@ package top.yogiczy.mytv.ui.utils
 
 import android.content.Context
 import android.content.SharedPreferences
+import top.yogiczy.mytv.data.entities.decodeRecentChannels
+import top.yogiczy.mytv.data.entities.encodeRecentChannels
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.utils.StoredValue
 import top.yogiczy.mytv.utils.nextEnum
@@ -76,6 +78,9 @@ object SP {
 
         /** 直播源频道收藏列表 */
         IPTV_CHANNEL_FAVORITE_LIST,
+
+        /** 最近观看的频道名列表（最近看过的在最前面） */
+        IPTV_RECENT_CHANNEL_LIST,
 
         /** ==================== 节目单 ==================== */
         /** 启用节目单 */
@@ -213,6 +218,16 @@ object SP {
     var iptvChannelFavoriteList: Set<String>
         get() = sp.getStringSet(KEY.IPTV_CHANNEL_FAVORITE_LIST.name, emptySet()) ?: emptySet()
         set(value) = sp.edit().putStringSet(KEY.IPTV_CHANNEL_FAVORITE_LIST.name, value).apply()
+
+    /**
+     * 最近观看的频道名列表（最近看过的在最前面，最多 10 个）：
+     * StringSet 不保序，顺序就是最近列表的价值，用单个字符串存，
+     * 编解码见 data.entities.RecentChannels；老版本没这个键时读空列表
+     */
+    var iptvRecentChannelList: List<String>
+        get() = decodeRecentChannels(sp.getString(KEY.IPTV_RECENT_CHANNEL_LIST.name, ""))
+        set(value) = sp.edit()
+            .putString(KEY.IPTV_RECENT_CHANNEL_LIST.name, encodeRecentChannels(value)).apply()
 
     /** ==================== 节目单 ==================== */
     /** 启用节目单 */

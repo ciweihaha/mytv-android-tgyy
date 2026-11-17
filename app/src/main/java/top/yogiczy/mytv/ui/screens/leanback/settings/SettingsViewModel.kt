@@ -138,6 +138,14 @@ class LeanbackSettingsViewModel : ViewModel() {
             SP.iptvChannelFavoriteList = value
         }
 
+    private var _iptvRecentChannelList by mutableStateOf(SP.iptvRecentChannelList)
+    var iptvRecentChannelList: List<String>
+        get() = _iptvRecentChannelList
+        set(value) {
+            _iptvRecentChannelList = value
+            SP.iptvRecentChannelList = value
+        }
+
     private var _epgEnable by mutableStateOf(SP.epgEnable)
     var epgEnable: Boolean
         get() = _epgEnable
@@ -273,6 +281,7 @@ class LeanbackSettingsViewModel : ViewModel() {
         _iptvChannelFavoriteEnable = SP.iptvChannelFavoriteEnable
         _iptvChannelFavoriteListVisible = SP.iptvChannelFavoriteListVisible
         _iptvChannelFavoriteList = SP.iptvChannelFavoriteList
+        _iptvRecentChannelList = SP.iptvRecentChannelList
         _epgEnable = SP.epgEnable
         _epgXmlUrl = SP.epgXmlUrl
         _epgRefreshTimeThreshold = SP.epgRefreshTimeThreshold

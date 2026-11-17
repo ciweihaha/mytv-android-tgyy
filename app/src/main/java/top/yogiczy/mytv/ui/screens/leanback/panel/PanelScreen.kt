@@ -45,6 +45,19 @@ import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
 import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.handleLeanbackUserAction
 
+/**
+ * 选台面板底部列表的三种状态：0 全部（按分组）、1 收藏、2 最近观看。
+ * 遥控器按“上”在分组列表顶端时进特殊列表（收藏优先、没有收藏时进
+ * 最近观看、两个都没有时留在全部）；特殊列表里再按“上”循环到下一个
+ * （收藏→最近观看→全部），不用多占一个键。顶层函数方便单元测试直接调用。
+ */
+internal fun nextSpecialListMode(currentMode: Int, hasFavorites: Boolean, hasRecents: Boolean): Int =
+    when (currentMode) {
+        1 -> if (hasRecents) 2 else 0
+        2 -> 0
+        else -> if (hasFavorites) 1 else if (hasRecents) 2 else 0
+    }
+
 @Composable
 fun LeanbackPanelScreen(
     modifier: Modifier = Modifier,
@@ -56,6 +69,7 @@ fun LeanbackPanelScreen(
     showProgrammeProgressProvider: () -> Boolean = { false },
     iptvFavoriteEnableProvider: () -> Boolean = { true },
     iptvFavoriteListProvider: () -> ImmutableList<String> = { persistentListOf() },
+    iptvRecentListProvider: () -> IptvList = { IptvList() },
     iptvFavoriteListVisibleProvider: () -> Boolean = { false },
     onIptvFavoriteListVisibleChange: (Boolean) -> Unit = {},
     onIptvSelected: (Iptv) -> Unit = {},
@@ -182,6 +196,7 @@ private fun LeanbackPanelScreenBottom(
                 showProgrammeProgressProvider = showProgrammeProgressProvider,
                 iptvFavoriteEnableProvider = iptvFavoriteEnableProvider,
                 iptvFavoriteListProvider = iptvFavoriteListProvider,
+                iptvRecentListProvider = iptvRecentListProvider,
                 iptvFavoriteListVisibleProvider = iptvFavoriteListVisibleProvider,
                 onIptvFavoriteListVisibleChange = onIptvFavoriteListVisibleChange,
                 onIptvSelected = onIptvSelected,
@@ -201,6 +216,7 @@ fun LeanbackPanelScreenBottomIptvList(
     showProgrammeProgressProvider: () -> Boolean = { false },
     iptvFavoriteEnableProvider: () -> Boolean = { true },
     iptvFavoriteListProvider: () -> ImmutableList<String> = { persistentListOf() },
+    iptvRecentListProvider: () -> IptvList = { IptvList() },
     iptvFavoriteListVisibleProvider: () -> Boolean = { false },
     onIptvFavoriteListVisibleChange: (Boolean) -> Unit = {},
     onIptvSelected: (Iptv) -> Unit = {},
@@ -208,7 +224,14 @@ fun LeanbackPanelScreenBottomIptvList(
     onUserAction: () -> Unit = {},
 ) {
     val iptvFavoriteEnable = iptvFavoriteEnableProvider()
-    var favoriteListVisible by remember { mutableStateOf(iptvFavoriteListVisibleProvider()) }
+    // 底部列表三种状态（见 nextSpecialListMode）：0 全部、1 收藏、2 最近观看；
+    // 设置里记的“收藏列表可见”只对应开局进收藏（1），其余状态都按 0 开局
+    var listMode by remember { mutableStateOf(if (iptvFavoriteListVisibleProvider()) 1 else 0) }
+
+    fun setListMode(mode: Int) {
+        listMode = mode
+        onIptvFavoriteListVisibleChange(mode != 0)
+    }
 
     // 收藏过滤走数据层那份共用的查找：原来普通面板和经典面板各写了一份
     // 一模一样的（收藏名单只取一次转成集合、全量频道按名筛），改一处
@@ -217,9 +240,14 @@ fun LeanbackPanelScreenBottomIptvList(
     val favoriteIptvList: () -> IptvList = {
         iptvGroupListProvider().favoriteIptvList(iptvFavoriteListProvider())
     }
+    val recentIptvList: () -> IptvList = { iptvRecentListProvider() }
 
     Box(modifier = modifier.height(150.dp)) {
-        if (favoriteListVisible)
+        if (listMode == 1)
+            // 收藏与最近观看共用同一个网格列表组件（只是标题与数据源不同）：
+            // 两处各写一个调用点、不用同一个调用点换 provider——列表组件
+            // 内部用 remember(key) 只记第一次取到的列表，同一个调用点换
+            // 数据源不会重取，切过去显示的还是旧列表
             LeanbackPanelIptvFavoriteList(
                 iptvListProvider = { favoriteIptvList() },
                 epgListProvider = epgListProvider,
@@ -228,9 +256,28 @@ fun LeanbackPanelScreenBottomIptvList(
                 onIptvSelected = onIptvSelected,
                 onIptvFavoriteToggle = onIptvFavoriteToggle,
                 onClose = {
-                    favoriteListVisible = false
-                    onIptvFavoriteListVisibleChange(false)
+                    // 特殊列表里按“上”循环到下一个：收藏→最近观看→全部；
+                    // 取消收藏到空时也走这里，有最近观看就落到最近观看上
+                    setListMode(
+                        nextSpecialListMode(
+                            1,
+                            favoriteIptvList().isNotEmpty(),
+                            recentIptvList().isNotEmpty(),
+                        )
+                    )
                 },
+                onUserAction = onUserAction,
+            )
+        else if (listMode == 2)
+            LeanbackPanelIptvFavoriteList(
+                title = "最近观看",
+                iptvListProvider = { recentIptvList() },
+                epgListProvider = epgListProvider,
+                currentIptvProvider = currentIptvProvider,
+                showProgrammeProgressProvider = showProgrammeProgressProvider,
+                onIptvSelected = onIptvSelected,
+                onIptvFavoriteToggle = onIptvFavoriteToggle,
+                onClose = { setListMode(0) },
                 onUserAction = onUserAction,
             )
         else
@@ -242,15 +289,17 @@ fun LeanbackPanelScreenBottomIptvList(
                 onIptvSelected = onIptvSelected,
                 onIptvFavoriteToggle = onIptvFavoriteToggle,
                 onToFavorite = {
-                    if (!iptvFavoriteEnable) return@LeanbackPanelIptvGroupList
-
-                    val favoriteList = favoriteIptvList()
-
-                    if (favoriteList.isNotEmpty()) {
-                        favoriteListVisible = true
-                        onIptvFavoriteListVisibleChange(true)
+                    // 分组列表顶端按“上”进特殊列表：收藏开关没开时不进收藏，
+                    // 但最近观看不受收藏开关管制；两个都没有时弹提示、留在全部
+                    val nextMode = nextSpecialListMode(
+                        0,
+                        iptvFavoriteEnable && favoriteIptvList().isNotEmpty(),
+                        recentIptvList().isNotEmpty(),
+                    )
+                    if (nextMode == 0) {
+                        LeanbackToastState.I.showToast("没有收藏或最近观看的频道")
                     } else {
-                        LeanbackToastState.I.showToast("没有收藏的频道")
+                        setListMode(nextMode)
                     }
                 },
                 onUserAction = onUserAction,
