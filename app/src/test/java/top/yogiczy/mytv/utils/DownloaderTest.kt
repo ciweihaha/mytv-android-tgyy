@@ -99,16 +99,12 @@ class DownloaderTest {
                 "404 应原样抛 HttpStatusException，实际是 $thrown",
                 thrown is HttpStatusException && thrown.code == 404,
             )
-            // 2346 轮只记录、2351 轮复核后补：500 那档钉了文案全句，404
-            // 只断了码值——文案模板是同一条（“下载文件失败：服务器返回
-            // ${code}，请检查下载链接”），但 2337 轮教训是只断半句测不出
-            // 后半句丢了；404 的文案也要单独断一次，三处（直播源/节目单/
-            // 发行版）才一致。
-            assertTrue(
-                "404 的文案应报服务器返回 404、不是网络错，实际是 ${thrown?.message}",
-                thrown?.message?.contains("服务器返回 404") == true &&
-                    thrown?.message?.contains("请检查网络连接") == false,
-            )
+            // 2356 轮收紧成全句：2351 轮补的是 contains 半句（“服务器返回
+            // 404”＋不含“请检查网络连接”），前后缀丢了也不会红；注释里
+            // “500 那档钉了文案全句”那句也是错话——500 那档当时同样只断
+            // 了 contains，这轮两档一起收紧（2337/2352/2353/2354/2355 轮
+            // 同款教训；2354 轮 GitRepository 那处同款错话已纠）。
+            assertEquals("下载文件失败：服务器返回 404，请检查下载链接", thrown?.message)
         } finally {
             server.stop(0)
         }
@@ -140,11 +136,8 @@ class DownloaderTest {
                     "500 应原样抛 HttpStatusException，实际是 $thrown",
                     thrown is HttpStatusException && thrown.code == 500,
                 )
-                assertTrue(
-                    "500 的文案应报服务器返回 500、不是网络错，实际是 ${thrown?.message}",
-                    thrown?.message?.contains("服务器返回 500") == true &&
-                        thrown?.message?.contains("请检查网络连接") == false,
-                )
+                // 与 404 同款收紧成全句（2356 轮；2337/2352/2353/2354/2355 轮同款教训）。
+                assertEquals("下载文件失败：服务器返回 500，请检查下载链接", thrown?.message)
                 assertEquals("old", file.readText())
             } finally {
                 server.stop(0)
