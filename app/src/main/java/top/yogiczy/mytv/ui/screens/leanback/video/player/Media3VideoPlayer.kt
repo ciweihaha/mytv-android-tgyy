@@ -121,6 +121,14 @@ internal fun shouldStopPositionPolling(playbackState: Int): Boolean =
     playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE
 
 /**
+ * 位置轮询里帧率的实测补值：tag 没给帧率（0）时用 1 秒内渲染的帧数
+ * 补；卡顿时帧数为 0 就留着旧值，别把帧率清成 0；tag 给了帧率就
+ * 不动。顶层函数方便单元测试直接调用，行为逐字不变。
+ */
+internal fun supplementFrameRate(currentFrameRate: Float, framesInWindow: Int): Float =
+    if (currentFrameRate == 0f && framesInWindow > 0) framesInWindow.toFloat() else currentFrameRate
+
+/**
  * 容器解析失败后下一个要试的类型：按 HLS、普通、RTSP 的顺序，
  * 三种都试过返回 null，上层上报错误走换线。
  * 顶层函数方便单元测试直接调用。
@@ -475,8 +483,9 @@ class LeanbackMedia3VideoPlayer(
                         // 数；窗口比 1 秒略长，值是近似值，调试信息够用；
                         // 卡顿时帧数为 0 就留着旧值，别把帧率清成 0
                         val frames = renderedFrameCount.getAndSet(0)
-                        if (metadata.videoFrameRate == 0f && frames > 0) {
-                            metadata = metadata.copy(videoFrameRate = frames.toFloat())
+                        val supplemented = supplementFrameRate(metadata.videoFrameRate, frames)
+                        if (supplemented != metadata.videoFrameRate) {
+                            metadata = metadata.copy(videoFrameRate = supplemented)
                             triggerMetadata(metadata)
                         }
                         delay(1000)
