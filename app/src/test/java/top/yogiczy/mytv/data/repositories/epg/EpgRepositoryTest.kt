@@ -31,6 +31,7 @@ import java.net.ServerSocket
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 class EpgRepositoryTest {
     @get:Rule
@@ -93,10 +94,14 @@ class EpgRepositoryTest {
         private val serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
         val port: Int get() = serverSocket.localPort
 
+        /** 接到的请求总数：主源 1 次＋备用源 1 次才是“状态错不重试” */
+        val hits = AtomicInteger(0)
+
         private val thread = Thread({
             try {
                 while (!serverSocket.isClosed) {
                     serverSocket.accept().use { socket ->
+                        hits.incrementAndGet()
                         val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
                         val requestLine = reader.readLine() ?: return@use
                         var line: String?
@@ -1498,6 +1503,11 @@ class EpgRepositoryTest {
             assertEquals(404, ex.code)
             assertTrue(ex.message?.contains("服务器返回 404") == true)
             assertFalse(ex.message?.contains("请检查网络连接") == true)
+            // 壳 1012 轮姊妹检查：它那边单源断“只请求一次”，天光是主备
+            // 两源——主源 1 次＋备用源 1 次、共 2 次才是“状态错不重试”。
+            // fetchXml 与 getOrRefresh 里都没有重试循环，今天不断次数，
+            // 以后谁加了重试也不会红，只断异常等于没钉死这档。
+            assertEquals(2, server.hits.get())
         } finally {
             server.stop()
         }
@@ -1524,6 +1534,11 @@ class EpgRepositoryTest {
             assertEquals(500, ex.code)
             assertTrue(ex.message?.contains("服务器返回 500") == true)
             assertFalse(ex.message?.contains("请检查网络连接") == true)
+            // 与 404 同款：主源 1 次＋备用源 1 次、共 2 次，不重试。
+            // 500 在天光是“服务器一时的问题”分档（重试判定在播放器层），
+            // 节目单拉取层本身没有重试循环，别把“只请求两次”误读成
+            // “500 不该重试”——这档只钉死拉取层不自己重试。
+            assertEquals(2, server.hits.get())
         } finally {
             server.stop()
         }
