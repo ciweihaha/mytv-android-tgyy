@@ -68,6 +68,9 @@ class MainViewModelTest {
         assertFalse(shouldRetryLoadFailure(HttpStatusException(404, "服务器返回 404")))
         assertFalse(shouldRetryLoadFailure(HttpStatusException(403, "服务器返回 403")))
         assertFalse(shouldRetryLoadFailure(HttpStatusException(400, "服务器返回 400")))
+        // 499 是 4xx 里最大的码值：5xx 从 500 开始，499 必须是不重试——
+        // 把 code >= 500 这条边界从下边钉死（500 那边在下一个用例里断重试）
+        assertFalse(shouldRetryLoadFailure(HttpStatusException(499, "服务器返回 499")))
     }
 
     @Test
