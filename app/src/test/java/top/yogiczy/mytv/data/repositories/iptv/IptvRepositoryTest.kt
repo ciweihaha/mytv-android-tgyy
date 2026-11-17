@@ -243,7 +243,8 @@ class IptvRepositoryTest {
         val ex = assertThrows(IllegalStateException::class.java) {
             checkIptvGroupListNotEmpty(IptvGroupList(), simplified = true)
         }
-        assertTrue(ex.message?.contains("精简") == true)
+        // 2359 轮收紧成全句：原来只断 contains“精简”，前后缀丢了也不会红
+        assertEquals("精简后没有频道：该直播源里没有央视或卫视台，请关闭精简模式或换源", ex.message)
     }
 
     @Test
@@ -253,7 +254,8 @@ class IptvRepositoryTest {
         val ex = assertThrows(EmptyIptvSourceException::class.java) {
             checkIptvGroupListNotEmpty(IptvGroupList(), simplified = false)
         }
-        assertTrue(ex.message?.contains("直播源里没有频道") == true)
+        // 2359 轮收紧成全句：原来只断 contains“直播源里没有频道”
+        assertEquals("直播源里没有频道，请检查直播源链接", ex.message)
     }
 
     @Test
@@ -261,7 +263,8 @@ class IptvRepositoryTest {
         val ex = assertThrows(EmptyIptvSourceException::class.java) {
             checkIptvGroupListNotEmpty(IptvGroupList(), simplified = true)
         }
-        assertTrue(ex.message?.contains("精简后没有频道") == true)
+        // 2359 轮收紧成全句：原来只断 contains“精简后没有频道”
+        assertEquals("精简后没有频道：该直播源里没有央视或卫视台，请关闭精简模式或换源", ex.message)
     }
 
     @Test
