@@ -77,6 +77,9 @@ class MainViewModelTest {
     fun `http 5xx and transient 4xx are still retried`() {
         assertTrue(shouldRetryLoadFailure(HttpStatusException(500, "服务器返回 500")))
         assertTrue(shouldRetryLoadFailure(HttpStatusException(503, "服务器返回 503")))
+        // 599 是 5xx 里最大的码值：把 code >= 500 这条边界从上边钉死——
+        // 整个 5xx 段都重试，不只是抽查到的 500/503
+        assertTrue(shouldRetryLoadFailure(HttpStatusException(599, "服务器返回 599")))
         // 408 超时、429 限流是服务器一时的问题，照常重试
         assertTrue(shouldRetryLoadFailure(HttpStatusException(408, "服务器返回 408")))
         assertTrue(shouldRetryLoadFailure(HttpStatusException(429, "服务器返回 429")))
