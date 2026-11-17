@@ -213,15 +213,20 @@ class ChannelStressTest {
     fun `parsing large sources concurrently gives the same results as sequential`() = runBlocking {
         // 换源刷新、节目单刷新、面板打开可能同时触发解析：解析器是
         // 无状态挂起函数，多路并发跑同一份大源，结果必须和串行一字
-        // 不差；解析里没有共享可变状态可写坏，并发只拼 CPU
+        // 不差；解析里没有共享可变状态可写坏，并发只拼 CPU。
+        // 8 路共用同一个解析器实例：只各建新实例测不到“无共享可变
+        // 状态”这一点——状态全是 parse() 里的局部变量，伴生对象只
+        // 有不可变的正则与字符集，共用实例的结果也必须和串行一致
         val m3uData = buildLargeM3u()
         val tvboxData = buildLargeTvbox()
-        val sequentialM3u = M3uIptvParser().parse(m3uData)
-        val sequentialTvbox = TvboxIptvParser().parse(tvboxData)
+        val m3uParser = M3uIptvParser()
+        val tvboxParser = TvboxIptvParser()
+        val sequentialM3u = m3uParser.parse(m3uData)
+        val sequentialTvbox = tvboxParser.parse(tvboxData)
 
         val results = withContext(Dispatchers.Default) {
-            (0 until 4).map { async { M3uIptvParser().parse(m3uData) } } +
-                (0 until 4).map { async { TvboxIptvParser().parse(tvboxData) } }
+            (0 until 4).map { async { m3uParser.parse(m3uData) } } +
+                (0 until 4).map { async { tvboxParser.parse(tvboxData) } }
         }.awaitAll()
 
         assertEquals(8, results.size)
