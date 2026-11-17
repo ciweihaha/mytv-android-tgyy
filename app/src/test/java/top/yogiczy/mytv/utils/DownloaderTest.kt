@@ -309,10 +309,10 @@ class DownloaderTest {
             } catch (e: Throwable) {
                 e
             }
-            assertTrue(
-                "父目录不存在应报无法写入目标文件，实际是 $thrown",
-                thrown is Exception && thrown.message?.contains("无法写入目标文件") == true,
-            )
+            // 2360 轮收紧成全句：原来只断 contains“无法写入目标文件”，
+            // 前缀“下载文件失败：”丢了也不会红
+            assertTrue("父目录不存在应抛 Exception，实际是 $thrown", thrown is Exception)
+            assertEquals("下载文件失败：无法写入目标文件", thrown?.message)
             assertTrue("目标文件不应存在", !target.exists())
         } finally {
             server.stop(0)
