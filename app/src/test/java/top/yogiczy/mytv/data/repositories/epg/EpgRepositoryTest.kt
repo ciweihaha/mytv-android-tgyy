@@ -356,6 +356,34 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList writes parsed result to cache when using prefetched xml`() = runBlocking {
+        // P5 之后刷新成功直接返回刚解析出的对象，不再把写盘的 JSON
+        // 又解回来——返回值本身证明不了写盘发生没发生；预下载路径下
+        // 刷新走 prefetchedXml，解析结果也要落盘，下次没预下载时才
+        // 能读缓存。只断言返回值的话，哪天写盘丢了也测不出来。
+        val now = System.currentTimeMillis()
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 1800_000L)}" stop="${formatEpgTime(now + 1800_000L)}" channel="cctv1"><title>新闻联播</title></programme>
+            </tv>
+        """.trimIndent()
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            prefetchedXml = xml,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        val cacheFile = File(tempFolder.root, "epg.json")
+        assertTrue(cacheFile.exists())
+        assertEquals(result, decodeEpgListOrNull(cacheFile.readText()))
+    }
+
+    @Test
     fun `getEpgList parses negative timezone on the main path`() = runBlocking {
         // 主解析只认 `yyyyMMddHHmmss Z`（时区前有空格）：美洲源的
         // 负时区 -0800 只能走主解析，兜底测过（1924 轮）、主解析
