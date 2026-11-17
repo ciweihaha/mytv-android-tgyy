@@ -174,8 +174,10 @@ class IptvRepositoryTest {
             val ex = result.exceptionOrNull()
             assertTrue(ex is HttpStatusException)
             assertEquals(404, (ex as HttpStatusException).code)
-            assertTrue(ex.message?.contains("服务器返回 404") == true)
-            assertFalse(ex.message?.contains("请检查网络连接") == true)
+            // 2355 轮收紧成全句：原来只断 contains“服务器返回 404”＋不含
+            // “请检查网络连接”，前后缀丢了也不会红（2337/2352/2353/2354
+            // 轮同款教训，用户看得到的文案要钉死全句）。
+            assertEquals("获取远程直播源失败：服务器返回 404，请检查直播源链接", ex.message)
         } finally {
             server.stop()
         }
@@ -196,8 +198,8 @@ class IptvRepositoryTest {
             val ex = result.exceptionOrNull()
             assertTrue(ex is HttpStatusException)
             assertEquals(500, (ex as HttpStatusException).code)
-            assertTrue(ex.message?.contains("服务器返回 500") == true)
-            assertFalse(ex.message?.contains("请检查网络连接") == true)
+            // 与 404 同款收紧成全句（2355 轮；2337/2352/2353/2354 轮同款教训）。
+            assertEquals("获取远程直播源失败：服务器返回 500，请检查直播源链接", ex.message)
         } finally {
             server.stop()
         }
