@@ -220,10 +220,11 @@ class DownloaderTest {
         } catch (e: Throwable) {
             e
         }
-        assertTrue(
-            "连不上应包成网络错，实际是 $thrown",
-            thrown is Exception && thrown.message?.contains("请检查网络连接") == true,
-        )
+        // 壳 1013 轮姊妹检查：它那边下载器连不上只断半句、刚收紧成全句；
+        // 天光这边同款半句——直播源（2337）、节目单、发行版三处“请检查
+        // 网络连接”包装点都已钉死全句，下载器这处是最后一处半句。
+        // “下载文件失败”这半句丢了也不会红；收紧成全句相等。
+        assertEquals("下载文件失败，请检查网络连接", thrown?.message)
         assertEquals("old", file.readText())
     }
 
