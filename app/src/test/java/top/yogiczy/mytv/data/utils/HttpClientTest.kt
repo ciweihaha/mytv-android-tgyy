@@ -56,6 +56,20 @@ class HttpClientTest {
     }
 
     @Test
+    fun `buildGetRequest trims surrounding whitespace instead of rejecting`() {
+        // 2157 轮留下的尾巴：首尾空白那档一直没定论——OkHttp 5.5.1
+        // 源码（HttpUrl.Builder.parse）先跳过首尾的 \t \n \r 空格再解析，
+        // 所以手输地址时不小心粘上的首尾空格不会报错，请求按去掉空格
+        // 后的地址发；中间带空格（如 http://exa mple.com）仍是格式错，
+        // 上一档已钉死
+        val request = buildGetRequest("  https://live.ciweihaha.win/live.m3u  ", "直播源地址")
+        assertEquals("https://live.ciweihaha.win/live.m3u", request.url.toString())
+
+        val tabbed = buildGetRequest("\thttps://live.ciweihaha.win/live.m3u\n", "节目单地址")
+        assertEquals("https://live.ciweihaha.win/live.m3u", tabbed.url.toString())
+    }
+
+    @Test
     fun `buildGetRequest rejects a non-http scheme`() {
         // 拉源只走 HTTP(S)：rtmp 这类播放地址不能当源地址拉
         try {
