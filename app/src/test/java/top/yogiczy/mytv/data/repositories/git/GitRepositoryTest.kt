@@ -19,7 +19,9 @@ import java.net.ServerSocket
  * 子串，主机仍是 127.0.0.1，不走外网。
  * 天光拉的是 releases/latest 单对象接口（不是列表接口），所以空数据
  * 那档是顶层数组 `[]`：解析器报类型错，仓库层要原样透传、不能包成
- * “请检查网络连接”。
+ * “请检查网络连接”。204 无响应体那档也一样：body.string() 回 ""、
+ * 不是 null，仓库层 `?: 抛“响应体为空”` 那行走不到，"" 进解析器报
+ * Json 解码错，同样原样透传。
  * 取消那档也不在这里测：UpdateViewModelTest 已覆盖“检查中途取消不记失败”。
  */
 class GitRepositoryTest {
@@ -28,6 +30,7 @@ class GitRepositoryTest {
      * 不在 Android 单测的编译 classpath 里）。
      * /github.com/releases 回合法发行版 JSON（单对象），
      * /github.com/empty 回空数组（解析器报类型错），
+     * /github.com/nocontent 回 204 无响应体，
      * 其余一律 404。
      */
     private class TestHttpServer {
@@ -63,6 +66,16 @@ class GitRepositoryTest {
                                         .toByteArray()
                                 )
                                 out.write(content)
+                                out.flush()
+                            }
+
+                            requestLine.startsWith("GET /github.com/nocontent ") -> {
+                                // 204 无响应体：OkHttp 的 response.body 是空体
+                                // 对象、string() 回 ""，不是 null
+                                out.write(
+                                    "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n"
+                                        .toByteArray()
+                                )
                                 out.flush()
                             }
 
@@ -208,6 +221,26 @@ class GitRepositoryTest {
             val ex = result.exceptionOrNull()
             assertTrue(ex is IllegalArgumentException)
             assertTrue(ex?.message?.contains("JsonObject") == true)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun latestRelease_noContent_throwsParseErrorNotNetworkError() = runBlocking {
+        // 204 无响应体那档：body.string() 回 ""、不是 null，仓库层
+        // `?: 抛“响应体为空”` 那行走不到；"" 进了解析器，Json 解码错
+        // 在网络 try 外面、要原样透传，不能包成“请检查网络连接”
+        val server = TestHttpServer().apply { start() }
+        try {
+            val result = runCatching {
+                GitRepository().latestRelease(
+                    "http://127.0.0.1:${server.port}/github.com/nocontent"
+                )
+            }
+            val ex = result.exceptionOrNull()
+            assertTrue(ex is IllegalArgumentException)
+            assertTrue(ex?.message?.contains("请检查网络连接") == false)
         } finally {
             server.stop()
         }
