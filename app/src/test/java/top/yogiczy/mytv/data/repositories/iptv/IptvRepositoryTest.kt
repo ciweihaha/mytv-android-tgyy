@@ -103,12 +103,16 @@ class IptvRepositoryTest {
         // 远程源没缓存、连不上：拉取失败要包成中文错抛出来，不能把连接
         // 被拒的 IOException 原样抛到主界面；127.0.0.1:9 拒绝连接是
         // 立刻失败、没有重试，不会拖慢测试
+        // 文案是用户看得到的错误页消息：原来只断 contains("获取远程直播源
+        // 失败")，“，请检查网络连接”这半句丢了也不会红；节目单（852 轮
+        // 姊妹检查）与发行版两处都已钉死全句，这处补齐三处一致
         val result = runCatching {
             IptvRepository().getIptvGroupList("http://127.0.0.1:9/live.m3u", cacheTime = 60_000)
         }
-        val ex = result.exceptionOrNull()
-        assertTrue(ex != null)
-        assertTrue(ex?.message?.contains("获取远程直播源失败") == true)
+        assertEquals(
+            "获取远程直播源失败，请检查网络连接",
+            result.exceptionOrNull()?.message,
+        )
     }
 
     /**
