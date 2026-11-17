@@ -144,6 +144,8 @@ internal fun nextUntriedContentType(attempts: Map<Int, Boolean>): Int? = when {
 /**
  * 直播流过早播完（STATE_ENDED）该不该按断流报：只认直播流（就绪时
  * 时长未知）、且就绪后还没播满 MAX_PREMATURE_LIVE_END_MS 就播完。
+ * 播完时刻早于就绪时刻（时间戳倒挂）不报——“就绪后”这个前提本身
+ * 就不成立，落回原有断流计时。
  * 凤凰 FLV 源站每条连接 2–5 秒就断（ffmpeg 对照证实是源站关连接，
  * 不是播放器问题）：播完后位置轮询停了、断流计时要 15 秒才到，
  * 到之前界面一直冻在最后一帧、然后悄悄重备同一条死线无限循环。
@@ -155,7 +157,7 @@ internal fun shouldReportPrematureLiveEnd(
     readyAsLive: Boolean,
     readyAtMs: Long,
     nowMs: Long,
-): Boolean = readyAsLive && readyAtMs >= 0L &&
+): Boolean = readyAsLive && readyAtMs >= 0L && nowMs >= readyAtMs &&
     nowMs - readyAtMs <= LeanbackMedia3VideoPlayer.MAX_PREMATURE_LIVE_END_MS
 
 /**

@@ -41,6 +41,14 @@ class Media3PrematureLiveEndTest {
     }
 
     @Test
+    fun `播完时刻早于就绪时刻不报`() {
+        // 时间戳倒挂：播完的时刻比就绪还早，“就绪后播完”这个前提
+        // 本身就不成立——不抢报，落回原有断流计时那条路
+        assertFalse(shouldReportPrematureLiveEnd(true, 5000L, 3000L))
+        assertFalse(shouldReportPrematureLiveEnd(true, 1000L, -1L))
+    }
+
+    @Test
     fun `有总时长的点播播完不报`() {
         // 点播正常播完是预期行为：就绪时 duration 不是 TIME_UNSET，
         // readyAsLive 为 false，再快也不报
