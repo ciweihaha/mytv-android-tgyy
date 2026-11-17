@@ -198,6 +198,9 @@ class IptvGroupListTest {
 
         assertSame(groupList.iptvList, groupList.iptvList)
         assertEquals(1, groupList.iptvList.size)
+    }
+
+    @Test
     fun `iptvIdx finds channel across groups and returns minus one when missing`() {
         // 索引表版 iptvIdx：跨分组、重复台只认第一次出现的位置、找不
         // 到回 -1，和原来逐组扫的语义一致
