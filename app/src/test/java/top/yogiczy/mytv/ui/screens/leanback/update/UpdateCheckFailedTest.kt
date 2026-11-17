@@ -80,6 +80,38 @@ class UpdateCheckFailedTest {
     }
 
     @Test
+    fun `cancelled recheck clears stale checkFailed`() = runBlocking {
+        val viewModel = LeanBackUpdateViewModel()
+        val started = CompletableDeferred<Unit>()
+        val releaseGate = CompletableDeferred<GitRelease>()
+
+        viewModel.checkUpdate("2.2.10") { throw RuntimeException("network down") }
+        assertTrue(viewModel.checkFailed)
+
+        // 第二轮检查卡在拉取上、随后取消：开始时就把旧的失败标记清掉了，
+        // 取消不是失败、不会再置回去——只断查完成功那档测不出来（2242 轮
+        // 是成功后复位），只断全新状态取消那档也测不出来（取消时
+        // checkFailed 本来就是 false）
+        val check = async {
+            viewModel.checkUpdate("2.2.10") {
+                started.complete(Unit)
+                releaseGate.await()
+            }
+        }
+        started.await()
+        assertFalse(viewModel.checkFailed)
+        check.cancel()
+        try {
+            check.await()
+            org.junit.Assert.fail("取消时应原样抛 CancellationException")
+        } catch (ex: CancellationException) {
+            assertEquals("cancelled", ex.message)
+        }
+        assertFalse(viewModel.checkFailed)
+        assertFalse(viewModel.checkCompleted)
+    }
+
+    @Test
     fun `cancelled check does not mark checkFailed`() = runBlocking {
         val viewModel = LeanBackUpdateViewModel()
 
