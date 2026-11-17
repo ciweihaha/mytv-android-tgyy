@@ -71,6 +71,28 @@ class M3uIptvParserTest {
     }
 
     @Test
+    fun `semicolon in group-title is not split into groups`() = runBlocking {
+        // group-title 里的 `;` 不切分：三个真实源（默认源 56 台、主单 69 条、
+        // 合并单 102 条）里一个带 `;` 的 group-title 都没有，没证据改语义；
+        // 这里只钉死现有行为——整个串就是一个分组名
+        val data = """
+            #EXTM3U
+            #EXTINF:-1 tvg-name="CCTV-1" group-title="央视;卫视",CCTV-1
+            http://example.com/cctv1.m3u8
+            #EXTINF:-1 tvg-name="CCTV-5" group-title="央视;卫视",CCTV-5
+            http://example.com/cctv5.m3u8
+        """.trimIndent()
+
+        val result = parser.parse(data)
+
+        assertEquals(1, result.size)
+        assertEquals("央视;卫视", result[0].name)
+        assertEquals(2, result[0].iptvList.size)
+        assertEquals("CCTV-1", result[0].iptvList[0].name)
+        assertEquals("CCTV-5", result[0].iptvList[1].name)
+    }
+
+    @Test
     fun `duplicate channel names merge into one entry with multiple urls`() = runBlocking {
         val data = """
             #EXTM3U
