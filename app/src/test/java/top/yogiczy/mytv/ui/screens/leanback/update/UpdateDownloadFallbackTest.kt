@@ -541,4 +541,27 @@ class UpdateDownloadFallbackTest {
         assertTrue(LeanbackToastState.I.visible)
         assertEquals("下载更新成功", LeanbackToastState.I.current.message)
     }
+
+    @Test
+    fun `消费已下载标记后不再自动弹安装器`() = runBlocking {
+        // consumeUpdateDownloaded 的唯一作用：下载完、安装器弹过一次后
+        // 把标记清掉，否则界面重建时陈旧的 latest.apk 又会自动弹出
+        // 安装器（UpdateScreen 里两处调用都在 installApk 之后）。
+        // 这方法是纯转发的一行赋值（932 轮教训：不记数就等于没测），
+        // 之前全仓没有一个用例调过它；第二遍消费仍是 false——消费是
+        // 清标记不是开关，调两次不能又弹回来
+        val viewModel = setupViewModel(proxyUrl)
+        val file = tempFile()
+        val fakeDownload: suspend (String, String, ((Int) -> Unit)?) -> Unit =
+            { _, path, _ -> File(path).writeText("apk") }
+
+        viewModel.downloadAndUpdate(file, fakeDownload)
+        assertTrue(viewModel.updateDownloaded)
+
+        viewModel.consumeUpdateDownloaded()
+        assertFalse(viewModel.updateDownloaded)
+
+        viewModel.consumeUpdateDownloaded()
+        assertFalse(viewModel.updateDownloaded)
+    }
 }

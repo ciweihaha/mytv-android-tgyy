@@ -61,7 +61,9 @@ fun LeanbackUpdateScreen(
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             // 从系统设置回来：有权限就直接装，没权限只提示，不再重复跳设置
-            if (!tryInstallApk(context, latestFile.path)) {
+            if (tryInstallApk(context, latestFile.path)) {
+                updateViewModel.consumeUpdateDownloaded()
+            } else {
                 LeanbackToastState.I.showToast("未授予安装权限")
             }
         }
@@ -69,8 +71,11 @@ fun LeanbackUpdateScreen(
     LaunchedEffect(updateViewModel.updateDownloaded) {
         if (!updateViewModel.updateDownloaded) return@LaunchedEffect
 
-        // 下载好了：有权限就直接装，没权限才跳系统设置去申请
-        if (!tryInstallApk(context, latestFile.path)) {
+        // 下载好了：有权限就直接装，没权限才跳系统设置去申请；装完把标记
+        // 消费掉，否则界面重建时陈旧的 latest.apk 又会自动弹出安装器
+        if (tryInstallApk(context, latestFile.path)) {
+            updateViewModel.consumeUpdateDownloaded()
+        } else {
             // 带包名直接打开本应用的开关页；不带只打开应用列表，要用户自己找
             val intent = Intent(
                 Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,

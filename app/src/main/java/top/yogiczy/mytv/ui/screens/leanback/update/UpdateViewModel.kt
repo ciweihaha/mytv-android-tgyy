@@ -53,6 +53,15 @@ class LeanBackUpdateViewModel : ViewModel() {
 
     var showDialog by mutableStateOf(false)
 
+    /**
+     * 下载完、安装器弹过一次后把已下载标记清掉，否则标记一直留着 true，
+     * 界面重建（配置变化）时 LaunchedEffect 会带着陈旧的 latest.apk
+     * 又自动弹出一次安装器。消费是清标记不是开关，调两次仍是 false。
+     */
+    fun consumeUpdateDownloaded() {
+        _updateDownloaded = false
+    }
+
     suspend fun checkUpdate(
         currentVersion: String,
         // 拉取最新发行版的方式：默认走线上更新源；单测传入假实现控制成功 / 失败，
