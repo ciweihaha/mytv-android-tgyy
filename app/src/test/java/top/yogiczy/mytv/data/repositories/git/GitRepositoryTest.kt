@@ -31,6 +31,7 @@ class GitRepositoryTest {
      * /github.com/releases 回合法发行版 JSON（单对象），
      * /github.com/empty 回空数组（解析器报类型错），
      * /github.com/nocontent 回 204 无响应体，
+     * /github.com/servererror 回 500，
      * 其余一律 404。
      */
     private class TestHttpServer {
@@ -74,6 +75,14 @@ class GitRepositoryTest {
                                 // 对象、string() 回 ""，不是 null
                                 out.write(
                                     "HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n"
+                                        .toByteArray()
+                                )
+                                out.flush()
+                            }
+
+                            requestLine.startsWith("GET /github.com/servererror ") -> {
+                                out.write(
+                                    "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                                         .toByteArray()
                                 )
                                 out.flush()
@@ -241,6 +250,29 @@ class GitRepositoryTest {
             val ex = result.exceptionOrNull()
             assertTrue(ex is IllegalArgumentException)
             assertTrue(ex?.message?.contains("请检查网络连接") == false)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun latestRelease_serverError_throwsHttpStatusException() {
+        // 500 那档：生产代码注释里写明了“服务器出错（404/500）”，
+        // 但测试只钉了 404。404 与 500 走同一条 !isSuccessful 分支，
+        // 码值不同——将来有人把分支收窄成只认 404，500 会悄悄掉进
+        // 网络错那档误导用户；码值与文案各断一次
+        val server = TestHttpServer().apply { start() }
+        try {
+            val ex = assertThrows(HttpStatusException::class.java) {
+                runBlocking {
+                    GitRepository().latestRelease(
+                        "http://127.0.0.1:${server.port}/github.com/servererror"
+                    )
+                }
+            }
+            assertEquals(500, ex.code)
+            assertTrue(ex.message?.contains("服务器返回 500") == true)
+            assertTrue(ex.message?.contains("请检查网络连接") == false)
         } finally {
             server.stop()
         }
