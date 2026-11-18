@@ -142,39 +142,25 @@ internal fun nextUntriedContentType(attempts: Map<Int, Boolean>): Int? = when {
 }
 
 /**
- * 直播流过早播完（STATE_ENDED）该不该按断流报：只认直播流（就绪时
- * 时长未知）、且就绪后还没播满 MAX_PREMATURE_LIVE_END_MS 就播完。
- * 播完时刻早于就绪时刻（时间戳倒挂）不报——“就绪后”这个前提本身
- * 就不成立，落回原有断流计时。
- * 凤凰 FLV 源站每条连接 2–5 秒就断（ffmpeg 对照证实是源站关连接，
- * 不是播放器问题）：播完后位置轮询停了、断流计时要 15 秒才到，
- * 到之前界面一直冻在最后一帧、然后悄悄重备同一条死线无限循环。
- * 就绪 10 秒内播完一定是源死了，不是正常播完——直播流没有“播完”
- * 这一说；有总时长的是点播（readyAsLive 为 false），不报。
- * 顶层函数方便单元测试直接调用。
- */
-internal fun shouldReportPrematureLiveEnd(
-    readyAsLive: Boolean,
-    readyAtMs: Long,
-    nowMs: Long,
-): Boolean = readyAsLive && readyAtMs >= 0L && nowMs >= readyAtMs &&
-    nowMs - readyAtMs <= LeanbackMedia3VideoPlayer.MAX_PREMATURE_LIVE_END_MS
-
-/**
- * 直播流过早播完该不该在同一条线路上再试一次：60 秒窗口内累计
- * 的过早播完还没到上限就再试，超过上限就按断流报、走换线/报错。
+ * 直播流播完该不该在同一条线路上再试一次：60 秒窗口内累计
+ * 的播完还没到上限就再试，超过上限就按断流报、走换线/报错。
  * 窗口外的旧记录先清掉——播稳一阵子后偶尔一次源抖不该和几小时前
  * 的记录叠加计数，否则播得越久越容易被一次小抖动判死刑；窗口内
  * 连着断才说明这条线现在就是死的。
- * 凤凰 FLV 每条连接 2–5 秒就关：单次过早播完直接报 CUTOFF 会让
+ * 凤凰 FLV 每条连接几秒就关：单次播完直接报 CUTOFF 会让
  * 只有一条线路的台立刻冻住；先重拉几次（每次都是 SCF 现取新票据
  * 的新连接），扛住偶发断流，超限才报。
+ * v2.2.29 之前只认“就绪 10 秒内播完”：播稳超 10 秒才断的落回原有
+ * 断流计时（15 秒等一次、3 次就报），v2.2.28 平板实测 72 秒照样报
+ * CUTOFF——上限提到 100 次也没用，瓶颈在那条慢路。直播流没有
+ * “播完”这一说，播多久断了都是源死了：现在不分 10 秒内外，直播
+ * 流播完一律走这条快路重拉（1–3 秒退避、上限 100 次）。
  * 上限 100 次不是拍脑袋：实测凤凰每条连接只活 2–3 秒、加 1–3 秒
  * 退避，60 秒窗口里稳态就有约 20 次；20 次正好卡在稳态上、65 秒
  * 就烧完上限、照样报 CUTOFF（v2.2.27 平板实测：64 秒还在播，72 秒
  * 已报）。100 次是稳态的 5 倍余量，正常抖动永远碰不到，只防
  * 0.6 秒内连断这种真死源。真正死掉的源不用怕上限太高：播不起来
- * 根本到不了就绪，过早播完这支不触发，15 秒加载超时那路会先报；
+ * 根本到不了就绪，播完这支不触发，15 秒加载超时那路会先报；
  * 上限只管“播几秒又断”这种半死不活的线。
  * 顶层函数方便单元测试直接调用，写法照搬断流计数 nextCutoffStreak。
  */
@@ -290,15 +276,13 @@ class LeanbackMedia3VideoPlayer(
     private var ioErrorRetries = 0
 
     /**
-     * 就绪时刻（SystemClock.elapsedRealtime）与就绪时是不是直播流
-     * （时长未知）：直播流过早播完的判断用。每次 prepare 清零，
-     * 就绪时才记；缓冲后再次就绪会重新记，窗口按最近一次就绪算
+     * 就绪时是不是直播流（时长未知）：直播流播完的判断用。每次
+     * prepare 清零，就绪时才记
      */
-    private var readyAtMs: Long = -1L
     private var readyAsLive: Boolean = false
 
     /**
-     * 过早播完重试计数（时间戳列表）：直播流就绪 10 秒内播完先不报
+     * 直播流播完重试计数（时间戳列表）：直播流播完先不报
      * 断流，在同一条线路上重拉（见 nextPrematureEndRetry）；60 秒
      * 窗口内累计 100 次还稳不住才报 CUTOFF。切台/换线/释放时清零，
      * 新台的新一轮失败重新数；READY 不清零——凤凰那种每条连接
@@ -322,15 +306,7 @@ class LeanbackMedia3VideoPlayer(
         const val MAX_IO_ERROR_RETRIES = 5
 
         /**
-         * 直播流就绪后这么久内播完算“过早播完”（见
-         * shouldReportPrematureLiveEnd）：凤凰 FLV 源站 2–5 秒就断，
-         * 10 秒留足余量；播稳超过 10 秒才断的走原有断流计时重备，
-         * 不改那条路的行为
-         */
-        const val MAX_PREMATURE_LIVE_END_MS = 10_000L
-
-        /**
-         * 直播流过早播完在同一条线路上最多重拉几次：100 次（见
+         * 直播流播完在同一条线路上最多重拉几次：100 次（见
          * nextPrematureEndRetry）。凤凰每条连接只活 2–3 秒、加 1–3 秒
          * 退避，60 秒窗口里稳态就有约 20 次；20 次正好卡在稳态上，
          * 65 秒就烧完、照样报 CUTOFF（v2.2.27 平板实测：64 秒还在播，
@@ -440,9 +416,8 @@ class LeanbackMedia3VideoPlayer(
     private fun prepare(uri: Uri, contentType: Int? = null) {
         val dataSourceFactory = getDataSourceFactory()
 
-        // 新一轮准备：就绪计时清零，等这次就绪再记；否则上一条台的
-        // 就绪时刻会留到这条台上，播完误判过早
-        readyAtMs = -1L
+        // 新一轮准备：直播标志清零，等这次就绪再记；否则上一条台的
+        // 标志会留到这条台上，播完误判
         readyAsLive = false
 
         val mediaItem = MediaItem.fromUri(uri)
@@ -585,9 +560,8 @@ class LeanbackMedia3VideoPlayer(
                 // 挂起的延迟重试任务也取消（已播稳就不需要它了），重连提示清掉
                 behindLiveWindowRetries = 0
                 ioErrorRetries = 0
-                // 记就绪时刻与是不是直播流：过早播完的判断用
+                // 记是不是直播流：直播流播完的判断用
                 // （时长未知即直播流；点播有总时长，不报）
-                readyAtMs = SystemClock.elapsedRealtime()
                 readyAsLive = videoPlayer.duration == C.TIME_UNSET
                 delayedRetryJob?.cancel()
                 delayedRetryJob = null
@@ -613,22 +587,19 @@ class LeanbackMedia3VideoPlayer(
                 }
             }
 
-            // 直播流就绪后没播几秒就播完：源站断了流（如凤凰 FLV 每条
-            // 连接 2–5 秒就关），不是正常播完。先在同一条线路上重拉
-            // （每次都是 SCF 现取新票据的新连接，带 1/1/2/2/3 秒短退避，
-            // 界面显示“正在重连…”），扛住偶发断流；60 秒窗口内累计
-            // 100 次还稳不住，才按断流报、走换线/报错流程。
-            // 重拉前先取消旧流挂着的断流计时，否则它在退避等待里一到
-            // 就重备同一条线，和延迟重试撞车。播稳超过 10 秒才播完的
-            // 不动，走原有断流计时重备那条路；点播有总时长（readyAsLive
-            // 为 false），正常播完根本不进这支
-            if (playbackState == Player.STATE_ENDED &&
-                shouldReportPrematureLiveEnd(
-                    readyAsLive,
-                    readyAtMs,
-                    SystemClock.elapsedRealtime(),
-                )
-            ) {
+            // 直播流播完：源站断了流（如凤凰 FLV 每条连接几秒就关），
+            // 不是正常播完——直播流没有“播完”这一说，播多久断了都
+            // 是源死了。先在同一条线路上重拉（每次都是 SCF 现取新票据
+            // 的新连接，带 1/1/2/2/3 秒短退避，界面显示“正在重连…”），
+            // 扛住偶发断流；60 秒窗口内累计 100 次还稳不住，才按断流
+            // 报、走换线/报错流程。重拉前先取消旧流挂着的断流计时，
+            // 否则它在退避等待里一到就重备同一条线，和延迟重试撞车。
+            // v2.2.29 之前只认就绪 10 秒内播完，播稳超 10 秒的落回原有
+            // 断流计时（15 秒等一次、3 次就报），v2.2.28 平板实测 72 秒
+            // 照样报 CUTOFF——上限 100 次也没用，瓶颈在那条慢路；现在
+            // 不分播了多久，直播流播完一律走这条快路。点播有总时长
+            // （readyAsLive 为 false），正常播完根本不进这支
+            if (playbackState == Player.STATE_ENDED && readyAsLive) {
                 val nowMs = SystemClock.elapsedRealtime()
                 val (streak, giveUp) = nextPrematureEndRetry(
                     prematureEndTimestamps,
