@@ -279,6 +279,28 @@ class LeanbackVideoPlayerStateTest {
     }
 
     @Test
+    fun `ready clears a misreported load timeout error and code`() {
+        val player = FakeVideoPlayer()
+        val state = LeanbackVideoPlayerState(player) { null }
+        state.initialize()
+
+        var readyNotifications = 0
+        state.onReady { readyNotifications++ }
+
+        // 慢启动时看门狗误报的 LOAD_TIMEOUT：v2.2.31 就绪时要清掉它，
+        // 否则播着的画面上一直盖着“播放失败”；只断就绪转发不够——
+        // 先报一次错再就绪，错误与错误码都得清掉
+        player.emitError(LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT)
+        assertEquals("LOAD_TIMEOUT(10003)", state.error)
+        assertEquals(10003, state.lastErrorCode)
+
+        player.emitReady()
+        assertNull(state.error)
+        assertNull(state.lastErrorCode)
+        assertEquals(1, readyNotifications)
+    }
+
+    @Test
     fun `release clears ready listeners, later ready signals no longer notify`() {
         val player = FakeVideoPlayer()
         val state = LeanbackVideoPlayerState(player) { null }
