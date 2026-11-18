@@ -162,13 +162,19 @@ internal fun shouldReportPrematureLiveEnd(
 
 /**
  * 直播流过早播完该不该在同一条线路上再试一次：60 秒窗口内累计
- * 的过早播完还没到 5 次就再试，超过 5 次就按断流报、走换线/报错。
+ * 的过早播完还没到上限就再试，超过上限就按断流报、走换线/报错。
  * 窗口外的旧记录先清掉——播稳一阵子后偶尔一次源抖不该和几小时前
  * 的记录叠加计数，否则播得越久越容易被一次小抖动判死刑；窗口内
  * 连着断才说明这条线现在就是死的。
  * 凤凰 FLV 每条连接 2–5 秒就关：单次过早播完直接报 CUTOFF 会让
  * 只有一条线路的台立刻冻住；先重拉几次（每次都是 SCF 现取新票据
- * 的新连接），扛住偶发断流，5 次还稳不住再报。
+ * 的新连接），扛住偶发断流，超限才报。
+ * 上限 20 次不是拍脑袋：实测凤凰每条连接只活 3–5 秒，60 秒里
+ * 要连 12–20 次才撑得住；5 次的话 40 秒出头就烧完上限、照样报
+ * CUTOFF（v2.2.26 平板实测：30 秒还在播，65 秒已报 CUTOFF）。
+ * 真正死掉的源不用怕上限太高：播不起来根本到不了就绪，过早播完
+ * 这支不触发，15 秒加载超时那路会先报；上限只管“播几秒又断”
+ * 这种半死不活的线。
  * 顶层函数方便单元测试直接调用，写法照搬断流计数 nextCutoffStreak。
  */
 internal fun nextPrematureEndRetry(
@@ -179,6 +185,22 @@ internal fun nextPrematureEndRetry(
 ): Pair<List<Long>, Boolean> {
     val kept = previous.filter { now - it <= windowMs } + now
     return kept to (kept.size > maxRetries)
+}
+
+/**
+ * 过早播完第几次重拉前等多久：第 1、2 次 1 秒，第 3、4 次 2 秒，
+ * 第 5 次起 3 秒封顶。不共用 retryDelayMs 那档（1/2/3/5/8 秒）：
+ * 过早播完是“播起来了、连接被源站掐了”，不是上游一时抖动——
+ * 等 8 秒不会让下一条连接活得更久，只会让“正在重连”占掉大半
+ * 时间；重拉本身就是新连接，等 1–3 秒够了。调用处先把本次过早
+ * 播完计入再算，入参就是第几次重试；纯算式，抽出来方便单元测试
+ * 锁死档位。
+ */
+internal fun prematureEndRetryDelayMs(retryNumber: Int): Long = when {
+    retryNumber <= 0 -> 0L
+    retryNumber <= 2 -> 1000L
+    retryNumber <= 4 -> 2000L
+    else -> 3000L
 }
 
 /**
@@ -307,11 +329,11 @@ class LeanbackMedia3VideoPlayer(
         const val MAX_PREMATURE_LIVE_END_MS = 10_000L
 
         /**
-         * 直播流过早播完在同一条线路上最多重拉几次：5 次，与直播
-         * 位置落后、瞬时网络错同档（见 nextPrematureEndRetry）；
-         * 5 次还稳不住就按断流报 CUTOFF，走换线/报错
+         * 直播流过早播完在同一条线路上最多重拉几次：20 次（见
+         * nextPrematureEndRetry）。凤凰每条连接只活 3–5 秒，60 秒
+         * 窗口里要连 12–20 次；5 次 40 秒出头就烧完、照样报 CUTOFF
          */
-        const val MAX_PREMATURE_END_RETRIES = 5
+        const val MAX_PREMATURE_END_RETRIES = 20
 
         /**
          * 过早播完重试的计数窗口：60 秒内的过早播完才累计，窗口外
@@ -589,9 +611,9 @@ class LeanbackMedia3VideoPlayer(
 
             // 直播流就绪后没播几秒就播完：源站断了流（如凤凰 FLV 每条
             // 连接 2–5 秒就关），不是正常播完。先在同一条线路上重拉
-            // 几次（每次都是 SCF 现取新票据的新连接，带 1/2/3/5/8 秒
-            // 退避，界面显示“正在重连…”），扛住偶发断流；60 秒窗口
-            // 内累计 5 次还稳不住，才按断流报、走换线/报错流程。
+            // （每次都是 SCF 现取新票据的新连接，带 1/1/2/2/3 秒短退避，
+            // 界面显示“正在重连…”），扛住偶发断流；60 秒窗口内累计
+            // 20 次还稳不住，才按断流报、走换线/报错流程。
             // 重拉前先取消旧流挂着的断流计时，否则它在退避等待里一到
             // 就重备同一条线，和延迟重试撞车。播稳超过 10 秒才播完的
             // 不动，走原有断流计时重备那条路；点播有总时长（readyAsLive
@@ -616,7 +638,7 @@ class LeanbackMedia3VideoPlayer(
                     triggerReconnecting(true)
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
-                        delay(retryDelayMs(streak.size))
+                        delay(prematureEndRetryDelayMs(streak.size))
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
