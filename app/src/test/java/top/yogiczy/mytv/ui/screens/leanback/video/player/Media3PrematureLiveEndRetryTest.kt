@@ -7,8 +7,8 @@ import org.junit.Test
 
 class Media3PrematureLiveEndRetryTest {
     @Test
-    fun `上限钉死 20 次、窗口 60 秒`() {
-        assertEquals(20, LeanbackMedia3VideoPlayer.MAX_PREMATURE_END_RETRIES)
+    fun `上限钉死 100 次、窗口 60 秒`() {
+        assertEquals(100, LeanbackMedia3VideoPlayer.MAX_PREMATURE_END_RETRIES)
         assertEquals(60_000L, LeanbackMedia3VideoPlayer.PREMATURE_END_RETRY_WINDOW_MS)
     }
 
@@ -25,11 +25,12 @@ class Media3PrematureLiveEndRetryTest {
     }
 
     @Test
-    fun `窗口内连着过早播完二十次都重试、第二十一次才报断流`() {
+    fun `窗口内连着过早播完一百次都重试、第一百零一次才报断流`() {
         // 凤凰 FLV 每条连接 2–5 秒就关：单次过早播完直接报 CUTOFF 会让
-        // 只有一条线路的台立刻冻住；先重拉，扛住偶发断流。上限 20 次
-        // 是实测值：60 秒里要连 12–20 次，5 次的话 40 秒出头就烧完、
-        // 照样报 CUTOFF（v2.2.26 平板实测：30 秒还在播，65 秒已报）
+        // 只有一条线路的台立刻冻住；先重拉，扛住偶发断流。上限 100 次
+        // 是实测值：60 秒窗口里稳态就有约 20 次，20 次正好卡在稳态上、
+        // 65 秒就烧完、照样报 CUTOFF（v2.2.27 平板实测：64 秒还在播，
+        // 72 秒已报）；100 次是稳态的 5 倍余量，正常抖动永远碰不到
         val maxRetries = LeanbackMedia3VideoPlayer.MAX_PREMATURE_END_RETRIES
         var timestamps: List<Long> = emptyList()
         var now = 1000L
@@ -42,10 +43,10 @@ class Media3PrematureLiveEndRetryTest {
             )
             assertFalse(giveUp)
             timestamps = kept
-            // 间隔 2 秒：20 次要挤在 60 秒窗口里才数得到 20 次；真实
-            // 节奏是 5–8 秒一次，窗口会先清掉旧的、永远数不到上限，
+            // 间隔 500 毫秒：100 次要挤在 60 秒窗口里才数得到 100 次；
+            // 真实节奏是 3–8 秒一次，窗口会先清掉旧的、永远数不到上限，
             // 那正是想要的（一直重连不断播），上限只防窗口内密集连断
-            now += 2000L
+            now += 500L
         }
         assertEquals(maxRetries, timestamps.size)
         val (_, giveUp) = nextPrematureEndRetry(
@@ -61,12 +62,14 @@ class Media3PrematureLiveEndRetryTest {
     fun `窗口外的旧记录不清掉会误判、隔久了要重新数`() {
         // 播稳一阵子后偶尔一次源抖，不该和几小时前的记录叠加计数，
         // 否则播得越久越容易被一次小抖动判死刑
-        val old = List(20) { 1000L + it * 1000L }
+        // 100 条旧记录都要落在窗口外（now - 60 秒 = 40000 之前），
+        // 间隔 100 毫秒：1000..10900 全是旧的，now=100000 时全清掉
+        val old = List(100) { 1000L + it * 100L }
         val (kept, giveUp) = nextPrematureEndRetry(
             old,
             now = 100_000L,
             windowMs = 60_000L,
-            maxRetries = 20,
+            maxRetries = 100,
         )
         assertFalse(giveUp)
         assertEquals(listOf(100_000L), kept)
@@ -74,13 +77,14 @@ class Media3PrematureLiveEndRetryTest {
 
     @Test
     fun `窗口边界上的旧记录还算数`() {
-        // filter 是 <=：正好 60 秒前的那次还在窗口内，第 21 次要报断流
-        val old = List(20) { 1000L + it * 1000L }
+        // filter 是 <=：正好 60 秒前的那次还在窗口内，第 101 次要报断流
+        // 间隔 600 毫秒：1000..60400，最老那条正好 60 秒前（61000-1000）
+        val old = List(100) { 1000L + it * 600L }
         val (_, giveUp) = nextPrematureEndRetry(
             old,
             now = 61_000L,
             windowMs = 60_000L,
-            maxRetries = 20,
+            maxRetries = 100,
         )
         assertTrue(giveUp)
     }
@@ -96,6 +100,6 @@ class Media3PrematureLiveEndRetryTest {
         assertEquals(2000L, prematureEndRetryDelayMs(3))
         assertEquals(2000L, prematureEndRetryDelayMs(4))
         assertEquals(3000L, prematureEndRetryDelayMs(5))
-        assertEquals(3000L, prematureEndRetryDelayMs(20))
+        assertEquals(3000L, prematureEndRetryDelayMs(100))
     }
 }
