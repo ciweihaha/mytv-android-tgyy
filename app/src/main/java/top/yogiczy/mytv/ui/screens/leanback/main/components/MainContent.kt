@@ -41,6 +41,7 @@ import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.channelNoText
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.recentIptvList
 import top.yogiczy.mytv.data.entities.recordRecentChannel
+import top.yogiczy.mytv.ui.LeanbackBackKeyPressCycleTracker
 import top.yogiczy.mytv.ui.screens.leanback.classicpanel.LeanbackClassicPanelScreen
 import top.yogiczy.mytv.ui.screens.leanback.components.LeanbackVisible
 import top.yogiczy.mytv.ui.screens.leanback.monitor.LeanbackMonitorScreen
@@ -410,18 +411,37 @@ fun LeanbackBackPressHandledArea(
     onBackPressed: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
-) = Box(
-    modifier = Modifier
-        .onPreviewKeyEvent {
-            if (it.key == Key.Back && it.type == KeyEventType.KeyUp) {
-                // 返回回调同样包兜底：主界面每次按返回都走这里，回调里偶发
-                // 异常不该让整个应用闪退；抛异常也照样消费，不漏下去被当成退出
-                safeLeanbackInvoke(onBackPressed)
-                true
-            } else {
-                false
+) {
+    // 按压周期守卫：一次物理按键只算一次返回（见 LeanbackApp.kt）
+    val pressCycleTracker = remember { LeanbackBackKeyPressCycleTracker() }
+    Box(
+        modifier = Modifier
+            .onPreviewKeyEvent {
+                when {
+                    it.key == Key.Back && it.type == KeyEventType.KeyDown -> {
+                        // 只记周期开始，不消费按下事件：按下本身不触发任何动作，
+                        // 抬起时才看有没有跟在新鲜按下后面
+                        pressCycleTracker.onKeyDown(it.nativeKeyEvent.repeatCount)
+                        false
+                    }
+
+                    it.key == Key.Back && it.type == KeyEventType.KeyUp -> {
+                        // 没有新鲜按下就来的抬起是重复投递或杂散事件：消费掉
+                        // 不漏下去，也不算一次返回——一次物理按键拆出两起
+                        // 间隔 ≥300ms 的抬起也不能再直接退出（2.2.31 自退）
+                        if (!pressCycleTracker.onKeyUp()) return@onPreviewKeyEvent true
+                        // 返回回调同样包兜底：主界面每次按返回都走这里，回调里偶发
+                        // 异常不该让整个应用闪退；抛异常也照样消费，不漏下去被当成退出
+                        safeLeanbackInvoke(onBackPressed)
+                        true
+                    }
+
+                    else -> {
+                        false
+                    }
+                }
             }
-        }
-        .then(modifier),
-    content = content,
-)
+            .then(modifier),
+        content = content,
+    )
+}

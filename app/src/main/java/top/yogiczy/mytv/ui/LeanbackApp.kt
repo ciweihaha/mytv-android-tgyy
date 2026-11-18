@@ -98,6 +98,45 @@ class LeanbackDoubleBackPressedExitState internal constructor(
 fun rememberLeanbackDoubleBackPressedExitState(@IntRange(from = 0) resetSeconds: Int = 2) =
     remember { LeanbackDoubleBackPressedExitState(resetSeconds = resetSeconds) }
 
+/**
+ * 返回键按压周期守卫：一次物理按键只算一次返回
+ *
+ * 2.2.31 待观察项：首次启动无故干净自退一次（System.exit(0)，走返回
+ * 键路径）。双按确认本身没问题（[LeanbackDoubleBackPressedExitState]
+ * 单测齐全），洞在它只认“两次按压间隔 ≥300ms”：一次物理按键若拆
+ * 出两起抬起事件、间隔 ≥300ms（遥控器重复投递、杂散返回事件），
+ * 第二起抬起正好落在 2 秒确认窗里，直接退出；300ms 去重兜不住
+ * 隔得久的重复投递。修法：抬起必须跟在一次新鲜按下后面才算一次
+ * 返回——按下（非重复）记周期开始，抬起消费掉这个周期；没有按下
+ * 的抬起（重复投递、杂散事件）直接丢掉，不管隔了多久。长按的重
+ * 复按下（repeatCount > 0）不重新记周期，按住不放不会刷出多次返回。
+ */
+class LeanbackBackKeyPressCycleTracker internal constructor() {
+    /** 自上次被消费的抬起以来，有没有见过一次新鲜按下 */
+    private var keyDownSeen = false
+
+    /**
+     * 返回键按下：非重复按下记一次按压周期开始；长按的重复按下不重
+     * 新记（按住不放只算一次）。返回 true 表示接受为一次新的按下。
+     */
+    fun onKeyDown(repeatCount: Int = 0): Boolean {
+        if (repeatCount != 0) return false
+        keyDownSeen = true
+        return true
+    }
+
+    /**
+     * 返回键抬起：只有跟在一次新鲜按下后面才算一次返回按压，返回
+     * true；没有按下就来的抬起是重复投递或杂散事件，返回 false。
+     * 算过一次后周期清掉，下一次抬起要等新的按下。
+     */
+    fun onKeyUp(): Boolean {
+        if (!keyDownSeen) return false
+        keyDownSeen = false
+        return true
+    }
+}
+
 val LeanbackParentPadding = PaddingValues(vertical = 12.dp, horizontal = 24.dp)
 
 @Composable

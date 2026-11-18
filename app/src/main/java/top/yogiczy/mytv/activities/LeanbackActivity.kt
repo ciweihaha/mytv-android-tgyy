@@ -27,9 +27,11 @@ import top.yogiczy.mytv.ui.theme.LeanbackTheme
 import top.yogiczy.mytv.ui.utils.HttpServer
 import top.yogiczy.mytv.ui.utils.LEANBACK_SELECT_KEY_CODES
 import top.yogiczy.mytv.ui.utils.SP
+import top.yogiczy.mytv.utils.Logger
 import kotlin.system.exitProcess
 
 class LeanbackActivity : ComponentActivity() {
+    private val log = Logger.create("LeanbackActivity")
     /**
      * 确定键兜底：Compose 层没消费掉的确定键（当前没有焦点、焦点在
      * SurfaceView 上等情况）不能再往下漏——2.2.11 只修了 Compose
@@ -96,6 +98,10 @@ class LeanbackActivity : ComponentActivity() {
                 ) {
                     LeanbackApp(
                         onBackPressed = {
+                            // 双按确认走完才到这里：打一条日志再退出，下次
+                            // 再出现无故自退，logcat 里能分清是用户双按
+                            // 退出的、还是别的路径调了退出（2.2.31 自退教训）
+                            log.i("双按确认退出应用")
                             finish()
                             exitProcess(0)
                         },
