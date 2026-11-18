@@ -161,6 +161,27 @@ internal fun shouldReportPrematureLiveEnd(
     nowMs - readyAtMs <= LeanbackMedia3VideoPlayer.MAX_PREMATURE_LIVE_END_MS
 
 /**
+ * 直播流过早播完该不该在同一条线路上再试一次：60 秒窗口内累计
+ * 的过早播完还没到 5 次就再试，超过 5 次就按断流报、走换线/报错。
+ * 窗口外的旧记录先清掉——播稳一阵子后偶尔一次源抖不该和几小时前
+ * 的记录叠加计数，否则播得越久越容易被一次小抖动判死刑；窗口内
+ * 连着断才说明这条线现在就是死的。
+ * 凤凰 FLV 每条连接 2–5 秒就关：单次过早播完直接报 CUTOFF 会让
+ * 只有一条线路的台立刻冻住；先重拉几次（每次都是 SCF 现取新票据
+ * 的新连接），扛住偶发断流，5 次还稳不住再报。
+ * 顶层函数方便单元测试直接调用，写法照搬断流计数 nextCutoffStreak。
+ */
+internal fun nextPrematureEndRetry(
+    previous: List<Long>,
+    now: Long,
+    windowMs: Long,
+    maxRetries: Int,
+): Pair<List<Long>, Boolean> {
+    val kept = previous.filter { now - it <= windowMs } + now
+    return kept to (kept.size > maxRetries)
+}
+
+/**
  * 瞬时网络错：拉列表或分片时 HTTP 回了错误状态（上游一抖回 503、
  * 票据过期那一下回 403）、连接失败或超时。ExoPlayer 内部已重试
  * 过几次才上报，但直接判死刑会让只有一条线路的台永久卡死；
@@ -254,6 +275,15 @@ class LeanbackMedia3VideoPlayer(
     private var readyAsLive: Boolean = false
 
     /**
+     * 过早播完重试计数（时间戳列表）：直播流就绪 10 秒内播完先不报
+     * 断流，在同一条线路上重拉（见 nextPrematureEndRetry）；60 秒
+     * 窗口内累计 5 次还稳不住才报 CUTOFF。切台/换线/释放时清零，
+     * 新台的新一轮失败重新数；READY 不清零——凤凰那种每条连接
+     * 2–5 秒就断的源，每次重拉都会就绪，清零等于无限重试
+     */
+    private var prematureEndTimestamps: List<Long> = emptyList()
+
+    /**
      * 延迟重试任务：瞬时网络错与直播位置落后共用。出错后不等就立刻重拉，
      * 几次会在几毫秒内烧完——上游故障（分片签名刚过期、CDN 抖动、SCF 换票、
      * 列表过期）一般持续一两秒，立刻重拉撞上的还是同一个故障。改成可取消的
@@ -275,6 +305,20 @@ class LeanbackMedia3VideoPlayer(
          * 不改那条路的行为
          */
         const val MAX_PREMATURE_LIVE_END_MS = 10_000L
+
+        /**
+         * 直播流过早播完在同一条线路上最多重拉几次：5 次，与直播
+         * 位置落后、瞬时网络错同档（见 nextPrematureEndRetry）；
+         * 5 次还稳不住就按断流报 CUTOFF，走换线/报错
+         */
+        const val MAX_PREMATURE_END_RETRIES = 5
+
+        /**
+         * 过早播完重试的计数窗口：60 秒内的过早播完才累计，窗口外
+         * 的旧记录清掉（见 nextPrematureEndRetry）；播稳一阵子后
+         * 偶尔一次源抖不和旧记录叠加，免得播得越久越容易被判死刑
+         */
+        const val PREMATURE_END_RETRY_WINDOW_MS = 60_000L
 
         /**
          * P7：SSLContext 只建一次：首次建时 SSLContext.init 配全新
@@ -544,10 +588,14 @@ class LeanbackMedia3VideoPlayer(
             }
 
             // 直播流就绪后没播几秒就播完：源站断了流（如凤凰 FLV 每条
-            // 连接 2–5 秒就关），不是正常播完。立刻按断流报，走换线/
-            // 报错流程；挂着的断流计时要先取消，否则 15 秒后它一到
-            // 又悄悄重备同一条死线。播稳超过 10 秒才播完的不动，走原
-            // 有断流计时重备那条路
+            // 连接 2–5 秒就关），不是正常播完。先在同一条线路上重拉
+            // 几次（每次都是 SCF 现取新票据的新连接，带 1/2/3/5/8 秒
+            // 退避，界面显示“正在重连…”），扛住偶发断流；60 秒窗口
+            // 内累计 5 次还稳不住，才按断流报、走换线/报错流程。
+            // 重拉前先取消旧流挂着的断流计时，否则它在退避等待里一到
+            // 就重备同一条线，和延迟重试撞车。播稳超过 10 秒才播完的
+            // 不动，走原有断流计时重备那条路；点播有总时长（readyAsLive
+            // 为 false），正常播完根本不进这支
             if (playbackState == Player.STATE_ENDED &&
                 shouldReportPrematureLiveEnd(
                     readyAsLive,
@@ -555,8 +603,33 @@ class LeanbackMedia3VideoPlayer(
                     SystemClock.elapsedRealtime(),
                 )
             ) {
+                val nowMs = SystemClock.elapsedRealtime()
+                val (streak, giveUp) = nextPrematureEndRetry(
+                    prematureEndTimestamps,
+                    nowMs,
+                    PREMATURE_END_RETRY_WINDOW_MS,
+                    MAX_PREMATURE_END_RETRIES,
+                )
+                prematureEndTimestamps = streak
                 cancelCutoffTimeout()
-                triggerError(PlaybackException.CUTOFF)
+                if (!giveUp) {
+                    triggerReconnecting(true)
+                    delayedRetryJob?.cancel()
+                    delayedRetryJob = coroutineScope.launch {
+                        delay(retryDelayMs(streak.size))
+                        triggerReconnecting(false)
+                        videoPlayer.seekToDefaultPosition()
+                        videoPlayer.prepare()
+                        // 重试后也要重启加载超时 watchdog：同上，延迟重试
+                        // 直接调 ExoPlayer 的 prepare() 会绕过
+                        // triggerPrepared()，所以下面显式再调一次
+                        triggerPrepared()
+                    }
+                } else {
+                    prematureEndTimestamps = emptyList()
+                    triggerReconnecting(false)
+                    triggerError(PlaybackException.CUTOFF)
+                }
             }
 
             if (playbackState != Player.STATE_BUFFERING) {
@@ -633,6 +706,7 @@ class LeanbackMedia3VideoPlayer(
     override fun release() {
         delayedRetryJob?.cancel()
         delayedRetryJob = null
+        prematureEndTimestamps = emptyList()
         triggerReconnecting(false)
         updatePositionJob?.cancel()
         updatePositionJob = null
@@ -648,6 +722,7 @@ class LeanbackMedia3VideoPlayer(
         contentTypeAttempts.clear()
         behindLiveWindowRetries = 0
         ioErrorRetries = 0
+        prematureEndTimestamps = emptyList()
         delayedRetryJob?.cancel()
         delayedRetryJob = null
         triggerReconnecting(false)
