@@ -106,7 +106,14 @@ class LeanbackVideoPlayerState(
             if (error != null) onErrorListeners.forEach { it.invoke() }
 
         }
-        instance.onReady { onReadyListeners.forEach { it.invoke() } }
+        instance.onReady {
+            // 播起来了：慢启动时看门狗误报的 LOAD_TIMEOUT 不能继续挂着——
+            // 就绪前没有新的缓冲事件就不会走清错误那路，不在这里清，
+            // 播着的画面上会一直盖着“播放失败”，看着像卡死了
+            error = null
+            lastErrorCode = null
+            onReadyListeners.forEach { it.invoke() }
+        }
         instance.onBuffering { if (it) error = null }
         instance.onReconnecting { isReconnecting = it }
         instance.onPrepared { }

@@ -23,6 +23,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.util.EventLogger
 import kotlinx.coroutines.CoroutineScope
@@ -475,20 +477,21 @@ class LeanbackMedia3VideoPlayer(
                 if (shouldRetryBehindLiveWindow(ex.errorCode, behindLiveWindowRetries)) {
                     behindLiveWindowRetries++
                     triggerReconnecting(true)
+                    // 排队前先取消旧看门狗：退避等待里它还在跑，剩下的
+                    // 时间比退避短就先报一个假 LOAD_TIMEOUT（超时 5 秒时
+                    // 第 5 次 8 秒退避必撞）；重试开火后 triggerPrepared()
+                    // 会重新挂，这里取消不会漏掉超时判断
+                    cancelLoadTimeout()
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
                         delay(retryDelayMs(behindLiveWindowRetries))
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
-                        // 重试后也要重启加载超时 watchdog：triggerPrepared()
+                        // 重试后重启加载超时 watchdog：triggerPrepared()
                         // 只在 prepare() 里调，重试直接调 ExoPlayer 的
-                        // prepare() 会绕过它，所以下面显式再调一次。但重启
-                        // 发生在退避等完之后——等待期间旧 watchdog 还在跑，
-                        // 若它剩下的时间比本次退避短，就先报一个假
-                        // LOAD_TIMEOUT（超时 5 秒时第 5 次退避必撞：剩下的
-                        // 时间最多 5 秒、短于 8 秒；默认 15 秒时报错晚于
-                        // 7 秒才撞上第 5 次退避；壳 877 轮 P2-2 是旧机理）。
+                        // prepare() 会绕过它，所以下面显式再调一次；排队
+                        // 时旧看门狗已取消，等待里不会再报假超时
                         triggerPrepared()
                     }
                 } else {
@@ -510,18 +513,20 @@ class LeanbackMedia3VideoPlayer(
                 if (shouldRetryTransientIoError(ex.errorCode, ioErrorRetries)) {
                     ioErrorRetries++
                     triggerReconnecting(true)
+                    // 排队前先取消旧看门狗：同直播位置落后那路，退避等待
+                    // 里旧看门狗先到了会报假 LOAD_TIMEOUT；重试开火后
+                    // triggerPrepared() 会重新挂
+                    cancelLoadTimeout()
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
                         delay(retryDelayMs(ioErrorRetries))
                         triggerReconnecting(false)
                         videoPlayer.seekToDefaultPosition()
                         videoPlayer.prepare()
-                        // 重试后也要重启加载超时 watchdog：同上，延迟重试
+                        // 重试后重启加载超时 watchdog：同上，延迟重试
                         // 直接调 ExoPlayer 的 prepare() 会绕过
-                        // triggerPrepared()，所以下面显式再调一次。但重启
-                        // 发生在退避等完之后——等待期间旧 watchdog 还在跑，
-                        // 若它剩下的时间比本次退避短，就先报一个假
-                        // LOAD_TIMEOUT（壳 1036 轮同款）。
+                        // triggerPrepared()，所以下面显式再调一次；排队
+                        // 时旧看门狗已取消，等待里不会再报假超时
                         triggerPrepared()
                     }
                 } else {
@@ -611,6 +616,10 @@ class LeanbackMedia3VideoPlayer(
                 cancelCutoffTimeout()
                 if (!giveUp) {
                     triggerReconnecting(true)
+                    // 排队前取消旧看门狗：同延迟重试那两路——重试开火后
+                    // triggerPrepared() 挂的新看门狗可能还在跑，退避等待
+                    // 里它先到了会报假 LOAD_TIMEOUT；开火后会重新挂
+                    cancelLoadTimeout()
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
                         delay(prematureEndRetryDelayMs(streak.size))
@@ -643,6 +652,17 @@ class LeanbackMedia3VideoPlayer(
     }
 
     private val metadataListener = @UnstableApi object : AnalyticsListener {
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) {
+            // 一次加载完成就是进展：SCF 慢启动时列表/分片陆续到货，
+            // 看门狗该续命而不是报超时；续命的总上限和误报清理都在
+            // 基类里决策，这里只传“有进展”这个事实
+            notifyLoadProgress()
+        }
+
         override fun onVideoInputFormatChanged(
             eventTime: AnalyticsListener.EventTime,
             format: Format,

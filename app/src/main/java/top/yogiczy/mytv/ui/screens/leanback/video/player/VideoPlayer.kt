@@ -9,12 +9,46 @@ import kotlinx.coroutines.launch
 import top.yogiczy.mytv.ui.utils.SP
 import top.yogiczy.mytv.utils.Loggable
 
+/**
+ * 加载超时看门狗该不该因“有数据在流动”而续命：从这次准备起的总耗
+ * 时还没超过总上限（加载超时的 MAX_LOAD_TIMEOUT_TOTAL_MULTIPLIER 倍）
+ * 就续，超过就不续——细流式卡住的源（几秒一个小包、永远播不起来）
+ * 不能靠续命无限拖下去，总上限一到看门狗照样报超时换线路；正常慢
+ * 启动（SCF 现取票据 + 列表 + 分片，第一帧 20–30 秒才到）都在上限
+ * 内，能续到播起来。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun shouldRestartLoadTimeout(
+    elapsedSincePrepareMs: Long,
+    timeoutMs: Long,
+): Boolean =
+    elapsedSincePrepareMs < timeoutMs * LeanbackVideoPlayer.MAX_LOAD_TIMEOUT_TOTAL_MULTIPLIER
+
 abstract class LeanbackVideoPlayer(
     private val coroutineScope: CoroutineScope,
 ) : Loggable() {
     private var loadTimeoutJob: Job? = null
     private var cutoffTimeoutJob: Job? = null
     private var currentPosition = -1L
+
+    /**
+     * 本轮加载超时计时的起点（triggerPrepared 时记）：加载有进展时
+     * 看门狗续命要按它算总耗时，超过总上限就不续了（见
+     * shouldRestartLoadTimeout）
+     */
+    private var loadTimeoutStartedAtMs: Long = 0L
+
+    companion object {
+        /**
+         * 加载超时看门狗续命的总上限倍数：从一次 prepare 起，有进展
+         * 的续命最多把总等待拉到加载超时的 3 倍（默认 15 秒 ×3 = 45 秒
+         * 内还允许续命，再往后看门狗照样报超时）。3 倍不是拍脑袋：
+         * SCF 现取票据的 302 回包实测最慢 10 秒出头，再加列表和分片、
+         * 平板弱网弱 SoC，第一帧 20–30 秒才到是正常慢启动；45 秒窗
+         * 口足够盖住它，又不至于让细流式卡住的源无限拖下去
+         */
+        const val MAX_LOAD_TIMEOUT_TOTAL_MULTIPLIER = 3
+    }
 
     protected var metadata = Metadata()
 
@@ -117,12 +151,52 @@ abstract class LeanbackVideoPlayer(
     protected fun triggerPrepared(timeoutMs: Long = SP.videoPlayerLoadTimeout) {
         onPreparedListeners.forEach { it() }
         loadTimeoutJob?.cancel()
+        loadTimeoutStartedAtMs = System.currentTimeMillis()
         loadTimeoutJob = coroutineScope.launch {
             delay(timeoutMs)
             triggerError(PlaybackException.LOAD_TIMEOUT)
         }
         cutoffTimeoutJob?.cancel()
         cutoffTimeoutJob = null
+    }
+
+    /**
+     * 加载有进展（一次加载完成）：数据在流动就不是失败，给看门狗续命。
+     * 慢启动的源（SCF 现取票据 302 实测最慢 10 秒出头，再加列表和分
+     * 片）按老写法 15 秒必报 LOAD_TIMEOUT——看门狗只认“准备后多久
+     * 没就绪”，不管加载有没有进展；续命后只有“超过总上限还播不起来”
+     * 才报超时，和其它播放器的行为一致。续命时顺手清掉之前误报的超
+     * 时显示：数据都流过来了，“播放失败”再挂着就是错的。
+     * 只有看门狗还挂着时才续：就绪后分片加载还会一直回调，那时续命
+     * 等于把已取消的看门狗重新挂起来，播稳后断流就乱套了（断流归
+     * cutoff 计时管）。总上限外的进展不续：细流式卡住的源不能靠
+     * 零星加载无限续命（见 shouldRestartLoadTimeout）。
+     * 超时可传参、默认读设置里的加载超时，和 triggerPrepared 同一个
+     * 写法，单测传个短超时就能验续命逻辑，不用碰 SP
+     */
+    protected fun notifyLoadProgress(timeoutMs: Long = SP.videoPlayerLoadTimeout) {
+        if (loadTimeoutJob?.isActive != true) return
+        val elapsedMs = System.currentTimeMillis() - loadTimeoutStartedAtMs
+        if (!shouldRestartLoadTimeout(elapsedMs, timeoutMs)) return
+        loadTimeoutJob?.cancel()
+        loadTimeoutJob = coroutineScope.launch {
+            delay(timeoutMs)
+            triggerError(PlaybackException.LOAD_TIMEOUT)
+        }
+        // 有进展就不是失败：清掉之前误报的超时显示（空错误只清显示，
+        // 不触发换线那路，见 triggerError）
+        triggerError(null)
+    }
+
+    /**
+     * 取消加载超时看门狗：延迟重试排队时旧看门狗还在跑，退避没等完
+     * 它先到了就报一个假 LOAD_TIMEOUT；排队时直接取消，重试开火后
+     * triggerPrepared() 会重新挂，不会漏掉超时判断。释放/真报错那路
+     * 已有各自的取消，这里只给延迟重试排队用
+     */
+    protected fun cancelLoadTimeout() {
+        loadTimeoutJob?.cancel()
+        loadTimeoutJob = null
     }
 
     /**
