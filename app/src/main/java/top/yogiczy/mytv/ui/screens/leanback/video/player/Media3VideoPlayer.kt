@@ -460,6 +460,27 @@ class LeanbackMedia3VideoPlayer(
         updatePositionJob = null
     }
 
+    /**
+     * 重连时用全新媒体源重备：同一条线路重试不能只调
+     * videoPlayer.prepare()——它复用旧媒体源，旧列表里的分片签名
+     * 已过期（SCF 中继的票据几分钟就失效，分片 403/404），重试几次
+     * 都还是同一个错、白白烧掉 5 次预算、屏幕上“正在重连…”闪个不停。
+     * 按当前地址新建一个媒体源（prepare(uri) 会重新拉一次列表拿新
+     * 票据、并重启加载超时 watchdog），再播。当前地址拿不到时回退到
+     * 旧做法（同源重备），不让重连直接断掉。调用方在退避等待后调，
+     * 不在这里等。
+     */
+    private fun reprepareFresh() {
+        val uri = videoPlayer.currentMediaItem?.localConfiguration?.uri
+        if (uri != null) {
+            prepare(uri)
+        } else {
+            videoPlayer.seekToDefaultPosition()
+            videoPlayer.prepare()
+            triggerPrepared()
+        }
+    }
+
     private val playerListener = object : Player.Listener {
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             triggerResolution(videoSize.width, videoSize.height)
@@ -486,13 +507,10 @@ class LeanbackMedia3VideoPlayer(
                     delayedRetryJob = coroutineScope.launch {
                         delay(retryDelayMs(behindLiveWindowRetries))
                         triggerReconnecting(false)
-                        videoPlayer.seekToDefaultPosition()
-                        videoPlayer.prepare()
-                        // 重试后重启加载超时 watchdog：triggerPrepared()
-                        // 只在 prepare() 里调，重试直接调 ExoPlayer 的
-                        // prepare() 会绕过它，所以下面显式再调一次；排队
-                        // 时旧看门狗已取消，等待里不会再报假超时
-                        triggerPrepared()
+                        // 全新媒体源重备（见 reprepareFresh）：旧列表已过期，
+                        // 同源重备拉到的还是过期分片；新源重新拉列表拿新票据。
+                        // prepare(uri) 里已重启加载超时 watchdog，不再另调。
+                        reprepareFresh()
                     }
                 } else {
                     behindLiveWindowRetries = 0
@@ -521,13 +539,10 @@ class LeanbackMedia3VideoPlayer(
                     delayedRetryJob = coroutineScope.launch {
                         delay(retryDelayMs(ioErrorRetries))
                         triggerReconnecting(false)
-                        videoPlayer.seekToDefaultPosition()
-                        videoPlayer.prepare()
-                        // 重试后重启加载超时 watchdog：同上，延迟重试
-                        // 直接调 ExoPlayer 的 prepare() 会绕过
-                        // triggerPrepared()，所以下面显式再调一次；排队
-                        // 时旧看门狗已取消，等待里不会再报假超时
-                        triggerPrepared()
+                        // 全新媒体源重备（见 reprepareFresh）：403/404 是票据
+                        // 过期，旧源重备拉到的还是过期分片；新源重新拉列表
+                        // 拿新票据。prepare(uri) 里已重启加载超时 watchdog。
+                        reprepareFresh()
                     }
                 } else {
                     ioErrorRetries = 0
@@ -624,12 +639,10 @@ class LeanbackMedia3VideoPlayer(
                     delayedRetryJob = coroutineScope.launch {
                         delay(prematureEndRetryDelayMs(streak.size))
                         triggerReconnecting(false)
-                        videoPlayer.seekToDefaultPosition()
-                        videoPlayer.prepare()
-                        // 重试后也要重启加载超时 watchdog：同上，延迟重试
-                        // 直接调 ExoPlayer 的 prepare() 会绕过
-                        // triggerPrepared()，所以下面显式再调一次
-                        triggerPrepared()
+                        // 全新媒体源重备（见 reprepareFresh）：每次都是 SCF
+                        // 现取新票据的新连接；新源重新拉列表，旧源重备可
+                        // 能复用已过期的票据。prepare(uri) 里已重启 watchdog。
+                        reprepareFresh()
                     }
                 } else {
                     prematureEndTimestamps = emptyList()
