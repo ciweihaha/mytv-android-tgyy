@@ -226,6 +226,124 @@ class MainContentAutoRetuneTest {
     }
 
     @Test
+    fun `重解析同名频道先认同组——别组同名台不抢线`() {
+        val current = Iptv(
+            name = "CCTV-1",
+            channelName = "cctv1",
+            urlList = listOf("https://old.example/cctv1-a.m3u8"),
+        )
+        val fresh = IptvGroupList(
+            listOf(
+                IptvGroup(
+                    name = "央视",
+                    iptvList = IptvList(
+                        listOf(
+                            Iptv(
+                                name = "CCTV-1",
+                                channelName = "cctv1",
+                                urlList = listOf("https://a.example/cctv1.m3u8"),
+                            ),
+                        ),
+                    ),
+                ),
+                IptvGroup(
+                    name = "卫视",
+                    iptvList = IptvList(
+                        listOf(
+                            Iptv(
+                                name = "CCTV-1",
+                                channelName = "cctv1",
+                                urlList = listOf("https://b.example/cctv1.m3u8"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        // 不传分组名是老行为：全表 firstOrNull 拿到央视那条
+        assertEquals("https://a.example/cctv1.m3u8", resolveFreshChannelUrl(current, 0, fresh))
+        // 传了分组名就只在同组里找，不会被别组同名台抢走
+        assertEquals(
+            "https://b.example/cctv1.m3u8",
+            resolveFreshChannelUrl(current, 0, fresh, "卫视"),
+        )
+        assertEquals(
+            "https://a.example/cctv1.m3u8",
+            resolveFreshChannelUrl(current, 0, fresh, "央视"),
+        )
+    }
+
+    @Test
+    fun `重解析分组名不在新列表里回退全局`() {
+        val current = Iptv(
+            name = "CCTV-1",
+            channelName = "cctv1",
+            urlList = listOf("https://old.example/cctv1.m3u8"),
+        )
+        val fresh = IptvGroupList(
+            listOf(
+                IptvGroup(
+                    name = "其他",
+                    iptvList = IptvList(
+                        listOf(
+                            Iptv(
+                                name = "CCTV-1",
+                                channelName = "cctv1",
+                                urlList = listOf("https://x.example/cctv1.m3u8"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assertEquals(
+            "https://x.example/cctv1.m3u8",
+            resolveFreshChannelUrl(current, 0, fresh, "央视"),
+        )
+    }
+
+    @Test
+    fun `重解析组内按 channelName 兜底——不越组找同名台`() {
+        val current = Iptv(
+            name = "河南卫视",
+            channelName = "henanws",
+            urlList = listOf("https://old.example/henanws.m3u8"),
+        )
+        val fresh = IptvGroupList(
+            listOf(
+                IptvGroup(
+                    name = "央视",
+                    iptvList = IptvList(
+                        listOf(
+                            Iptv(
+                                name = "河南卫视",
+                                channelName = "other",
+                                urlList = listOf("https://a.example/henanws.m3u8"),
+                            ),
+                        ),
+                    ),
+                ),
+                IptvGroup(
+                    name = "卫视",
+                    iptvList = IptvList(
+                        listOf(
+                            Iptv(
+                                name = "河南卫视高清",
+                                channelName = "henanws",
+                                urlList = listOf("https://b.example/henanws.m3u8"),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        assertEquals(
+            "https://b.example/henanws.m3u8",
+            resolveFreshChannelUrl(current, 0, fresh, "卫视"),
+        )
+    }
+
+    @Test
     fun `retuneUrl 有新地址用新地址`() {
         assertEquals(
             "https://scf.example/new.m3u8",

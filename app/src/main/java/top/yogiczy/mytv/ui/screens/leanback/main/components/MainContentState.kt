@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
+import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvGroupIdx
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
 import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
@@ -90,14 +91,21 @@ internal fun shouldAutoRetuneAfterExhaustion(errorCode: Int?): Boolean =
  * 频道名不变；先按 name 找，找不到再按 channelName（节目单用的名）
  * 兜底。取它同一下标的地址——下标对不上（新列表里这台的线变少了）
  * 或频道没了就返回 null，重解析失败，走旧地址重调、再失败正常上报。
- * 顶层函数方便单元测试直接调用。
+ * 先在当前分组里找：两个分组里常有同名不同地址的台（如两个分组里
+ * 都有“CCTV-1”），全表 firstOrNull 会拿到别组那条线；分组名在新
+ * 列表里找不到（源改了分组名）才回退到全表找。groupName 为空时不
+ * 按分组找。顶层函数方便单元测试直接调用。
  */
 internal fun resolveFreshChannelUrl(
     current: Iptv,
     urlIdx: Int,
     freshGroupList: IptvGroupList,
+    groupName: String? = null,
 ): String? {
-    val fresh = freshGroupList.iptvList.firstOrNull {
+    val scope = groupName?.takeIf { it.isNotBlank() }?.let { name ->
+        freshGroupList.firstOrNull { it.name == name }?.iptvList
+    } ?: freshGroupList.iptvList
+    val fresh = scope.firstOrNull {
         it.name == current.name ||
             (current.channelName.isNotBlank() && it.channelName == current.channelName)
     } ?: return null
@@ -114,18 +122,24 @@ internal fun retuneUrl(currentUrl: String, freshUrl: String?): String =
 
 /**
  * 默认的重解析：重新拉一次直播源（绕过 1 小时文件缓存，cacheTime = 0
- * 强制刷新）再解析，在新列表里找当前频道这条线的地址。拉不到、解析
- * 失败、频道没了都返回 null——调用方用旧地址重调、再失败正常上报，
- * 不在这里抛错。顶层 suspend 函数，单测传假实现替换。
+ * 强制刷新）再解析，在新列表里找当前频道这条线的地址。groupName 是
+ * 当前频道在旧列表里的分组名，新列表里先在同组找、组名没了再全表找；
+ * 为空时不按分组找。拉不到、解析失败、频道没了都返回 null——调用方
+ * 用旧地址重调、再失败正常上报，不在这里抛错。顶层 suspend 函数，
+ * 单测传假实现替换。
  */
-internal suspend fun defaultResolveFreshChannelUrl(iptv: Iptv, urlIdx: Int): String? {
+internal suspend fun defaultResolveFreshChannelUrl(
+    iptv: Iptv,
+    urlIdx: Int,
+    groupName: String? = null,
+): String? {
     return try {
         val freshGroupList = IptvRepository().getIptvGroupList(
             sourceUrl = SP.iptvSourceUrl,
             cacheTime = 0L,
             simplify = SP.iptvSourceSimplify,
         )
-        resolveFreshChannelUrl(iptv, urlIdx, freshGroupList)
+        resolveFreshChannelUrl(iptv, urlIdx, freshGroupList, groupName)
     } catch (_: Exception) {
         null
     }
@@ -145,8 +159,9 @@ class LeanbackMainContentState(
     /**
      * 重调前重解析频道地址拿新链接：默认走真的重拉（绕过缓存再拉一次
      * 直播源）；单测传假实现。返回 null 表示重解析失败，用旧地址重调。
+     * 第三个参数是当前频道在旧列表里的分组名，新列表里先在同组找。
      */
-    private val resolveFreshUrl: (suspend (Iptv, Int) -> String?) = ::defaultResolveFreshChannelUrl,
+    private val resolveFreshUrl: (suspend (Iptv, Int, String?) -> String?) = ::defaultResolveFreshChannelUrl,
 ) : Loggable() {
     companion object {
         /**
@@ -368,8 +383,12 @@ class LeanbackMainContentState(
             // 一次直播源再解析，拿到新地址再播。解析不到（拉取失败、
             // 频道没了）就用旧地址重调一次，再失败正常上报、不循环
             val oldUrl = _currentIptv.urlList.getOrNull(urlIdx).orEmpty()
+            // 当前频道在旧列表里的分组：两个分组里常有同名不同地址的台，
+            // 重解析只在同组里找，找不到组名（源改了分组名、或频道已不在
+            // 旧列表里）才全表找；iptvGroupIdx 找不到回 -1，组名取 null
+            val groupName = iptvGroupList.getOrNull(iptvGroupList.iptvGroupIdx(iptv))?.name
             val freshUrl = try {
-                resolveFreshUrl(iptv, urlIdx)
+                resolveFreshUrl(iptv, urlIdx, groupName)
             } catch (_: Exception) {
                 null
             }
