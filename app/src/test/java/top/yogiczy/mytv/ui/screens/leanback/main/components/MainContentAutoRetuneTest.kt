@@ -70,12 +70,20 @@ class MainContentAutoRetuneTest {
     }
 
     @Test
-    fun `加载超时和断流不自动重调`() {
-        assertFalse(
+    fun `加载超时耗尽后自动重调——冷启动第一次拉流慢撞上看门狗`() {
+        // 看门狗 30 秒一到直接上报，播放器不做内部重试；冷启动第
+        // 一次拉流慢（SCF 302 可达 10 秒 + 首个分片慢）很容易撞
+        // 上，不重调就挂死、用户只能退出重进。重调一次（那时网络
+        // 已热）大多能播起来；同一轮失败只重调一次，再失败就报错
+        assertTrue(
             shouldAutoRetuneAfterExhaustion(
                 LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT.errorCode,
             ),
         )
+    }
+
+    @Test
+    fun `断流不自动重调`() {
         assertFalse(
             shouldAutoRetuneAfterExhaustion(
                 LeanbackVideoPlayer.PlaybackException.CUTOFF.errorCode,

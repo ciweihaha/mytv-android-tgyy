@@ -252,16 +252,19 @@ class LeanbackMedia3VideoPlayer(
         context,
         DefaultRenderersFactory(context).setExtensionRendererMode(EXTENSION_RENDERER_MODE_ON)
     ).setLoadControl(
-        // 缓冲加够：凤凰流速约 1Mbps 偏紧，默认开播只攒 2.5 秒、重缓冲
-        // 只攒 5 秒就续播，稍一慢就又卡住；开播攒 5 秒、重缓冲攒 10 秒
-        // 再续播，给慢分片留缓冲余量。min/max 缓冲沿用 ExoPlayer
-        // 默认（50 秒）。
+        // 开播/重缓冲的等待别太长：直播流是实时到的（凤凰约 1Mbps，
+        // 到的和播的速度差不多），攒缓冲只能按实时速度攒——重缓冲
+        // 要攒 10 秒就等于冻住约 8 秒才续播，卡一下变卡半天；HLS
+        // 也不吃亏（按整段加载，一段 6–11 秒，攒够 3 秒就是等到第
+        // 一段到货）。开播攒 2 秒、重缓冲攒 3 秒就续播，冻住短；
+        // 真正的缓冲余量靠 min 缓冲（50 秒）续播后在后台继续攒，
+        // 不是靠续播门槛。min/max 缓冲沿用 ExoPlayer 默认（50 秒）。
         DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
                 DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
-                5_000,
-                10_000,
+                BUFFER_FOR_PLAYBACK_MS,
+                BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
             )
             .build()
     ).build().apply {
@@ -337,6 +340,21 @@ class LeanbackMedia3VideoPlayer(
          * 偶尔一次源抖不和旧记录叠加，免得播得越久越容易被判死刑
          */
         const val PREMATURE_END_RETRY_WINDOW_MS = 60_000L
+
+        /**
+         * 开播前要攒的缓冲：2 秒。直播流是实时到的，攒 5 秒要等约 4 秒
+         * 才开播；2 秒够起播，起播后 min 缓冲在后台继续攒。
+         */
+        const val BUFFER_FOR_PLAYBACK_MS = 2_000
+
+        /**
+         * 重缓冲后要攒的缓冲：3 秒。凤凰这类约 1Mbps 的实时流，攒
+         * 10 秒等于冻住约 8 秒才续播；3 秒约冻 2.5 秒就续播。HLS
+         * 按整段加载（一段 6–11 秒），攒 3 秒就是等到第一段到货，
+         * 不吃亏。真正的缓冲余量靠 min 缓冲（50 秒）续播后在后台
+         * 继续攒，不是靠续播门槛。
+         */
+        const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = 3_000
 
         /**
          * P7：SSLContext 只建一次：首次建时 SSLContext.init 配全新
