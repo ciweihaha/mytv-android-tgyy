@@ -13,6 +13,16 @@ jobs:
       - name: 代码迁出
         uses: actions/checkout@v7
 
+      # Compose 1.13.0 要求 compileSdk 37.1+：runner 自带 SDK 未必有
+      # android-37.2 平台，缺了就现装，有了就跳过。
+      - name: 安装 Android 37.2 平台（缺了才装）
+        run: |
+          if [ ! -d "$ANDROID_HOME/platforms/android-37.2" ]; then
+            echo y | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2"
+          else
+            echo "android-37.2 已有，跳过"
+          fi
+
       # 第 2144 轮：tag 版本必须与代码里的 versionName 一致才放行。
       # v2.2.23 的教训：tag 打在 ec40633a 上，但那笔代码的 versionName
       # 还是 2.2.22，流水线原样构建、只改了文件名——装上"2.2.23"的

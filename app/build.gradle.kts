@@ -17,14 +17,22 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "top.yogiczy.mytv"
-    compileSdk = 37
+    // Compose 1.13.0（BOM 2026.11.01）要求 compileSdk 37.1+：
+    // AGP 9.x 的新写法，37.2 = release(37) + minorApiLevel 2。
+    // targetSdk 仍是 37（只改编译期 API，不改运行时行为），
+    // minSdk 仍是 24，平板 Android 7.0 不受影响。
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     defaultConfig {
         applicationId = "top.yogiczy.mytv"
         minSdk = 24
         targetSdk = 37
-        versionCode = 30
-        versionName = "2.2.37"
+        versionCode = 31
+        versionName = "2.2.38"
 
         vectorDrawables {
             useSupportLibrary = true
