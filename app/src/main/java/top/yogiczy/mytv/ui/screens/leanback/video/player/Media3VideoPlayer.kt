@@ -17,6 +17,7 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DecoderReuseEvaluation
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
 import androidx.media3.exoplayer.ExoPlayer
@@ -250,6 +251,19 @@ class LeanbackMedia3VideoPlayer(
     private val videoPlayer = ExoPlayer.Builder(
         context,
         DefaultRenderersFactory(context).setExtensionRendererMode(EXTENSION_RENDERER_MODE_ON)
+    ).setLoadControl(
+        // 缓冲加够：凤凰流速约 1Mbps 偏紧，默认开播只攒 2.5 秒、重缓冲
+        // 只攒 5 秒就续播，稍一慢就又卡住；开播攒 5 秒、重缓冲攒 10 秒
+        // 再续播，给慢分片留缓冲余量。min/max 缓冲沿用 ExoPlayer
+        // 默认（50 秒）。
+        DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+                DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                5_000,
+                10_000,
+            )
+            .build()
     ).build().apply {
         playWhenReady = true
     }
@@ -497,7 +511,10 @@ class LeanbackMedia3VideoPlayer(
                 // 上限（5 次）才再试一次；到上限才上报原始错误走换线
                 if (shouldRetryBehindLiveWindow(ex.errorCode, behindLiveWindowRetries)) {
                     behindLiveWindowRetries++
-                    triggerReconnecting(true)
+                    // 内部重试只显示缓冲、不弹“正在重连…”：中继变慢时
+                    // 这类重试很频繁，弹重连会让用户觉得一直在断线；
+                    // 只有上层自动重调（重拉新链接）才显示“正在重连…”
+                    triggerBuffering(true)
                     // 排队前先取消旧看门狗：退避等待里它还在跑，剩下的
                     // 时间比退避短就先报一个假 LOAD_TIMEOUT（超时 5 秒时
                     // 第 5 次 8 秒退避必撞）；重试开火后 triggerPrepared()
@@ -506,7 +523,6 @@ class LeanbackMedia3VideoPlayer(
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
                         delay(retryDelayMs(behindLiveWindowRetries))
-                        triggerReconnecting(false)
                         // 全新媒体源重备（见 reprepareFresh）：旧列表已过期，
                         // 同源重备拉到的还是过期分片；新源重新拉列表拿新票据。
                         // prepare(uri) 里已重启加载超时 watchdog，不再另调。
@@ -530,7 +546,8 @@ class LeanbackMedia3VideoPlayer(
             else if (isTransientIoError(ex.errorCode)) {
                 if (shouldRetryTransientIoError(ex.errorCode, ioErrorRetries)) {
                     ioErrorRetries++
-                    triggerReconnecting(true)
+                    // 同位置落后那路：内部重试只显示缓冲、不弹“正在重连…”
+                    triggerBuffering(true)
                     // 排队前先取消旧看门狗：同直播位置落后那路，退避等待
                     // 里旧看门狗先到了会报假 LOAD_TIMEOUT；重试开火后
                     // triggerPrepared() 会重新挂
@@ -538,7 +555,6 @@ class LeanbackMedia3VideoPlayer(
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
                         delay(retryDelayMs(ioErrorRetries))
-                        triggerReconnecting(false)
                         // 全新媒体源重备（见 reprepareFresh）：403/404 是票据
                         // 过期，旧源重备拉到的还是过期分片；新源重新拉列表
                         // 拿新票据。prepare(uri) 里已重启加载超时 watchdog。
@@ -630,7 +646,11 @@ class LeanbackMedia3VideoPlayer(
                 prematureEndTimestamps = streak
                 cancelCutoffTimeout()
                 if (!giveUp) {
-                    triggerReconnecting(true)
+                    // 内部重拉只显示缓冲、不弹“正在重连…”：凤凰 FLV
+                    // 每条连接几秒就断，重拉是常态；弹重连会让用户觉得
+                    // 一直在断线。缓冲由播放器状态（BUFFERING/READY）
+                    // 接管，重拉开火后会自动续上
+                    triggerBuffering(true)
                     // 排队前取消旧看门狗：同延迟重试那两路——重试开火后
                     // triggerPrepared() 挂的新看门狗可能还在跑，退避等待
                     // 里它先到了会报假 LOAD_TIMEOUT；开火后会重新挂
@@ -638,7 +658,6 @@ class LeanbackMedia3VideoPlayer(
                     delayedRetryJob?.cancel()
                     delayedRetryJob = coroutineScope.launch {
                         delay(prematureEndRetryDelayMs(streak.size))
-                        triggerReconnecting(false)
                         // 全新媒体源重备（见 reprepareFresh）：每次都是 SCF
                         // 现取新票据的新连接；新源重新拉列表，旧源重备可
                         // 能复用已过期的票据。prepare(uri) 里已重启 watchdog。

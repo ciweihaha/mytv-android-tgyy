@@ -295,9 +295,14 @@ object SP {
         }
         set(value) = sp.edit().putString(KEY.VIDEO_PLAYER_USER_AGENT.name, value).apply()
 
-    /** 播放器 加载超时 */
+    /**
+     * 播放器 加载超时：v2.2.36 起默认 30 秒（原 15 秒）。已装设备若之前
+     * 存过旧默认值 15 秒（设置里没改过、只是默认值被写盘），按新默认
+     * 30 秒算——15 秒是旧默认档，不是用户主动选的值，不算覆盖用户选择。
+     */
     var videoPlayerLoadTimeout: Long
         get() = sp.getLong(KEY.VIDEO_PLAYER_LOAD_TIMEOUT.name, Constants.VIDEO_PLAYER_LOAD_TIMEOUT)
+            .let { if (it == 15_000L) Constants.VIDEO_PLAYER_LOAD_TIMEOUT else it }
         set(value) = sp.edit().putLong(KEY.VIDEO_PLAYER_LOAD_TIMEOUT.name, value).apply()
 
     /** 播放器 画面比例 */

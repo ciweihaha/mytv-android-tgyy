@@ -83,9 +83,14 @@ object Constants {
     const val LOG_HISTORY_MAX_SIZE = 50
 
     /**
-     * 播放器加载超时
+     * 播放器加载超时：加载看门狗、断流（位置冻住）计时、HTTP 连接/读取
+     * 超时共用。SCF 中继现取票据 + 列表 + 分片实测 2–6 秒、慢时 9 秒多，
+     * 15 秒档下单次慢请求 + 几次抖动就撞线、误报 LOAD_TIMEOUT/CUTOFF
+     * 触发重连；30 秒档给慢中继留足余量，仍能在一个窗口内发现真死源
+     * （看门狗续命总上限 3 倍 = 90 秒）。已存的旧值 15 秒由 SP 读取时
+     * 迁移到新默认（见 SP.videoPlayerLoadTimeout）。
      */
-    const val VIDEO_PLAYER_LOAD_TIMEOUT = 1000L * 15 // 15秒
+    const val VIDEO_PLAYER_LOAD_TIMEOUT = 1000L * 30 // 30秒
 
     /**
      * 界面 超时未操作自动关闭界面
