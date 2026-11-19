@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.media3.common.PlaybackException as Media3PlaybackException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -125,22 +126,27 @@ internal fun retuneUrl(currentUrl: String, freshUrl: String?): String =
  * 强制刷新）再解析，在新列表里找当前频道这条线的地址。groupName 是
  * 当前频道在旧列表里的分组名，新列表里先在同组找、组名没了再全表找；
  * 为空时不按分组找。拉不到、解析失败、频道没了都返回 null——调用方
- * 用旧地址重调、再失败正常上报，不在这里抛错。顶层 suspend 函数，
- * 单测传假实现替换。
+ * 用旧地址重调、再失败正常上报，不在这里抛错；取消信号
+ * （CancellationException）原样抛出、不吞掉——解析中退出界面或切台
+ * 取消时任务直接死，不再调 changeCurrentIptv。顶层 suspend 函数，
+ * fetch 参数单测传假实现替换。
  */
 internal suspend fun defaultResolveFreshChannelUrl(
     iptv: Iptv,
     urlIdx: Int,
     groupName: String? = null,
-): String? {
-    return try {
-        val freshGroupList = IptvRepository().getIptvGroupList(
+    fetch: suspend () -> IptvGroupList = {
+        IptvRepository().getIptvGroupList(
             sourceUrl = SP.iptvSourceUrl,
             cacheTime = 0L,
             simplify = SP.iptvSourceSimplify,
         )
-        resolveFreshChannelUrl(iptv, urlIdx, freshGroupList, groupName)
-    } catch (_: Exception) {
+    },
+): String? {
+    return try {
+        resolveFreshChannelUrl(iptv, urlIdx, fetch(), groupName)
+    } catch (e: Exception) {
+        if (e is CancellationException) throw e
         null
     }
 }
@@ -389,7 +395,9 @@ class LeanbackMainContentState(
             val groupName = iptvGroupList.getOrNull(iptvGroupList.iptvGroupIdx(iptv))?.name
             val freshUrl = try {
                 resolveFreshUrl(iptv, urlIdx, groupName)
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // 取消信号原样抛出：解析中退出界面时任务直接死，别吞掉继续重调
+                if (e is CancellationException) throw e
                 null
             }
             // 解析也要时间，解析完再认一次台：解析中切走了就不动

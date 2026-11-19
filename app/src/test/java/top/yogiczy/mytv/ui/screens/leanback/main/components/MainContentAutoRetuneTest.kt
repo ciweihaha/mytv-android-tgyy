@@ -1,10 +1,16 @@
 package top.yogiczy.mytv.ui.screens.leanback.main.components
 
 import androidx.media3.common.PlaybackException as Media3PlaybackException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroup
@@ -360,6 +366,43 @@ class MainContentAutoRetuneTest {
         assertEquals(
             "https://scf.example/old.m3u8",
             retuneUrl("https://scf.example/old.m3u8", ""),
+        )
+    }
+
+    // ---- 重解析：取消信号原样抛出，不吞掉 ----
+
+    @Test
+    fun `重解析解析中取消原样抛出——不吞 CancellationException`() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val deferred = async {
+            defaultResolveFreshChannelUrl(
+                Iptv(name = "河南卫视", urlList = listOf("https://old.example/a.m3u8")),
+                0,
+                fetch = {
+                    entered.complete(Unit)
+                    delay(Long.MAX_VALUE)
+                    IptvGroupList(emptyList())
+                },
+            )
+        }
+        entered.await()
+        deferred.cancel()
+        try {
+            deferred.await()
+            fail("取消信号被吞了：应抛 CancellationException 而不是返回 null")
+        } catch (_: CancellationException) {
+            // 预期：原样抛出
+        }
+    }
+
+    @Test
+    fun `重解析普通异常返回 null——取消除外`() = runBlocking {
+        assertNull(
+            defaultResolveFreshChannelUrl(
+                Iptv(name = "河南卫视", urlList = listOf("https://old.example/a.m3u8")),
+                0,
+                fetch = { throw RuntimeException("拉取失败") },
+            ),
         )
     }
 }
