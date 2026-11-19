@@ -17,6 +17,7 @@ import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvIdx
+import top.yogiczy.mytv.data.repositories.iptv.IptvRepository
 import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.ui.screens.leanback.video.LeanbackVideoPlayerState
 import top.yogiczy.mytv.ui.screens.leanback.video.player.LeanbackVideoPlayer
@@ -84,6 +85,52 @@ internal fun shouldAutoRetuneAfterExhaustion(errorCode: Int?): Boolean =
         errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
         errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
 
+/**
+ * 重解析后在新列表里找当前频道这条线的地址：同一份直播源重拉重解析，
+ * 频道名不变；先按 name 找，找不到再按 channelName（节目单用的名）
+ * 兜底。取它同一下标的地址——下标对不上（新列表里这台的线变少了）
+ * 或频道没了就返回 null，重解析失败，走旧地址重调、再失败正常上报。
+ * 顶层函数方便单元测试直接调用。
+ */
+internal fun resolveFreshChannelUrl(
+    current: Iptv,
+    urlIdx: Int,
+    freshGroupList: IptvGroupList,
+): String? {
+    val fresh = freshGroupList.iptvList.firstOrNull {
+        it.name == current.name ||
+            (current.channelName.isNotBlank() && it.channelName == current.channelName)
+    } ?: return null
+    return fresh.urlList.getOrNull(urlIdx)
+}
+
+/**
+ * 重调时用哪条地址：新解析到地址就用新地址，解析不到（null/空串）
+ * 就用旧地址重调一次、再失败正常上报。纯算式，抽出来方便单元测试
+ * 锁死两条分支。
+ */
+internal fun retuneUrl(currentUrl: String, freshUrl: String?): String =
+    freshUrl?.takeIf { it.isNotBlank() } ?: currentUrl
+
+/**
+ * 默认的重解析：重新拉一次直播源（绕过 1 小时文件缓存，cacheTime = 0
+ * 强制刷新）再解析，在新列表里找当前频道这条线的地址。拉不到、解析
+ * 失败、频道没了都返回 null——调用方用旧地址重调、再失败正常上报，
+ * 不在这里抛错。顶层 suspend 函数，单测传假实现替换。
+ */
+internal suspend fun defaultResolveFreshChannelUrl(iptv: Iptv, urlIdx: Int): String? {
+    return try {
+        val freshGroupList = IptvRepository().getIptvGroupList(
+            sourceUrl = SP.iptvSourceUrl,
+            cacheTime = 0L,
+            simplify = SP.iptvSourceSimplify,
+        )
+        resolveFreshChannelUrl(iptv, urlIdx, freshGroupList)
+    } catch (_: Exception) {
+        null
+    }
+}
+
 @Stable
 class LeanbackMainContentState(
     private val coroutineScope: CoroutineScope,
@@ -95,6 +142,11 @@ class LeanbackMainContentState(
      * 无播放地址的占位频道（源格式不支持的提示条目）也不回调。
      */
     private val onRecentChannel: (Iptv) -> Unit = {},
+    /**
+     * 重调前重解析频道地址拿新链接：默认走真的重拉（绕过缓存再拉一次
+     * 直播源）；单测传假实现。返回 null 表示重解析失败，用旧地址重调。
+     */
+    private val resolveFreshUrl: (suspend (Iptv, Int) -> String?) = ::defaultResolveFreshChannelUrl,
 ) : Loggable() {
     companion object {
         /**
@@ -305,11 +357,40 @@ class LeanbackMainContentState(
         autoRetuneJob = coroutineScope.launch {
             delay(AUTO_RETUNE_DELAY_MS)
             autoRetuneJob = null
-            videoPlayerState.isReconnecting = false
             // 等待中切走了就不再重调旧台
-            if (iptv == _currentIptv && urlIdx == _currentIptvUrlIdx) {
-                changeCurrentIptv(_currentIptv, _currentIptvUrlIdx)
+            if (iptv != _currentIptv || urlIdx != _currentIptvUrlIdx) {
+                videoPlayerState.isReconnecting = false
+                return@launch
             }
+            // 重调前重解析频道地址拿新链接：旧链接的票据可能已过期
+            // （河南卫视这类分片签名约 5 分钟就失效，之后分片时而
+            // 404 时而 200），一直用旧链接重试 5 次都白试；重新拉
+            // 一次直播源再解析，拿到新地址再播。解析不到（拉取失败、
+            // 频道没了）就用旧地址重调一次，再失败正常上报、不循环
+            val oldUrl = _currentIptv.urlList.getOrNull(urlIdx).orEmpty()
+            val freshUrl = try {
+                resolveFreshUrl(iptv, urlIdx)
+            } catch (_: Exception) {
+                null
+            }
+            // 解析也要时间，解析完再认一次台：解析中切走了就不动
+            if (iptv != _currentIptv || urlIdx != _currentIptvUrlIdx) {
+                videoPlayerState.isReconnecting = false
+                return@launch
+            }
+            videoPlayerState.isReconnecting = false
+            val targetUrl = retuneUrl(oldUrl, freshUrl)
+            if (targetUrl.isNotBlank() && targetUrl != oldUrl &&
+                urlIdx in _currentIptv.urlList.indices
+            ) {
+                // 只换地址、不算换台：先把新地址写回当前频道，再走
+                // 原来的重调那条路；这样 isNewChannel 为假，不记最
+                // 近观看，autoRetuneDone 也不重置，不会无限重调
+                _currentIptv = _currentIptv.copy(
+                    urlList = _currentIptv.urlList.toMutableList().also { it[urlIdx] = targetUrl },
+                )
+            }
+            changeCurrentIptv(_currentIptv, _currentIptvUrlIdx)
         }
     }
 
