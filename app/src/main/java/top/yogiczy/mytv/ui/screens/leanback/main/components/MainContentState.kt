@@ -30,7 +30,7 @@ import kotlin.math.max
 
 /**
  * 断流计数：同一条线路短时间内反复断流就放弃重备、走换线/报错。
- * 窗口按加载超时的 6 倍算（90 秒）：每个断流间隔约一个加载超时、
+ * 窗口按加载超时的 6 倍算（180 秒）：每个断流间隔约一个加载超时、
  * 至多不到两倍（再长加载超时先报了错，走的不是断流这条路），
  * 窗口外的旧断流先清掉——播稳一阵子后偶尔一次源抖不该和几小时前
  * 的记录叠加计数。顶层函数方便单元测试直接调用。
@@ -74,24 +74,18 @@ internal fun normalizeIptvUrlIdx(urlIdx: Int, urlCount: Int): Int =
     (urlIdx + urlCount) % urlCount
 
 /**
- * 重试耗尽后末条线路失败该不该自动重调同一频道：瞬时网络错
- * （2004/2001/2002）和直播位置落后这两类“重试型”错误会走到
- * 重试耗尽——播放器对它们先重试 5 次、耗尽才上报；加载超时也
- * 算：播放器对它不做内部重试（看门狗一到直接上报），冷启动第
- * 一次拉流慢（SCF 302 可达 10 秒 + 首个分片慢）很容易撞上
- * 30 秒看门狗，报错就挂死、用户只能退出重进——重调一次（那
- * 时网络已热）大多能播起来，正好就是用户手动做的事。其他错误
- * （解码、解析、DRM、CUTOFF）是直接判死刑或另有处理，重调同一
- * 条线大概率还是同一个错，不自动重调、直接显示错误。同一轮失
- * 败只重调一次（autoRetuneDone），再失败就显示错误，不循环。
+ * 重试耗尽后末条线路失败该不该自动重调同一频道：只有瞬时网络错
+ * （2004/2001/2002）和直播位置落后这两类“重试型”错误才会走到
+ * 重试耗尽——播放器对它们先重试 5 次、耗尽才上报；其他错误（解码、
+ * 解析、DRM、加载超时、CUTOFF）是直接判死刑或另有处理，重调同一条
+ * 线大概率还是同一个错，不自动重调、直接显示错误。
  * 顶层函数方便单元测试直接调用。
  */
 internal fun shouldAutoRetuneAfterExhaustion(errorCode: Int?): Boolean =
     errorCode == Media3PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
         errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
         errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-        errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
-        errorCode == LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT.errorCode
+        errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
 
 /**
  * 重解析后在新列表里找当前频道这条线的地址：同一份直播源重拉重解析，
