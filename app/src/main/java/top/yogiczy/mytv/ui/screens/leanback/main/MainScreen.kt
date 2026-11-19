@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.alexzhirkevich.qrose.options.QrBallShape
@@ -49,6 +53,22 @@ fun LeanbackMainScreen(
     mainViewModel: LeanbackMainViewModel = viewModel(),
 ) {
     val uiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+
+    // 回到前台时检查节目单：app 常驻不重启、切出去久了再回来，服务
+    // 端文件可能已更新、缓存里的节目也可能已播完；15 分钟内回来不
+    // 重复拉。只调 ViewModel 的检查入口，真拉不拉由它按间隔决定
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                mainViewModel.onForeground()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     when (val s = uiState) {
         is LeanbackMainUiState.Ready -> LeanbackMainContent(

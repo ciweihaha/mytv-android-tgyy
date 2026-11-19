@@ -2,6 +2,7 @@ package top.yogiczy.mytv.ui.screens.leanback.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -25,6 +26,7 @@ import top.yogiczy.mytv.data.utils.Constants
 import top.yogiczy.mytv.data.utils.HttpStatusException
 import top.yogiczy.mytv.data.utils.InvalidSourceUrlException
 import top.yogiczy.mytv.ui.utils.SP
+import top.yogiczy.mytv.utils.Logger
 
 /**
  * 节目单失败的收尾（写空节目单、删历史地址）要不要执行：只在状态还
@@ -69,7 +71,32 @@ internal fun shouldRetryLoadFailure(cause: Throwable): Boolean =
 internal fun shouldRemoveFailedUrlFromHistory(cause: Throwable): Boolean =
     !shouldRetryLoadFailure(cause)
 
+/**
+ * 节目单自动重拉间隔：服务端每天 05:32 左右出新文件，白天也可能
+ * 修正；app 常驻不重启时只靠启动那一次拉取，节目单会停在昨天。
+ * 每小时重拉一次，流量与服务端压力都可接受
+ */
+internal const val EPG_AUTO_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
+
+/**
+ * 回前台重拉的最小间隔：刚拉过就切出去、几秒回来不重复拉；离开
+ * 超过 15 分钟再回来，服务端文件可能已更新，重拉一次
+ */
+internal const val EPG_FOREGROUND_REFRESH_MIN_INTERVAL_MS = 15 * 60 * 1000L
+
+/**
+ * 回前台时要不要重拉节目单：距上次成功拉取超过最小间隔就拉。
+ * lastRefreshAt 为 0（还没成功拉过）时也返回 true，但调用方
+ * refreshEpgOnly 只在已 Ready 时才真拉，初始加载进行中不会
+ * 多拉一路。顶层函数方便单元测试直接调用。
+ */
+internal fun shouldRefreshEpgOnForeground(
+    lastRefreshAt: Long,
+    now: Long = System.currentTimeMillis(),
+): Boolean = now - lastRefreshAt >= EPG_FOREGROUND_REFRESH_MIN_INTERVAL_MS
+
 class LeanbackMainViewModel : ViewModel() {
+    private val log = Logger.create(javaClass.simpleName)
     private val iptvRepository = IptvRepository()
     private val epgRepository = EpgRepository()
 
@@ -78,6 +105,17 @@ class LeanbackMainViewModel : ViewModel() {
 
     private var refreshJob: Job? = null
 
+    // 节目单上次成功拉取的时间（毫秒）：定时重拉与回前台重拉都以它
+    // 为准算间隔；失败不更新，下次触发继续重试
+    private var lastEpgRefreshAt = 0L
+
+    // 每小时自动重拉的循环任务；单独一路，不碰直播源、不重置界面状态
+    private var epgAutoRefreshJob: Job? = null
+
+    // 正在跑的单次节目单重拉：定时与回前台可能撞上，跑着就跳过，
+    // 别并发两路写同一份缓存
+    private var epgRefreshJob: Job? = null
+
     // 刷新代号：每次 refresh() 加一。直播源与节目单拉取都是阻塞式网络
     // 调用（execute() 不响应取消），旧轮次取消后仍可能跑完；写状态前
     // 先对代号，过期轮次的结果一律丢弃，不盖掉新一轮的状态
@@ -85,6 +123,74 @@ class LeanbackMainViewModel : ViewModel() {
 
     init {
         refresh()
+        startEpgAutoRefresh()
+    }
+
+    /**
+     * 每小时自动重拉节目单：app 常驻不重启时，启动那一次拉取之后
+     * 再也没有刷新机会，节目单停在昨天；循环每隔一小时调一次
+     * refreshEpgOnly（强制刷新），失败只记日志、下个整点再试。
+     * viewModelScope 取消时循环随之结束
+     */
+    private fun startEpgAutoRefresh() {
+        epgAutoRefreshJob?.cancel()
+        epgAutoRefreshJob = viewModelScope.launch {
+            while (true) {
+                delay(EPG_AUTO_REFRESH_INTERVAL_MS)
+                refreshEpgOnly(forceRefresh = true)
+            }
+        }
+    }
+
+    /**
+     * 回到前台时调用（主界面 ON_RESUME）：距上次成功拉取超过 15
+     * 分钟就重拉一次节目单。短时间切出去再回来不重复拉；离开久了
+     * 再回来，服务端文件可能已更新、或缓存里的节目已播完，重拉
+     * 一次。只在已 Ready 时真拉，初始加载进行中直接跳过
+     */
+    fun onForeground() {
+        if (!shouldRefreshEpgOnForeground(lastEpgRefreshAt)) return
+        log.d("回前台，检查节目单是否需要刷新")
+        refreshEpgOnly(forceRefresh = true)
+    }
+
+    /**
+     * 只重拉节目单，不动直播源、不重置界面状态：定时与回前台两路
+     * 共用。getEpgList 自带过期判断（缓存不是今天、或里面没有正
+     * 在播的节目就刷新），强制刷新时连“今天且有节目”的缓存也重
+     * 拉——服务端文件每天更新，白天也可能修正。刷新失败只记日志、
+     * 沿用旧节目单，不写空、不报错，下次触发再试；中途用户切源
+     * （refresh() 另起新一轮）时，代号与快照检查会丢弃旧结果
+     */
+    private fun refreshEpgOnly(forceRefresh: Boolean) {
+        if (!SP.epgEnable) return
+        if (epgRefreshJob?.isActive == true) {
+            log.d("节目单正在刷新中，跳过本次自动刷新")
+            return
+        }
+        val readyState = _uiState.value as? LeanbackMainUiState.Ready ?: return
+        val generation = refreshGeneration
+        epgRefreshJob = viewModelScope.launch {
+            try {
+                val epgList = epgRepository.getEpgList(
+                    xmlUrl = SP.epgXmlUrl,
+                    filteredChannels = readyState.iptvGroupList.iptvList.flatMap {
+                        listOf(it.channelName, it.tvgId)
+                    }.filter { it.isNotBlank() },
+                    refreshTimeThreshold = SP.epgRefreshTimeThreshold,
+                    forceRefresh = forceRefresh,
+                )
+                if (generation != refreshGeneration) return@launch
+                if (_uiState.value === readyState) {
+                    _uiState.value = readyState.copy(epgList = epgList)
+                    lastEpgRefreshAt = System.currentTimeMillis()
+                    log.i("节目单自动刷新完成，共${epgList.size}个频道")
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                log.w("节目单自动刷新失败，沿用旧节目单", e)
+            }
+        }
     }
 
     /**
@@ -94,6 +200,7 @@ class LeanbackMainViewModel : ViewModel() {
      */
     fun refresh() {
         refreshJob?.cancel()
+        epgRefreshJob?.cancel()
         val generation = ++refreshGeneration
         refreshJob = viewModelScope.launch {
             _uiState.value = LeanbackMainUiState.Loading()
@@ -222,6 +329,7 @@ class LeanbackMainViewModel : ViewModel() {
                 // 丢弃，别往新状态上贴
                 if (_uiState.value === readyState) {
                     _uiState.value = readyState.copy(epgList = epgList)
+                    lastEpgRefreshAt = System.currentTimeMillis()
                     SP.epgXmlUrlHistoryList += SP.epgXmlUrl
                 }
             }

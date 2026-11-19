@@ -466,9 +466,19 @@ class EpgRepository : FileCacheRepository("epg.json") {
         refreshTimeThreshold: Int,
         prefetchedXml: String? = null,
         backupXmlUrl: String = Constants.EPG_XML_URL_BACKUP,
+        // 强制刷新：定时重拉（每小时）与回前台重拉时用。缓存是否“新鲜”
+        // 只看“同一天且有正在播的节目”——服务端每天 05:32 左右出新
+        // 文件、白天也可能修正，app 常驻不重启时同一天的缓存再新鲜
+        // 也是旧文件；强制刷新跳过“未到时间点直接用缓存”与“同天
+        // 有节目就不刷新”两道关，直接重新拉取。失败时 getOrRefresh
+        // 照常拿旧缓存顶上，不会把节目单刷空
+        forceRefresh: Boolean = false,
     ) = withContext(Dispatchers.Default) {
         try {
-            if (Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
+            if (forceRefresh) {
+                log.i("节目单强制刷新（定时/回前台），跳过缓存新鲜度判断")
+            }
+            if (!forceRefresh && Calendar.getInstance().get(Calendar.HOUR_OF_DAY) < refreshTimeThreshold) {
                 // 未到时间点不拉取，但缓存的节目单仍可用（源文件一般覆盖
                 // 多天，凌晨时段的节目多半在里面）：有缓存、且里面有正
                 // 在播的节目才直接返回，别直接给空——原先每天 0 点到阈值
@@ -490,6 +500,8 @@ class EpgRepository : FileCacheRepository("epg.json") {
             // 白走一趟完整编解码（约 400KB）；只有缓存命中路径才走 JSON 解码
             var parsedOnRefresh: EpgList? = null
             val xmlJson = getOrRefresh({ lastModified, cacheData ->
+                // 强制刷新时缓存一律算过期：直接重新拉取，不读旧缓存
+                if (forceRefresh) return@getOrRefresh true
                 // 同天但解不开的缓存也算过期：截断的缓存若只按日期判
                 // “未过期”，下面解码失败会直接给空节目单、要等隔天才
                 // 恢复；解不开就刷新——上面“未到时间点”那条分支也是

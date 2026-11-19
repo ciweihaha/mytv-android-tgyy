@@ -1657,6 +1657,97 @@ class EpgRepositoryTest {
     }
 
     @Test
+    fun `getEpgList with forceRefresh refetches even when cache is fresh today`() = runBlocking {
+        // 自动刷新的核心：缓存是今天的、里面还有正在播的节目时，
+        // 不强制刷新 getEpgList 直接用缓存——app 常驻不重启，服务
+        // 端文件每天更新也永远拉不到。forceRefresh 要跳过这道关、
+        // 真去拉主源。主源走本地服务回正在播的新节目，备用源写
+        // discard 端口：主源有正在播的节目时备用源碰都不碰
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1 综合",
+                        programmes = EpgProgrammeList(
+                            listOf(
+                                EpgProgramme(
+                                    startAt = now - 30 * 60 * 1000L,
+                                    endAt = now + 30 * 60 * 1000L,
+                                    title = "缓存里的节目",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now)
+
+        val freshXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <tv>
+              <channel id="cctv1"><display-name>CCTV-1 综合</display-name></channel>
+              <programme start="${formatEpgTime(now - 1800_000)}" stop="${formatEpgTime(now + 1800_000)}" channel="cctv1"><title>新节目</title></programme>
+            </tv>
+        """.trimIndent()
+        val server = TestHttpServer(freshXml).apply { start() }
+        try {
+            val result = EpgRepository().getEpgList(
+                "http://127.0.0.1:${server.port}/epg.xml",
+                refreshTimeThreshold = 0,
+                backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+                forceRefresh = true,
+            )
+
+            assertEquals(1, result.size)
+            assertEquals("CCTV-1 综合", result.first().channel)
+            assertEquals("新节目", result.first().programmes.first().title)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun `getEpgList without forceRefresh keeps fresh cache without downloading`() = runBlocking {
+        // 上一条的对照：不强制刷新时，今天的缓存里有正在播的节目
+        // 就直接用缓存，主源地址写 discard 端口——一旦实现回退到
+        // 重新下载，立刻连接被拒抛错、用例失败；全程不联网
+        val now = System.currentTimeMillis()
+        val cacheFile = File(tempFolder.root, "epg.json")
+        cacheFile.writeText(
+            Json.encodeToString(
+                listOf(
+                    Epg(
+                        channel = "CCTV-1 综合",
+                        programmes = EpgProgrammeList(
+                            listOf(
+                                EpgProgramme(
+                                    startAt = now - 30 * 60 * 1000L,
+                                    endAt = now + 30 * 60 * 1000L,
+                                    title = "缓存里的节目",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        cacheFile.setLastModified(now)
+
+        val result = EpgRepository().getEpgList(
+            "http://127.0.0.1:9/epg.xml",
+            refreshTimeThreshold = 0,
+            backupXmlUrl = "http://127.0.0.1:9/backup.xml",
+        )
+
+        assertEquals(1, result.size)
+        assertEquals("CCTV-1 综合", result.first().channel)
+        assertEquals("缓存里的节目", result.first().programmes.first().title)
+    }
+
+    @Test
     fun `keepEpgChannelNormalized matches the old linear check`() {
         // 归一化集合版与原来线性扫的语义一致：大小写不敏感、id 或
         // 显示名任一对上就留、两个都对不上就丢、空集全留、缺 id 或

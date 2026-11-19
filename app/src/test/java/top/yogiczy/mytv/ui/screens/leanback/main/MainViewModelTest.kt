@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.ui.screens.leanback.main
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -107,5 +108,34 @@ class MainViewModelTest {
         )
         assertFalse(shouldRemoveFailedUrlFromHistory(IllegalStateException("下载响应体为空")))
         assertFalse(shouldRemoveFailedUrlFromHistory(HttpStatusException(500, "服务器返回 500")))
+    }
+
+    @Test
+    fun `foreground refresh is skipped within 15 minutes of last fetch`() {
+        // 刚拉过就切出去、几秒回来不重复拉：上次拉取在 1 分钟前，
+        // 回前台不触发
+        val now = System.currentTimeMillis()
+
+        assertFalse(shouldRefreshEpgOnForeground(now - 60_000L, now))
+        assertFalse(shouldRefreshEpgOnForeground(now, now))
+    }
+
+    @Test
+    fun `foreground refresh triggers after 15 minutes away`() {
+        // 离开超过 15 分钟再回来：服务端文件可能已更新、缓存里的
+        // 节目也可能已播完，重拉一次；从没成功拉过时也触发
+        val now = System.currentTimeMillis()
+
+        assertTrue(shouldRefreshEpgOnForeground(now - 16 * 60 * 1000L, now))
+        assertTrue(shouldRefreshEpgOnForeground(now - 60 * 60 * 1000L, now))
+        assertTrue(shouldRefreshEpgOnForeground(0L, now))
+    }
+
+    @Test
+    fun `auto refresh interval is one hour`() {
+        // 每小时重拉一次：间隔常量本身锁死，改短会多耗流量、改长
+        // 会让节目单停旧更久
+        assertEquals(60 * 60 * 1000L, EPG_AUTO_REFRESH_INTERVAL_MS)
+        assertEquals(15 * 60 * 1000L, EPG_FOREGROUND_REFRESH_MIN_INTERVAL_MS)
     }
 }
