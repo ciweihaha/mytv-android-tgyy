@@ -80,10 +80,17 @@ internal fun normalizeIptvUrlIdx(urlIdx: Int, urlCount: Int): Int =
  * 算：播放器对它不做内部重试（看门狗一到直接上报），冷启动第
  * 一次拉流慢（SCF 302 可达 10 秒 + 首个分片慢）很容易撞上
  * 30 秒看门狗，报错就挂死、用户只能退出重进——重调一次（那
- * 时网络已热）大多能播起来，正好就是用户手动做的事。其他错误
- * （解码、解析、DRM、CUTOFF）是直接判死刑或另有处理，重调同一
- * 条线大概率还是同一个错，不自动重调、直接显示错误。同一轮失
- * 败只重调一次（autoRetuneDone），再失败就显示错误，不循环。
+ * 时网络已热）大多能播起来，正好就是用户手动做的事。容器损坏
+ * （3001）也算：分片本身内容坏了（CDN 坏窗口里给的 TS 分片
+ * HTTP 200、长度完整、但 PES 层损坏，播放器一个轨道都解析不
+ * 出来），不是地址错、不是格式不支持——重调前会重解析拿新节
+ * 目单，新分片大概率已干净，坏窗口是分钟级的；重调一次还坏
+ * 就显示错误。其他错误（解码、清单损坏、DRM、CUTOFF）是直接
+ * 判死刑或另有处理，重调同一条线大概率还是同一个错，不自动重
+ * 调、直接显示错误：清单损坏（3002）是列表本身坏了，重拉同一
+ * 份源大概率还是坏清单；容器不支持（3003）播放器层已试过三种
+ * 容器。同一轮失败只重调一次（autoRetuneDone），再失败就显示
+ * 错误，不循环。
  * 顶层函数方便单元测试直接调用。
  */
 internal fun shouldAutoRetuneAfterExhaustion(errorCode: Int?): Boolean =
@@ -91,6 +98,7 @@ internal fun shouldAutoRetuneAfterExhaustion(errorCode: Int?): Boolean =
         errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
         errorCode == Media3PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
         errorCode == Media3PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW ||
+        errorCode == Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
         errorCode == LeanbackVideoPlayer.PlaybackException.LOAD_TIMEOUT.errorCode
 
 /**
@@ -431,9 +439,9 @@ class LeanbackMainContentState(
      * 当前线路失败：有下一条就切过去，失败的域名从可播放记忆里删掉。
      * 末条失败时，报错那路播放器自己已报了错误，这里只删记忆；断流
      * 放弃那路（reportErrorIfLast）要自己报一个，否则界面一直停在
-     * 冻住的画面上、也不切台。末条失败且是重试型错误耗尽（瞬时网络错/位置落后）或加载超时时，
-     * 等 5 秒自动重调同一频道、模拟手动切台——只有一条
-     * 线路的台手动切台重拉就能恢复；只重调一次，再失败就显示错误
+     * 冻住的画面上、也不切台。末条失败且是重试型错误耗尽（瞬时网络错/位置落后）、
+     * 容器损坏（3001）或加载超时时，等 5 秒自动重调同一频道、模拟手动切台——
+     * 只有一条线路的台手动切台重拉就能恢复；只重调一次，再失败就显示错误
      */
     private fun handleCurrentUrlFailed(reportErrorIfLast: Boolean = false) {
         // 先记下失败的下标：changeCurrentIptv 切线路后下标已变，

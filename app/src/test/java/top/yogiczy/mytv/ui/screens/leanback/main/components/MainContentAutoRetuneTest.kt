@@ -70,6 +70,30 @@ class MainContentAutoRetuneTest {
     }
 
     @Test
+    fun `容器损坏 3001 耗尽后自动重调——坏窗口分片损坏、重解析拿新节目单`() {
+        // 2026-11-21 青海卫视：CDN 坏窗口里分片 HTTP 200、长度完整、
+        // 但 PES 层损坏，播放器一个轨道都解析不出来、报 3001；列表本身
+        // 没坏，重调前重解析拿新节目单、新分片大概率已干净；重调一次
+        // 还坏就显示错误，不循环。码值锁死 3001：就是平板 logcat 里
+        // 那个 ERROR_CODE_PARSING_CONTAINER_MALFORMED(3001)
+        assertEquals(3001, Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED)
+        assertTrue(
+            shouldAutoRetuneAfterExhaustion(
+                Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            ),
+        )
+    }
+
+    @Test
+    fun `解析错不自动重调——PARSING_CONTAINER_UNSUPPORTED 播放器层已试过三种容器`() {
+        assertFalse(
+            shouldAutoRetuneAfterExhaustion(
+                Media3PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            ),
+        )
+    }
+
+    @Test
     fun `加载超时耗尽后自动重调——冷启动第一次拉流慢撞上看门狗`() {
         // 看门狗 30 秒一到直接上报，播放器不做内部重试；冷启动第
         // 一次拉流慢（SCF 302 可达 10 秒 + 首个分片慢）很容易撞
