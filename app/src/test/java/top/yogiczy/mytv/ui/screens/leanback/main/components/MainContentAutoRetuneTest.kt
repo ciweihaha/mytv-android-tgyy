@@ -128,6 +128,91 @@ class MainContentAutoRetuneTest {
             LeanbackMainContentState.AUTO_RETUNE_DELAY_MS <=
                 LeanbackMainContentState.AUTO_RETUNE_MAX_WAIT_MS,
         )
+        // 重解析的等待就是总上限减去固定等待：两段都封顶，总等待才
+        // 真的不超过 10 秒
+        assertEquals(5000L, LeanbackMainContentState.AUTO_RETUNE_RESOLVE_TIMEOUT_MS)
+        assertEquals(
+            LeanbackMainContentState.AUTO_RETUNE_MAX_WAIT_MS,
+            LeanbackMainContentState.AUTO_RETUNE_DELAY_MS +
+                LeanbackMainContentState.AUTO_RETUNE_RESOLVE_TIMEOUT_MS,
+        )
+    }
+
+    // ---- 重解析带超时：等不到就用旧地址重调，不挂两分钟 ----
+
+    @Test
+    fun `重解析超时返回 null——等不到就用旧地址重调`() = runBlocking {
+        val startedAt = System.currentTimeMillis()
+        val result = resolveFreshChannelUrlBounded(
+            this,
+            { _, _, _ ->
+                delay(10_000)
+                "https://scf.example/new.m3u8"
+            },
+            Iptv(name = "河南卫视", urlList = listOf("https://old.example/a.m3u8")),
+            0,
+            null,
+            timeoutMs = 100L,
+        )
+        assertNull(result)
+        // 超时就截断等待：不会等满 10 秒才返回
+        assertTrue(System.currentTimeMillis() - startedAt < 5000L)
+    }
+
+    @Test
+    fun `重解析正常返回新地址`() = runBlocking {
+        assertEquals(
+            "https://scf.example/new.m3u8",
+            resolveFreshChannelUrlBounded(
+                this,
+                { _, _, _ -> "https://scf.example/new.m3u8" },
+                Iptv(name = "河南卫视", urlList = listOf("https://old.example/a.m3u8")),
+                0,
+                null,
+                timeoutMs = 1000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `重解析普通异常返回 null——超时外的异常也走旧地址`() = runBlocking {
+        assertNull(
+            resolveFreshChannelUrlBounded(
+                this,
+                { _, _, _ -> throw RuntimeException("拉取失败") },
+                Iptv(name = "河南卫视", urlList = listOf("https://old.example/a.m3u8")),
+                0,
+                null,
+                timeoutMs = 1000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `重解析取消原样抛出——父任务取消不吞掉`() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val deferred = async {
+            resolveFreshChannelUrlBounded(
+                this,
+                { _, _, _ ->
+                    entered.complete(Unit)
+                    delay(Long.MAX_VALUE)
+                    "https://scf.example/new.m3u8"
+                },
+                Iptv(name = "河南卫视", urlList = listOf("https://old.example/a.m3u8")),
+                0,
+                null,
+                timeoutMs = 60_000L,
+            )
+        }
+        entered.await()
+        deferred.cancel()
+        try {
+            deferred.await()
+            fail("取消信号被吞了：应抛 CancellationException 而不是返回 null")
+        } catch (_: CancellationException) {
+            // 预期：原样抛出
+        }
     }
 
     // ---- 重解析：旧链接过期 → 新列表里找同台同线的新地址 ----

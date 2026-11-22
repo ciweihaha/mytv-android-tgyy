@@ -12,8 +12,10 @@ import androidx.media3.common.PlaybackException as Media3PlaybackException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import top.yogiczy.mytv.data.entities.Iptv
 import top.yogiczy.mytv.data.entities.IptvGroupList
 import top.yogiczy.mytv.data.entities.IptvGroupList.Companion.iptvAt
@@ -136,6 +138,46 @@ internal fun retuneUrl(currentUrl: String, freshUrl: String?): String =
     freshUrl?.takeIf { it.isNotBlank() } ?: currentUrl
 
 /**
+ * 重调前重解析频道地址拿新链接（带超时上限）：重解析是整份直播源
+ * 重拉重解析，网络差时共享 OkHttp 客户端的 callTimeout（120 秒）
+ * 才会兜底——等 5 秒 + 拉 120 秒，“正在重连…”能挂两分钟，重调
+ * 名存实亡。重解析放到 scope 的 async 里单独跑，主路只等
+ * AUTO_RETUNE_RESOLVE_TIMEOUT_MS；超时就按解析失败处理、用旧
+ * 地址重调，不再等。超时只截断等待：OkHttp 的阻塞拉取不可中断，
+ * 超时那路它在后台跑完即丢弃，不阻塞重调（一次调用、最长 120 秒）。
+ * 父任务取消（切台/退出）时原样抛出，不吞取消信号；普通异常返回
+ * null，走旧地址重调。async 放在传入的 scope 里、与重调任务同级：
+ * 超时后主路直接返回，不等后台的阻塞拉取跑完；异常在 async 内部
+ * 就地转 null——async 子任务抛错会取消父作用域，放在外面 catch
+ * 拦不住。顶层 suspend 函数，单测传假实现替换。
+ */
+internal suspend fun resolveFreshChannelUrlBounded(
+    scope: CoroutineScope,
+    resolveFreshUrl: suspend (Iptv, Int, String?) -> String?,
+    iptv: Iptv,
+    urlIdx: Int,
+    groupName: String?,
+    timeoutMs: Long = LeanbackMainContentState.AUTO_RETUNE_RESOLVE_TIMEOUT_MS,
+): String? {
+    val deferred = scope.async {
+        try {
+            resolveFreshUrl(iptv, urlIdx, groupName)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+    }
+    return try {
+        withTimeoutOrNull(timeoutMs) { deferred.await() }
+    } catch (e: CancellationException) {
+        throw e
+    } finally {
+        deferred.cancel()
+    }
+}
+
+/**
  * 默认的重解析：重新拉一次直播源（绕过 1 小时文件缓存，cacheTime = 0
  * 强制刷新）再解析，在新列表里找当前频道这条线的地址。groupName 是
  * 当前频道在旧列表里的分组名，新列表里先在同组找、组名没了再全表找；
@@ -201,14 +243,24 @@ class LeanbackMainContentState(
         /**
          * 重试耗尽后自动重调同一频道的等待：5 秒，给上游票据轮换留出
          * 恢复时间；只排队一次、总等待不超过 AUTO_RETUNE_MAX_WAIT_MS
+         * （重解析那段另有 AUTO_RETUNE_RESOLVE_TIMEOUT_MS 封顶，
+         * 见 resolveFreshChannelUrlBounded）
          */
         const val AUTO_RETUNE_DELAY_MS = 5000L
 
         /**
-         * 自动重调总等待上限：10 秒。单次等待 5 秒即满足上限，不叠加、
-         * 不重复排队；autoRetuneDone 保证同一轮失败最多重调一次
+         * 自动重调总等待上限：10 秒。单次等待 5 秒 + 重解析最多 5 秒，
+         * 两段都封顶才真正不超过上限；重解析超时按解析失败处理、
+         * 用旧地址重调
          */
         const val AUTO_RETUNE_MAX_WAIT_MS = 10000L
+
+        /**
+         * 自动重调里重解析的等待上限：总上限减去固定等待（10 秒 - 5 秒），
+         * 超过就按解析失败处理、用旧地址重调，不再等
+         */
+        const val AUTO_RETUNE_RESOLVE_TIMEOUT_MS =
+            AUTO_RETUNE_MAX_WAIT_MS - AUTO_RETUNE_DELAY_MS
 
         /**
          * 可播域名记忆攒够多少次变化才刷盘（P8）：连切台时每次都读-改-写
@@ -401,19 +453,19 @@ class LeanbackMainContentState(
             // （河南卫视这类分片签名约 5 分钟就失效，之后分片时而
             // 404 时而 200），一直用旧链接重试 5 次都白试；重新拉
             // 一次直播源再解析，拿到新地址再播。解析不到（拉取失败、
-            // 频道没了）就用旧地址重调一次，再失败正常上报、不循环
+            // 频道没了、超时）就用旧地址重调一次，再失败正常上报、不循环
             val oldUrl = _currentIptv.urlList.getOrNull(urlIdx).orEmpty()
             // 当前频道在旧列表里的分组：两个分组里常有同名不同地址的台，
             // 重解析只在同组里找，找不到组名（源改了分组名、或频道已不在
             // 旧列表里）才全表找；iptvGroupIdx 找不到回 -1，组名取 null
             val groupName = iptvGroupList.getOrNull(iptvGroupList.iptvGroupIdx(iptv))?.name
-            val freshUrl = try {
-                resolveFreshUrl(iptv, urlIdx, groupName)
-            } catch (e: Exception) {
-                // 取消信号原样抛出：解析中退出界面时任务直接死，别吞掉继续重调
-                if (e is CancellationException) throw e
-                null
-            }
+            val freshUrl = resolveFreshChannelUrlBounded(
+                coroutineScope,
+                resolveFreshUrl,
+                iptv,
+                urlIdx,
+                groupName,
+            )
             // 解析也要时间，解析完再认一次台：解析中切走了就不动
             if (iptv != _currentIptv || urlIdx != _currentIptvUrlIdx) {
                 videoPlayerState.isReconnecting = false
