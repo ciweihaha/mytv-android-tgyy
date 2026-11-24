@@ -74,7 +74,7 @@ interface GitReleaseParser {
                     .trimStart { !it.isDigit() },
                 // browser_download_url 为 JSON null 时不能用 content：
                 // JsonNull 也是 JsonPrimitive，content 是字面量 "null"，
-                // 拼出来的下载地址会是 "https://mirror.ghproxy.com/null"，
+                // 拼出来的下载地址会是 "https://ghfast.top/null"，
                 // 下载失败时只报网络错、根因很难查；contentOrNull 在
                 // null 时给 null，走下面预期的"没有下载地址"报错（和
                 // body 那行的写法一致）

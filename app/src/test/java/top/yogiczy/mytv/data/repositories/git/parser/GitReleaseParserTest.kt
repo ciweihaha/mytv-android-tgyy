@@ -39,7 +39,7 @@ class GithubGitReleaseParserTest {
 
         assertEquals("1.4.4", result.version)
         assertEquals(
-            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+            "https://ghfast.top/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
             result.downloadUrl,
         )
         assertEquals("## 更新内容\n- 修复已知问题", result.description)
@@ -139,7 +139,7 @@ class GithubGitReleaseParserTest {
         val result = parser.parse(data)
 
         assertEquals(
-            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+            "https://ghfast.top/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
             result.downloadUrl,
         )
         assertEquals(25800000L, result.downloadSize)
@@ -173,7 +173,7 @@ class GithubGitReleaseParserTest {
         val result = parser.parse(data)
 
         assertEquals(
-            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.APK",
+            "https://ghfast.top/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.APK",
             result.downloadUrl,
         )
         assertEquals(25800000L, result.downloadSize)
@@ -182,7 +182,7 @@ class GithubGitReleaseParserTest {
     @Test
     fun `null browser_download_url fails with a clear error instead of a bogus null url`() {
         // JsonNull 也是 JsonPrimitive，content 是字面量 "null"：直接取
-        // content 会拼出 "https://mirror.ghproxy.com/null" 当下载地址，
+        // content 会拼出 "https://ghfast.top/null" 当下载地址，
         // 下载失败时只报网络错；contentOrNull 才能走到预期的报错
         val data = """
             {
@@ -230,7 +230,7 @@ class GithubGitReleaseParserTest {
         val result = parser.parse(data)
 
         assertEquals(
-            "https://mirror.ghproxy.com/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
+            "https://ghfast.top/https://github.com/yaoxieyoulei/mytv-android/releases/download/v1.4.4/mytv-1.4.4.apk",
             result.downloadUrl,
         )
     }
@@ -493,7 +493,7 @@ class GitReleaseParserSelectTest {
 
         assertEquals("2.2.9", result.version)
         assertEquals(
-            "https://mirror.ghproxy.com/https://github.com/ciweihaha/mytv-android-tgyy/releases/download/v2.2.9/mytv-android-2.2.9.apk",
+            "https://ghfast.top/https://github.com/ciweihaha/mytv-android-tgyy/releases/download/v2.2.9/mytv-android-2.2.9.apk",
             result.downloadUrl,
         )
         assertEquals(6440504L, result.downloadSize)

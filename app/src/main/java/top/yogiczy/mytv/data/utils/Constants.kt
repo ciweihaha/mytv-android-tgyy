@@ -51,9 +51,14 @@ object Constants {
         "https://api.github.com/repos/ciweihaha/mytv-android-tgyy/releases/latest"
 
     /**
-     * GitHub加速代理地址
+     * GitHub加速代理地址：国内网络直连 GitHub 很慢甚至打不开，安装包
+     * 下载先走这个代理，失败再回落 GitHub 直链（见 UpdateViewModel）。
+     * 原先用 mirror.ghproxy.com，2026-11-19 已确认不通、本轮再测仍
+     * 连不上（curl 直接 000）；ghfast.top 是已知的国内快镜像（云电脑
+     * 在用），2026-11-24 实测可下到与 Release 完全一致的安装包
+     * （大小与 SHA-256 均对得上），改走它
      */
-    const val GITHUB_PROXY = "https://mirror.ghproxy.com/"
+    const val GITHUB_PROXY = "https://ghfast.top/"
 
     /**
      * HTTP请求重试次数
